@@ -1,0 +1,310 @@
+---
+title: '千问图片生成示例'
+description: '使用千问 API 进行图片生成和编辑的完整示例代码'
+---
+
+# 千问图片生成示例
+
+以下示例展示如何使用千问 API 生成高质量的图片和进行图片编辑。
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
+    "model": "qwen-image-plus",
+    "size": "1328*1328",
+    "n": 1,
+    "response_format": "url",
+    "qwen": {
+      "prompt_extend": true,
+      "negative_prompt": "低分辨率、错误、最差质量"
+    }
+  }'
+```
+
+```python Python
+import requests
+import json
+import base64
+from PIL import Image
+from io import BytesIO
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def generate_image_qwen(prompt, model="qwen-image-plus", size="1328*1328",
+                       prompt_extend=True, negative_prompt=None, response_format="url"):
+    """
+    使用千问API生成图片
+    
+    Args:
+        prompt: 图片描述文本
+        model: 模型名称，可选qwen-image-plus或qwen-image
+        size: 图片尺寸
+        prompt_extend: 是否开启智能改写
+        negative_prompt: 反向提示词
+        response_format: 返回格式，url或b64_json
+    """
+    url = f"{BASE_URL}/images/generations"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "prompt": prompt,
+        "model": model,
+        "size": size,
+        "response_format": response_format,
+        "qwen": {
+            "prompt_extend": prompt_extend
+        }
+    }
+    
+    if negative_prompt:
+        data["qwen"]["negative_prompt"] = negative_prompt
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        images = []
+        
+        # 显示响应信息
+        if 'request_id' in result:
+            print(f"请求ID: {result['request_id']}")
+        if 'usage' in result:
+            usage = result['usage']
+            print(f"生成信息: 图片数量={usage.get('image_count')}, 尺寸={usage.get('width')}x{usage.get('height')}")
+        
+        # 处理生成的图片
+        if 'output' in result and 'choices' in result['output']:
+            for choice in result['output']['choices']:
+                if choice.get('message') and choice['message'].get('content'):
+                    for content in choice['message']['content']:
+                        if 'image' in content:
+                            print(f"图片URL: {content['image']}")
+                            images.append(content['image'])
+        
+        return images
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 基础使用示例
+if __name__ == "__main__":
+    prompt = "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格"
+    images = generate_image_qwen(
+        prompt=prompt,
+        negative_prompt="低分辨率、错误、最差质量、低质量"
+    )
+    
+    if images:
+        print(f"成功生成 {len(images)} 张图片")
+```
+
+```python Python - 高级功能
+import requests
+import json
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def generate_image_qwen_advanced(prompt, **kwargs):
+    """
+    千问图片生成高级功能示例
+    
+    支持的高级参数：
+    - prompt_extend: 智能改写功能
+    - negative_prompt: 反向提示词
+    - seed: 随机数种子
+    - watermark: 水印设置
+    """
+    url = f"{BASE_URL}/images/generations"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    # 基础参数
+    data = {
+        "prompt": prompt,
+        "model": kwargs.get("model", "qwen-image-plus"),
+        "size": kwargs.get("size", "1328*1328"),
+        "response_format": kwargs.get("response_format", "url")
+    }
+    
+    # 千问专用参数
+    qwen_params = {}
+    if kwargs.get("prompt_extend") is not None:
+        qwen_params["prompt_extend"] = kwargs["prompt_extend"]
+    if kwargs.get("negative_prompt"):
+        qwen_params["negative_prompt"] = kwargs["negative_prompt"]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    # 其他参数
+    if kwargs.get("seed"):
+        data["seed"] = kwargs["seed"]
+    if kwargs.get("watermark") is not None:
+        data["watermark"] = kwargs["watermark"]
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        print(f"请求ID: {result.get('request_id')}")
+        
+        if result.get('usage'):
+            usage = result['usage']
+            print(f"生成信息: 图片数量={usage.get('image_count')}, 尺寸={usage.get('width')}x{usage.get('height')}")
+        
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 高级功能使用示例
+if __name__ == "__main__":
+    # 1. 精确控制生成
+    print("=== 精确控制生成示例 ===")
+    result = generate_image_qwen_advanced(
+        prompt="可爱的动物园场景，小熊猫在竹林中嬉戏",
+        model="qwen-image-plus",
+        size="1664*928",  # 16:9 宽屏
+        prompt_extend=True,
+        negative_prompt="模糊、低质量、变形、噪点",
+        seed=12345,
+        watermark=False
+    )
+    
+    # 2. 高质量艺术创作
+    print("\n=== 高质量艺术创作示例 ===")
+    result = generate_image_qwen_advanced(
+        prompt="中式古典园林，小桥流水，亭台楼阁，春意盎然，工笔画风格",
+        model="qwen-image-plus",
+        size="1140*1472",  # 3:4 竖版
+        prompt_extend=True,
+        negative_prompt="西式建筑、现代元素、工业风格"
+    )
+```
+
+</CodeGroup>
+
+## 重要提示
+
+<Warning>
+**千问图片生成模型限制**：
+- 目前不支持流式输出
+- `n` 参数限制：
+  - `qwen-image-edit-plus`、`qwen-image-edit-plus-2025-10-30`：可选择输出1-6张图片
+  - `qwen-image-edit`：仅支持输出1张图片
+  - 其他模型（如`qwen-image-plus`等）：固定输出1张图片
+- 随机数种子范围：[0,2147483647]
+- **尺寸限制**：只支持特定尺寸，必须使用星号(*)作为分隔符，不能使用x
+</Warning>
+
+<Info>
+**千问专用功能**：
+- `prompt_extend` 智能改写功能可显著提升生成质量，建议开启
+- `negative_prompt` 反向提示词有效控制不想要的元素
+- 支持多种分辨率比例，适应不同应用场景
+</Info>
+
+## 支持的参数
+
+### 基础参数
+- **prompt**: 图片描述文本（必需）
+- **model**: 模型名称，推荐 `qwen-image-plus`（更优惠），也支持 `qwen-image`
+- **n**: 输出图像的数量，默认值为1
+  - `qwen-image-edit-plus`、`qwen-image-edit-plus-2025-10-30`：可选择输出1-6张图片
+  - `qwen-image-edit`：仅支持输出1张图片
+  - 其他模型：固定输出1张图片
+- **size**: 图片尺寸，**必须精确匹配**以下允许的尺寸：
+  - `1664*928` (16:9) - 注意使用星号分隔符
+  - `1472*1140` (4:3) - 注意使用星号分隔符
+  - `1328*1328` (1:1，默认) - 注意使用星号分隔符
+  - `1140*1472` (3:4) - 注意使用星号分隔符
+  - `928*1664` (9:16) - 注意使用星号分隔符
+- **response_format**: 返回格式（`url` 或 `b64_json`）
+
+### 千问专用参数
+- **qwen.prompt_extend**: 是否开启智能改写，默认 `true`
+- **qwen.negative_prompt**: 反向提示词，长度不超过500字符
+
+### 其他参数
+- **seed**: 随机数种子，范围[0,2147483647]
+- **watermark**: 是否添加水印，默认 `false`
+
+## 图片编辑示例
+
+千问支持基于现有图片进行编辑和多图融合：
+
+<CodeGroup>
+
+```bash cURL - 图片编辑示例
+curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "prompt": "生成一张符合深度图的图像，遵循以下描述：一辆红色的破旧的自行车停在一条泥泞的小路上，背景是茂密的原始森林",
+    "model": "qwen-image-edit-plus",
+    "size": "1328*1328",
+    "image": [
+      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/fpakfo/image36.webp"
+    ],
+    "n": 1,
+    "response_format": "url",
+    "qwen": {
+      "prompt_extend": true,
+      "negative_prompt": "低分辨率、错误、最差质量",
+      "watermark": false
+    }
+  }'
+```
+
+```bash cURL - 多图融合示例
+curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "prompt": "图1中的女生穿着图2中的黑色裙子按图3的姿势坐下",
+    "model": "qwen-image-edit-plus",
+    "image": [
+      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/thtclx/input1.png",
+      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/iclsnx/input2.png",
+      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/gborgw/input3.png"
+    ],
+    "size": "1328*1328",
+    "watermark": true
+  }'
+```
+
+</CodeGroup>
+
+## 响应格式
+
+千问API的响应格式如下：
+
+```json
+{
+  "created": 1764820175,
+  "data": [
+    {
+      "url": "https://dashscope-result-sh.oss-cn-shanghai.aliyuncs.com/7d/e2/20251204/76c577f4/a56bad48-aa1a-4fba-a90c-a449089df5cf-1.png?Expires=1765425974&OSSAccessKeyId=LTAI5tKPD3TMqf2Lna1fASuh&Signature=kdS4TW23LsCOdFf2tqFCIYNQGMg%3D"
+    }
+  ],
+  "usage": {
+    "total_tokens": 1,
+    "output_tokens": 1,
+    "input_tokens_details": {}
+  }
+}
+```

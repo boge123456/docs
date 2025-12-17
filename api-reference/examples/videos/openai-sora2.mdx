@@ -1,0 +1,991 @@
+---
+title: 'Sora-2 视频生成示例'
+description: '使用 OpenAI Sora-2 API 进行视频生成的完整示例代码'
+---
+
+# Sora-2 视频生成示例
+
+以下示例展示如何使用OpenAI Sora-2模型生成高质量的视频内容。
+
+## 快速开始（不带参考帧）
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/videos" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: multipart/form-data" \
+  -F "prompt=有一个飞机在缓缓飞过" \
+  -F "model=sora-2-2025-10-06" \
+  -F "size=1280x720" \
+  -F "seconds=8"
+```
+
+```python Python
+import requests
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def generate_video(prompt, model="sora-2-2025-10-06", size="1280x720", seconds="8"):
+    """
+    生成视频（不带参考帧）
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    files = {
+        "prompt": (None, prompt),
+        "model": (None, model),
+        "size": (None, size),
+        "seconds": (None, seconds)
+    }
+
+    response = requests.post(url, headers=headers, files=files)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"视频生成任务已启动")
+        print(f"任务ID: {result.get('id', 'N/A')}")
+        print(f"状态: {result.get('status', 'N/A')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+def check_video_status(video_id):
+    """
+    检查视频生成状态
+    """
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"查询失败: {response.status_code} - {response.text}")
+        return None
+
+def download_video(video_id, output_path="generated_video.mp4"):
+    """
+    下载生成的视频
+    """
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+        print(f"视频已保存: {output_path}")
+        return True
+    else:
+        print(f"下载失败: {response.status_code} - {response.text}")
+        return False
+
+def generate_video_complete(prompt, model="sora-2-2025-10-06", size="1280x720", seconds="8", max_wait_time=300):
+    """
+    完整的视频生成流程：生成 -> 等待 -> 下载
+    """
+    print("开始生成视频...")
+
+    # 1. 启动视频生成
+    result = generate_video(prompt, model, size, seconds)
+    if not result:
+        return None
+
+    video_id = result.get('id')
+    if not video_id:
+        print("未获取到视频ID")
+        return None
+
+    # 2. 等待视频生成完成
+    print("正在生成视频，请耐心等待...")
+    start_time = time.time()
+
+    while time.time() - start_time < max_wait_time:
+        status_info = check_video_status(video_id)
+        if not status_info:
+            break
+
+        status = status_info.get('status')
+        print(f"当前状态: {status}")
+
+        if status == 'completed':
+            print("视频生成完成！")
+            break
+        elif status == 'failed':
+            print(f"视频生成失败: {status_info.get('error', '未知错误')}")
+            return None
+
+        time.sleep(10)  # 等待10秒后再次检查
+    else:
+        print("视频生成超时")
+        return None
+
+    # 3. 下载视频
+    output_path = f"sora2_video_{video_id}.mp4"
+    if download_video(video_id, output_path):
+        return output_path
+
+    return None
+
+# 使用示例
+if __name__ == "__main__":
+    video_path = generate_video_complete("有一个飞机在缓缓飞过")
+    if video_path:
+        print(f"视频生成成功: {video_path}")
+    else:
+        print("视频生成失败")
+```
+
+```go Go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"time"
+)
+
+const (
+	APIKey  = "<API-KEY>"
+	BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type VideoResponse struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+func generateVideo(prompt, model, size, seconds string) (*VideoResponse, error) {
+	url := fmt.Sprintf("%s/videos", BaseURL)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	writer.WriteField("prompt", prompt)
+	writer.WriteField("model", model)
+	writer.WriteField("size", size)
+	writer.WriteField("seconds", seconds)
+
+	writer.Close()
+
+	req, err := http.NewRequest("POST", url, &body)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %v", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+	}
+
+	var result VideoResponse
+	if err := json.Unmarshal(responseBody, &result); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	fmt.Printf("视频生成任务已启动\n")
+	fmt.Printf("任务ID: %s\n", result.ID)
+	fmt.Printf("状态: %s\n", result.Status)
+
+	return &result, nil
+}
+
+func checkVideoStatus(videoID string) (*VideoResponse, error) {
+	url := fmt.Sprintf("%s/videos/%s", BaseURL, videoID)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %v", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+	}
+
+	var result VideoResponse
+	if err := json.Unmarshal(responseBody, &result); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	return &result, nil
+}
+
+func downloadVideo(videoID, outputPath string) error {
+	url := fmt.Sprintf("%s/videos/%s/content", BaseURL, videoID)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("创建请求失败: %v", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("下载失败: %d", resp.StatusCode)
+	}
+
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("创建文件失败: %v", err)
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return fmt.Errorf("写入文件失败: %v", err)
+	}
+
+	fmt.Printf("视频已保存: %s\n", outputPath)
+	return nil
+}
+
+func generateVideoComplete(prompt, model, size, seconds string, maxWaitTime time.Duration) (string, error) {
+	fmt.Println("开始生成视频...")
+
+	// 1. 启动视频生成
+	result, err := generateVideo(prompt, model, size, seconds)
+	if err != nil {
+		return "", fmt.Errorf("启动视频生成失败: %v", err)
+	}
+
+	videoID := result.ID
+	if videoID == "" {
+		return "", fmt.Errorf("未获取到视频ID")
+	}
+
+	// 2. 等待视频生成完成
+	fmt.Println("正在生成视频，请耐心等待...")
+	startTime := time.Now()
+
+	for time.Since(startTime) < maxWaitTime {
+		statusInfo, err := checkVideoStatus(videoID)
+		if err != nil {
+			return "", fmt.Errorf("查询状态失败: %v", err)
+		}
+
+		fmt.Printf("当前状态: %s\n", statusInfo.Status)
+
+		switch statusInfo.Status {
+		case "completed":
+			fmt.Println("视频生成完成！")
+			goto download
+		case "failed":
+			return "", fmt.Errorf("视频生成失败: %s", statusInfo.Error)
+		}
+
+		time.Sleep(10 * time.Second)
+	}
+
+	return "", fmt.Errorf("视频生成超时")
+
+download:
+	// 3. 下载视频
+	outputPath := fmt.Sprintf("sora2_video_%s.mp4", videoID)
+	if err := downloadVideo(videoID, outputPath); err != nil {
+		return "", fmt.Errorf("下载视频失败: %v", err)
+	}
+
+	return outputPath, nil
+}
+
+func main() {
+	videoPath, err := generateVideoComplete("有一个飞机在缓缓飞过", "sora-2-2025-10-06", "1280x720", "8", 5*time.Minute)
+	if err != nil {
+		fmt.Printf("视频生成失败: %v\n", err)
+		return
+	}
+	fmt.Printf("视频生成成功: %s\n", videoPath)
+}
+```
+
+</CodeGroup>
+
+## 带参考帧生成
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: multipart/form-data' \
+  --form model=sora-2-2025-10-06 \
+  --form 'prompt=一只可爱的小猫在花园里玩耍' \
+  --form input_reference=@example-file
+```
+
+```python Python
+import requests
+import time
+import json
+from pathlib import Path
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def generate_video(prompt, model="sora-2-2025-10-06", reference_file=None):
+    """
+    生成视频
+    
+    Args:
+        prompt: 视频描述文本
+        model: 使用的模型名称
+        reference_file: 参考文件路径（可选）
+    
+    Returns:
+        视频生成任务的响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    # 构建 multipart/form-data 表单数据
+    files = {
+        "model": (None, model),
+        "prompt": (None, prompt)
+    }
+
+    if reference_file and Path(reference_file).exists():
+        files["input_reference"] = open(reference_file, "rb")
+
+    try:
+        response = requests.post(url, headers=headers, files=files)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"视频生成任务已启动")
+            print(f"任务ID: {result.get('id', 'N/A')}")
+            print(f"状态: {result.get('status', 'N/A')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+    finally:
+        # 关闭文件
+        for file in files.values():
+            if hasattr(file, 'close'):
+                file.close()
+
+def check_video_status(video_id):
+    """
+    检查视频生成状态
+    
+    Args:
+        video_id: 视频任务ID
+        
+    Returns:
+        任务状态信息
+    """
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"查询失败: {response.status_code} - {response.text}")
+        return None
+
+def download_video(video_id, output_path="generated_video.mp4"):
+    """
+    下载生成的视频
+    
+    Args:
+        video_id: 视频任务ID
+        output_path: 输出文件路径
+        
+    Returns:
+        是否下载成功
+    """
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+        print(f"视频已保存: {output_path}")
+        return True
+    else:
+        print(f"下载失败: {response.status_code} - {response.text}")
+        return False
+
+def generate_video_complete(prompt, reference_file=None, max_wait_time=300):
+    """
+    完整的视频生成流程：生成 -> 等待 -> 下载
+    
+    Args:
+        prompt: 视频描述文本
+        reference_file: 参考文件路径（可选）
+        max_wait_time: 最大等待时间（秒）
+        
+    Returns:
+        生成的视频文件路径
+    """
+    print("开始生成视频...")
+    
+    # 1. 启动视频生成
+    result = generate_video(prompt, reference_file=reference_file)
+    if not result:
+        return None
+    
+    video_id = result.get('id')
+    if not video_id:
+        print("未获取到视频ID")
+        return None
+    
+    # 2. 等待视频生成完成
+    print("正在生成视频，请耐心等待...")
+    start_time = time.time()
+    
+    while time.time() - start_time < max_wait_time:
+        status_info = check_video_status(video_id)
+        if not status_info:
+            break
+            
+        status = status_info.get('status')
+        print(f"当前状态: {status}")
+        
+        if status == 'completed':
+            print("视频生成完成！")
+            break
+        elif status == 'failed':
+            print(f"视频生成失败: {status_info.get('error', '未知错误')}")
+            return None
+        
+        time.sleep(10)  # 等待10秒后再次检查
+    else:
+        print("视频生成超时")
+        return None
+    
+    # 3. 下载视频
+    output_path = f"sora2_video_{video_id}.mp4"
+    if download_video(video_id, output_path):
+        return output_path
+    
+    return None
+
+# 使用示例
+if __name__ == "__main__":
+    # 示例1: 基础文本到视频生成
+    prompt = "一只可爱的小猫在花园里玩耍，阳光明媚，高清画质"
+    
+    print("=== 基础视频生成示例 ===")
+    video_path = generate_video_complete(prompt)
+    
+    if video_path:
+        print(f"视频生成成功: {video_path}")
+    else:
+        print("视频生成失败")
+    
+    print("\n" + "="*50 + "\n")
+    
+    # 示例2: 带参考文件的视频生成
+    print("=== 带参考文件的视频生成示例 ===")
+    reference_prompt = "根据参考图片生成一段动态视频"
+    reference_file = "reference_image.jpg"  # 请确保文件存在
+    
+    # 检查参考文件是否存在
+    if Path(reference_file).exists():
+        video_path_with_ref = generate_video_complete(
+            reference_prompt, 
+            reference_file=reference_file
+        )
+        
+        if video_path_with_ref:
+            print(f"带参考文件的视频生成成功: {video_path_with_ref}")
+        else:
+            print("带参考文件的视频生成失败")
+    else:
+        print(f"参考文件不存在: {reference_file}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+const path = require('path');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function generateVideo(prompt, model = 'sora-2-2025-10-06', referenceFile = null) {
+    const url = `${BASE_URL}/videos`;
+    
+    const formData = new FormData();
+    formData.append('model', model);
+    formData.append('prompt', prompt);
+    
+    if (referenceFile && fs.existsSync(referenceFile)) {
+        formData.append('input_reference', fs.createReadStream(referenceFile));
+    }
+    
+    try {
+        const response = await axios.post(url, formData, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                ...formData.getHeaders()
+            }
+        });
+        
+        console.log('视频生成任务已启动');
+        console.log(`任务ID: ${response.data.id || 'N/A'}`);
+        console.log(`状态: ${response.data.status || 'N/A'}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('视频生成失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+async function checkVideoStatus(videoId) {
+    const url = `${BASE_URL}/videos/${videoId}`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            }
+        });
+        
+        return response.data;
+    } catch (error) {
+        console.error('状态查询失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+async function downloadVideo(videoId, outputPath = 'generated_video.mp4') {
+    const url = `${BASE_URL}/videos/${videoId}/content`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            responseType: 'stream'
+        });
+        
+        const writer = fs.createWriteStream(outputPath);
+        response.data.pipe(writer);
+        
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => {
+                console.log(`视频已保存: ${outputPath}`);
+                resolve(true);
+            });
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        console.error('视频下载失败:', error.response?.data || error.message);
+        return false;
+    }
+}
+
+async function generateVideoComplete(prompt, referenceFile = null, maxWaitTime = 300000) {
+    console.log('开始生成视频...');
+    
+    // 1. 启动视频生成
+    const result = await generateVideo(prompt, 'sora-2-2025-10-06', referenceFile);
+    if (!result || !result.id) {
+        return null;
+    }
+    
+    const videoId = result.id;
+    
+    // 2. 等待视频生成完成
+    console.log('正在生成视频，请耐心等待...');
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+        const statusInfo = await checkVideoStatus(videoId);
+        if (!statusInfo) {
+            break;
+        }
+        
+        console.log(`当前状态: ${statusInfo.status}`);
+        
+        if (statusInfo.status === 'completed') {
+            console.log('视频生成完成！');
+            break;
+        } else if (statusInfo.status === 'failed') {
+            console.error(`视频生成失败: ${statusInfo.error || '未知错误'}`);
+            return null;
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 10000)); // 等待10秒
+    }
+    
+    // 3. 下载视频
+    const outputPath = `sora2_video_${videoId}.mp4`;
+    const success = await downloadVideo(videoId, outputPath);
+    
+    return success ? outputPath : null;
+}
+
+// 使用示例
+(async () => {
+    try {
+        console.log('=== Sora-2 视频生成示例 ===\n');
+        
+        // 示例1: 基础文本到视频生成
+        const prompt = '一只可爱的小猫在花园里玩耍，阳光明媚，高清画质';
+        const videoPath = await generateVideoComplete(prompt);
+        
+        if (videoPath) {
+            console.log(`视频生成成功: ${videoPath}`);
+        } else {
+            console.log('视频生成失败');
+        }
+        
+    } catch (error) {
+        console.error('程序执行出错:', error.message);
+    }
+})();
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "mime/multipart"
+    "net/http"
+    "os"
+    "path/filepath"
+    "time"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type VideoResponse struct {
+    ID     string `json:"id"`
+    Status string `json:"status"`
+    Error  string `json:"error,omitempty"`
+}
+
+func generateVideo(prompt, model, referenceFile string) (*VideoResponse, error) {
+    url := fmt.Sprintf("%s/videos", BaseURL)
+    
+    var body bytes.Buffer
+    writer := multipart.NewWriter(&body)
+    
+    // 添加文本字段
+    writer.WriteField("model", model)
+    writer.WriteField("prompt", prompt)
+    
+    // 添加文件字段（如果提供）
+    if referenceFile != "" {
+        if _, err := os.Stat(referenceFile); err == nil {
+            file, err := os.Open(referenceFile)
+            if err != nil {
+                return nil, fmt.Errorf("无法打开参考文件: %v", err)
+            }
+            defer file.Close()
+            
+            part, err := writer.CreateFormFile("input_reference", filepath.Base(referenceFile))
+            if err != nil {
+                return nil, fmt.Errorf("创建文件字段失败: %v", err)
+            }
+            
+            _, err = io.Copy(part, file)
+            if err != nil {
+                return nil, fmt.Errorf("复制文件内容失败: %v", err)
+            }
+        }
+    }
+    
+    writer.Close()
+    
+    req, err := http.NewRequest("POST", url, &body)
+    if err != nil {
+        return nil, fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    req.Header.Set("Content-Type", writer.FormDataContentType())
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    responseBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("读取响应失败: %v", err)
+    }
+    
+    if resp.StatusCode != 200 {
+        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+    }
+    
+    var result VideoResponse
+    if err := json.Unmarshal(responseBody, &result); err != nil {
+        return nil, fmt.Errorf("解析响应失败: %v", err)
+    }
+    
+    fmt.Printf("视频生成任务已启动\n")
+    fmt.Printf("任务ID: %s\n", result.ID)
+    fmt.Printf("状态: %s\n", result.Status)
+    
+    return &result, nil
+}
+
+func checkVideoStatus(videoID string) (*VideoResponse, error) {
+    url := fmt.Sprintf("%s/videos/%s", BaseURL, videoID)
+    
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return nil, fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    responseBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("读取响应失败: %v", err)
+    }
+    
+    if resp.StatusCode != 200 {
+        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+    }
+    
+    var result VideoResponse
+    if err := json.Unmarshal(responseBody, &result); err != nil {
+        return nil, fmt.Errorf("解析响应失败: %v", err)
+    }
+    
+    return &result, nil
+}
+
+func downloadVideo(videoID, outputPath string) error {
+    url := fmt.Sprintf("%s/videos/%s/content", BaseURL, videoID)
+    
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    if resp.StatusCode != 200 {
+        return fmt.Errorf("下载失败: %d", resp.StatusCode)
+    }
+    
+    file, err := os.Create(outputPath)
+    if err != nil {
+        return fmt.Errorf("创建文件失败: %v", err)
+    }
+    defer file.Close()
+    
+    _, err = io.Copy(file, resp.Body)
+    if err != nil {
+        return fmt.Errorf("写入文件失败: %v", err)
+    }
+    
+    fmt.Printf("视频已保存: %s\n", outputPath)
+    return nil
+}
+
+func generateVideoComplete(prompt, referenceFile string, maxWaitTime time.Duration) (string, error) {
+    fmt.Println("开始生成视频...")
+    
+    // 1. 启动视频生成
+    result, err := generateVideo(prompt, "sora-2-2025-10-06", referenceFile)
+    if err != nil {
+        return "", fmt.Errorf("启动视频生成失败: %v", err)
+    }
+    
+    videoID := result.ID
+    if videoID == "" {
+        return "", fmt.Errorf("未获取到视频ID")
+    }
+    
+    // 2. 等待视频生成完成
+    fmt.Println("正在生成视频，请耐心等待...")
+    startTime := time.Now()
+    
+    for time.Since(startTime) < maxWaitTime {
+        statusInfo, err := checkVideoStatus(videoID)
+        if err != nil {
+            return "", fmt.Errorf("查询状态失败: %v", err)
+        }
+        
+        fmt.Printf("当前状态: %s\n", statusInfo.Status)
+        
+        switch statusInfo.Status {
+        case "completed":
+            fmt.Println("视频生成完成！")
+            goto download
+        case "failed":
+            return "", fmt.Errorf("视频生成失败: %s", statusInfo.Error)
+        }
+        
+        time.Sleep(10 * time.Second)
+    }
+    
+    return "", fmt.Errorf("视频生成超时")
+    
+download:
+    // 3. 下载视频
+    outputPath := fmt.Sprintf("sora2_video_%s.mp4", videoID)
+    if err := downloadVideo(videoID, outputPath); err != nil {
+        return "", fmt.Errorf("下载视频失败: %v", err)
+    }
+    
+    return outputPath, nil
+}
+
+func main() {
+    fmt.Println("=== Sora-2 视频生成示例 ===")
+    
+    // 示例: 基础文本到视频生成
+    prompt := "一只可爱的小猫在花园里玩耍，阳光明媚，高清画质"
+    
+    videoPath, err := generateVideoComplete(prompt, "", 5*time.Minute)
+    if err != nil {
+        fmt.Printf("视频生成失败: %v\n", err)
+        return
+    }
+    
+    fmt.Printf("视频生成成功: %s\n", videoPath)
+}
+```
+
+</CodeGroup>
+
+## 支持的参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| **prompt** | String (必需) | 视频的自然语言描述。建议包含镜头类型、主体、动作、场景、光线以及期望的摄像机运动，以减少歧义。保持单一目的以获得最佳效果。 |
+| **model** | String (可选) | 模型名称，默认 `sora-2-2025-10-06` |
+| **size** | String (可选) | 输出分辨率（宽×高）。竖屏: `720x1280`，横屏: `1280x720`。默认: `720x1280` |
+| **seconds** | String (可选) | 视频时长，可选值: `4` / `8` / `12`。默认: `4` |
+| **input_reference** | File (可选) | 单张参考图片，用作第一帧的视觉锚点。支持的 MIME 类型: `image/jpeg`, `image/png`, `image/webp`。图片尺寸必须与 size 参数完全匹配。 |
+
+## 视频生成流程
+
+1. **提交任务**: 发送生成请求，获得任务ID
+2. **等待处理**: 定期检查任务状态（processing -> completed）
+3. **下载视频**: 任务完成后下载生成的视频文件
+
+## 响应示例
+
+### 任务提交响应
+```json
+{
+  "id": "video_68fe5e3df4508190899b2b7999569a71",
+  "object": "video",
+  "created_at": 1761500734,
+  "model": "sora-2-2025-10-06",
+  "status": "queued",
+  "progress": 0,
+  "seconds": "4",
+  "size": "1280x720"
+}
+```
+
+### 状态查询响应
+```json
+{
+  "id": "video_68fe5e3df4508190899b2b7999569a71",
+  "object": "video",
+  "created_at": 1761500734,
+  "completed_at": 1761500854,
+  "model": "sora-2-2025-10-06",
+  "status": "completed",
+  "progress": 100,
+  "seconds": "4",
+  "size": "1280x720"
+}
+```
+

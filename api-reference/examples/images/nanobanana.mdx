@@ -1,0 +1,582 @@
+---
+title: 'Nano Banana (Gemini) 图片生成'
+description: '使用 Gemini 原生图像生成功能，通过对话方式创建和编辑图像'
+---
+
+# Gemini 图片生成
+
+Gemini API 提供强大的原生图像生成能力，采用对话式方法。您可以使用文本提示、图像或两者结合来生成、修改和迭代视觉内容，实现前所未有的控制。
+
+## 核心功能
+
+- **文本生成图像**: 从文本描述生成高质量图像
+- **图像+文本编辑**: 使用文本提示修改现有图像
+- **多图合成**: 组合多个图像的元素或转换风格
+- **迭代优化**: 通过对话式交互逐步改进图像
+- **高保真文本渲染**: 在图像中生成清晰可读的文本
+
+> **提示**: nano-banana-pro 的参数基本与 nano-banana 一致，可以参考本文档的使用方法和示例。
+
+## 基础用法
+
+### 文本生成图像
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1beta/models/nano-banana:generateContent" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "在高档餐厅中展示一道纳米香蕉菜肴，带有 TokenOPS 主题"
+          }
+        ]
+      }
+    ]
+  }' \
+  | jq . \
+  | grep -o '"data": "[^"]*"' \
+  | cut -d'"' -f4 \
+  | base64 --decode > gemini-native-image.png
+```
+
+```python Python
+import requests
+import base64
+from PIL import Image
+from io import BytesIO
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1beta"
+
+def generate_image(prompt):
+    """使用 Gemini 从文本生成图像"""
+    url = f"{BASE_URL}/models/nano-banana:generateContent"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+
+        # 提取并保存图像
+        for candidate in result.get('candidates', []):
+            for part in candidate.get('content', {}).get('parts', []):
+                if 'inlineData' in part:
+                    # 解码 base64 图像数据
+                    image_data = base64.b64decode(part['inlineData']['data'])
+                    image = Image.open(BytesIO(image_data))
+                    image.save("generated_image.png")
+                    print("图像已保存为 generated_image.png")
+                    return image
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+prompt = "在高档餐厅中展示一道纳米香蕉菜肴，带有 Gemini 主题"
+generate_image(prompt)
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const fs = require('fs');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1beta';
+
+async function generateImage(prompt) {
+    const url = `${BASE_URL}/models/nano-banana:generateContent`;
+
+    const data = {
+        contents: [
+            {
+                parts: [
+                    {
+                        text: prompt
+                    }
+                ]
+            }
+        ]
+    };
+
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_KEY}`
+            }
+        });
+
+        // 提取并保存图像
+        const candidates = response.data.candidates || [];
+        for (const candidate of candidates) {
+            const parts = candidate.content?.parts || [];
+            for (const part of parts) {
+                if (part.inlineData) {
+                    const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
+                    fs.writeFileSync('generated_image.png', imageBuffer);
+                    console.log('图像已保存为 generated_image.png');
+                    return;
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`错误: ${error.response?.status} - ${error.response?.data || error.message}`);
+    }
+}
+
+// 使用示例
+const prompt = '在高档餐厅中展示一道纳米香蕉菜肴，带有 Gemini 主题';
+generateImage(prompt);
+```
+
+</CodeGroup>
+
+![gemini-native-image](/images/examples/gemini-native-image.png)
+
+### 图像编辑（图像+文本）
+
+您也可以提供现有图像和文本提示来编辑图像：
+
+<CodeGroup>
+
+```bash cURL
+IMG_PATH=/path/to/cat_image.jpeg
+
+if [[ "$(base64 --version 2>&1)" = *"FreeBSD"* ]]; then
+  B64FLAGS="--input"
+else
+  B64FLAGS="-w0"
+fi
+
+IMG_BASE64=$(base64 "$B64FLAGS" "$IMG_PATH" 2>&1)
+
+curl -X POST \
+  "https://generativelanguage.googleapis.com/v1beta/models/nano-banana:generateContent" \
+    -H "x-goog-api-key: <API-KEY> \
+    -H 'Content-Type: application/json' \
+    -d "{
+      \"contents\": [{
+        \"parts\":[
+            {\"text\": \"'Create a picture of my cat eating a nano-banana in a fancy restaurant under the Gemini constellation\"},
+            {
+              \"inlineData\": {
+                \"mimeType\":\"image/jpeg\",
+                \"data\": \"$IMG_BASE64\"
+              }
+            }
+        ]
+      }]
+    }"  \
+  | jq . \
+  | grep -o '"data": "[^"]*"' \
+  | cut -d'"' -f4 \
+  | base64 --decode > gemini-edited-image.png
+```
+
+```python Python
+import requests
+import base64
+from PIL import Image
+from io import BytesIO
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1beta"
+
+def edit_image(image_path, prompt):
+    """使用 Gemini 编辑图像"""
+    url = f"{BASE_URL}/models/nano-banana:generateContent"
+
+    # 读取并编码图像
+    with open(image_path, 'rb') as f:
+        image_data = base64.b64encode(f.read()).decode('utf-8')
+
+    # 确定 MIME 类型
+    mime_type = "image/png"
+    if image_path.lower().endswith(('.jpg', '.jpeg')):
+        mime_type = "image/jpeg"
+    elif image_path.lower().endswith('.webp'):
+        mime_type = "image/webp"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    },
+                    {
+                        "inlineData": {
+                            "mimeType": mime_type,
+                            "data": image_data
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+
+        # 提取并保存编辑后的图像
+        for candidate in result.get('candidates', []):
+            for part in candidate.get('content', {}).get('parts', []):
+                if 'inlineData' in part:
+                    image_data = base64.b64decode(part['inlineData']['data'])
+                    image = Image.open(BytesIO(image_data))
+                    image.save("edited_image.png")
+                    print("编辑后的图像已保存为 edited_image.png")
+                    return image
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+edit_image("cat.jpg", "给这只猫加一顶小巫师帽")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const fs = require('fs');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1beta';
+
+async function editImage(imagePath, prompt) {
+    const url = `${BASE_URL}/models/nano-banana:generateContent`;
+
+    // 读取并编码图像
+    const imageBuffer = fs.readFileSync(imagePath);
+    const imageBase64 = imageBuffer.toString('base64');
+
+    // 确定 MIME 类型
+    let mimeType = 'image/png';
+    if (imagePath.toLowerCase().endsWith('.jpg') || imagePath.toLowerCase().endsWith('.jpeg')) {
+        mimeType = 'image/jpeg';
+    } else if (imagePath.toLowerCase().endsWith('.webp')) {
+        mimeType = 'image/webp';
+    }
+
+    const data = {
+        contents: [
+            {
+                parts: [
+                    {
+                        text: prompt
+                    },
+                    {
+                        inlineData: {
+                            mimeType: mimeType,
+                            data: imageBase64
+                        }
+                    }
+                ]
+            }
+        ]
+    };
+
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_KEY}`
+            }
+        });
+
+        // 提取并保存编辑后的图像
+        const candidates = response.data.candidates || [];
+        for (const candidate of candidates) {
+            const parts = candidate.content?.parts || [];
+            for (const part of parts) {
+                if (part.inlineData) {
+                    const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
+                    fs.writeFileSync('edited_image.png', imageBuffer);
+                    console.log('编辑后的图像已保存为 edited_image.png');
+                    return;
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`错误: ${error.response?.status} - ${error.response?.data || error.message}`);
+    }
+}
+
+// 使用示例
+editImage('cat.jpg', '给这只猫加一顶小巫师帽');
+```
+
+</CodeGroup>
+
+## 提示词工程策略
+
+为获得最佳效果，请遵循以下提示词编写策略：
+
+### 1. 描述场景，而非仅列关键词
+
+**不推荐**: "猫，帽子，巫师"
+
+**推荐**: "一只蓬松的橙色虎斑猫戴着一顶带有金色星星的小紫色巫师帽，坐在一张古董木桌上，窗户射入柔和的自然光线"
+
+### 2. 使用摄影术语创建真实照片
+
+对于照片级真实感图像，提及：
+- **镜头类型**: 广角镜、微距镜、长焦镜
+- **光线**: 黄金时段光线、柔光、戏剧性光线
+- **角度**: 俯视、仰视、眼平视角
+
+示例：
+```
+"一座古老的灯塔矗立在崎岖的海岸上，黄金时段光线，广角镜头，
+戏剧性的天空背景，专业风景摄影"
+```
+
+### 3. 为插图和贴纸指定风格细节
+
+明确说明艺术风格：
+- **艺术运动**: 印象派、极简主义、抽象
+- **媒介**: 水彩、油画、数字艺术
+- **情绪**: 俏皮、优雅、充满活力
+
+示例：
+```
+"水彩画风格的日落山景，柔和的色彩过渡，极简构图，平静的氛围"
+```
+
+### 4. 包含文本时要精确
+
+在图像中包含特定文本时，要明确具体：
+
+示例：
+```
+"复古风格海报，顶部用 art deco 字体显示"NANO BANANA CAFE"文字，
+金色字母，优雅边框"
+```
+
+### 5. 为产品样机描述环境细节
+
+对于产品展示，描述：
+- 表面和材质
+- 周围物品
+- 光线和阴影
+
+示例：
+```
+"在大理石台面上展示的护肤品瓶，周围摆放着新鲜绿叶，
+柔和的自然光从左侧射入"
+```
+
+### 6. 在极简设计中有效使用负空间
+
+明确说明空白区域和焦点：
+
+示例：
+```
+"极简标志设计，几何形状，大量负空间，居中对齐，
+现代简约风格"
+```
+
+## 配置选项
+
+### 仅返回图像
+
+默认情况下，Gemini 会返回图像和文本响应。要仅获取图像：
+
+```python Python
+data = {
+    "contents": [
+        {
+            "parts": [
+                {
+                    "text": "在高档餐厅中展示一道纳米香蕉菜肴"
+                }
+            ]
+        }
+    ],
+    "generationConfig": {
+        "responseModalities": ["Image"]  # 仅返回图像
+    }
+}
+```
+
+### 控制宽高比
+
+指定输出图像的宽高比：
+
+```python Python
+data = {
+    "contents": [
+        {
+            "parts": [
+                {
+                    "text": "在高档餐厅中展示一道纳米香蕉菜肴"
+                }
+            ]
+        }
+    ],
+    "generationConfig": {
+        "imageConfig": {
+            "aspectRatio": "16:9"
+        }
+    }
+}
+```
+
+### 可用的宽高比
+
+| 宽高比 | 分辨率 | 适用场景 |
+|--------|--------|----------|
+| 1:1 | 1024x1024 | 社交媒体头像、产品展示 |
+| 16:9 | 1344x768 | 视频封面、横幅广告 |
+| 9:16 | 768x1344 | 手机屏幕、竖屏视频 |
+| 3:2 | 1248x832 | 相机标准比例 |
+| 2:3 | 832x1248 | 竖版海报 |
+| 4:3 | 1184x864 | 传统显示器、演示文稿 |
+| 3:4 | 864x1184 | 海报、宣传单页 |
+| 5:4 | 1152x896 | 摄影打印 |
+| 4:5 | 896x1152 | Instagram 帖子 |
+| 21:9 | 1536x672 | 超宽屏幕、电影画面 |
+
+## 迭代优化
+
+Gemini 的对话式特性允许您通过多轮交互逐步完善图像。
+
+示例流程：
+
+```
+第一轮: "创建一个极简的咖啡杯标志"
+→ 生成基础标志
+
+第二轮: "让蒸汽更明显一些"
+→ 增强蒸汽效果
+
+第三轮: "改为暖色调配色"
+→ 调整配色方案
+```
+
+## 多图合成
+
+您可以提供多个图像作为输入（建议最多 3 张）：
+
+```python Python
+# 读取多张图片
+with open('image1.jpg', 'rb') as f1:
+    img1_data = base64.b64encode(f1.read()).decode('utf-8')
+
+with open('image2.jpg', 'rb') as f2:
+    img2_data = base64.b64encode(f2.read()).decode('utf-8')
+
+data = {
+    "contents": [
+        {
+            "parts": [
+                {
+                    "text": "将这些图像组合成一个拼贴画，创意布局"
+                },
+                {
+                    "inlineData": {
+                        "mimeType": "image/jpeg",
+                        "data": img1_data
+                    }
+                },
+                {
+                    "inlineData": {
+                        "mimeType": "image/jpeg",
+                        "data": img2_data
+                    }
+                }
+            ]
+        }
+    ]
+}
+```
+
+## 使用限制
+
+- **语言支持**: 英语、西班牙语、日语、中文和印地语效果最佳
+- **输入限制**: 不支持音频或视频输入
+- **图像数量**: 建议最多提供 3 张输入图像
+- **水印**: 所有生成的图像均包含 SynthID 隐形水印
+- **地区限制**: 目前在欧洲经济区、瑞士和英国的儿童图像生成不可用
+
+## Gemini vs Imagen
+
+### 何时使用 Gemini 图像生成
+
+- **灵活性**: 需要对话式迭代优化
+- **上下文理解**: 需要理解复杂场景描述
+- **多模态输入**: 需要结合文本和图像输入
+- **快速迭代**: 需要在对话中快速调整
+
+### 何时考虑 Imagen
+
+- **最高图像质量**: 需要极致的照片级真实感
+- **专业排版**: 需要高质量的文本渲染
+- **纯图像生成**: 不需要对话式交互
+
+## 最佳实践
+
+### 1. 从简单开始，逐步细化
+
+不要试图在一次提示中包含所有细节。先生成基础图像，然后逐步添加细节。
+
+### 2. 具体而详细
+
+提供具体的描述而非模糊的概念。包括颜色、光线、角度、风格等细节。
+
+### 3. 使用参考术语
+
+使用行业术语（摄影、设计、艺术）来获得更专业的结果。
+
+### 4. 测试多个变体
+
+生成多个版本并选择最佳结果，或组合不同版本的优点。
+
+### 5. 利用迭代优化
+
+将图像生成视为对话过程，通过多轮交互达到理想效果。
+
+## 常见问题
+
+### Q: 生成一张图像需要多长时间？
+A: 通常需要 10-30 秒，具体取决于图像复杂度和服务器负载。
+
+### Q: 可以生成多少张图像？
+A: 单次请求生成一张图像，但您可以通过多次请求生成多张。
+
+### Q: 支持哪些图像格式？
+A: 输入支持 PNG、JPEG、WEBP，输出为 PNG 格式。
+
+### Q: 生成的图像有版权吗？
+A: 请参考服务条款了解图像使用权限和限制。
+
+### Q: 如何提高图像质量？
+A: 使用详细的提示词、明确的风格描述、适当的宽高比，并通过迭代优化改进结果。

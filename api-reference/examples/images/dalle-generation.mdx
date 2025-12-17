@@ -1,0 +1,99 @@
+---
+title: 'OpenAI 图片生成示例'
+description: '使用 OpenAI API进行图片生成的完整示例代码'
+---
+
+# 图片生成示例
+
+以下示例展示如何使用API生成高质量的图片。
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
+    "model": "gpt-image-1",
+    "n": 1,
+    "size": "1024x1024",
+    "quality": "medium"
+  }'
+```
+
+```python Python
+import requests
+import json
+import base64
+from PIL import Image
+from io import BytesIO
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def generate_image(prompt, size="1024x1024", quality="medium", n=1, model="gpt-image-1"):
+    url = f"{BASE_URL}/images/generations"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "prompt": prompt,
+        "model": model,
+        "n": n,
+        "size": size,
+        "quality": quality,
+        "response_format": "b64_json"
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        images = []
+        
+        for i, img_data in enumerate(result['data']):
+            # 解码base64图片
+            image_data = base64.b64decode(img_data['b64_json'])
+            image = Image.open(BytesIO(image_data))
+            
+            # 保存图片
+            filename = f"generated_image_{i+1}.png"
+            image.save(filename)
+            images.append(filename)
+            print(f"图片已保存: {filename}")
+        
+        return images
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+if __name__ == "__main__":
+    prompt = "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格"
+    images = generate_image(prompt)
+    
+    if images:
+        print(f"成功生成 {len(images)} 张图片")
+```
+
+</CodeGroup>
+
+## 支持的参数
+
+- **prompt**: 图片描述文本（必需）
+- **n**: 生成图片数量（1-10）
+- **size**: 图片尺寸（256x256, 512x512, 1024x1024等）
+- **quality**: 图片质量（standard, hd）
+- **style**: 图片风格（vivid, natural）
+
+## 应用场景
+
+- **创意设计**: 广告、海报、插图设计
+- **内容创作**: 博客、社交媒体配图
+- **产品原型**: 快速概念可视化
+- **艺术创作**: 数字艺术作品 

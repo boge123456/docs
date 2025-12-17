@@ -1,0 +1,464 @@
+---
+title: 'OpenAI 基础对话示例'
+description: '使用OpenAI兼容接口进行基础文本对话的完整示例代码'
+---
+
+# OpenAI 基础对话示例
+
+以下示例展示如何使用OpenAI兼容的 `/v1/chat/completions` 接口进行基础文本对话。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {
+        "role": "user",
+        "content": "你好，请介绍一下你自己"
+      }
+    ],
+    "max_tokens": 1000,
+    "temperature": 1
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def chat_with_ai(message):
+    url = f"{BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "model": "gpt-5-2025-08-07",
+        "messages": [
+            {
+                "role": "user",
+                "content": message
+            }
+        ],
+        "max_tokens": 1000,
+        "temperature": 1
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        return result['choices'][0]['message']['content']
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 使用示例
+if __name__ == "__main__":
+    message = "你好，请介绍一下你自己"
+    reply = chat_with_ai(message)
+    print(f"AI回复: {reply}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function chatWithAI(message) {
+    const url = `${BASE_URL}/chat/completions`;
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+    
+    const data = {
+        model: 'gpt-5-2025-08-07',
+        messages: [
+            {
+                role: 'user',
+                content: message
+            }
+        ],
+        max_tokens: 1000,
+        temperature: 1
+    };
+    
+    try {
+        const response = await axios.post(url, data, { headers });
+        return response.data.choices[0].message.content;
+    } catch (error) {
+        return `错误: ${error.response?.status} - ${error.response?.data || error.message}`;
+    }
+}
+
+// 使用示例
+(async () => {
+    const message = '你好，请介绍一下你自己';
+    const reply = await chatWithAI(message);
+    console.log(`AI回复: ${reply}`);
+})();
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type Message struct {
+    Role    string `json:"role"`
+    Content string `json:"content"`
+}
+
+type ChatRequest struct {
+    Model       string    `json:"model"`
+    Messages    []Message `json:"messages"`
+    MaxTokens   int       `json:"max_tokens"`
+    Temperature float64   `json:"temperature"`
+}
+
+type Choice struct {
+    Message Message `json:"message"`
+}
+
+type ChatResponse struct {
+    Choices []Choice `json:"choices"`
+}
+
+func chatWithAI(message string) (string, error) {
+    url := fmt.Sprintf("%s/chat/completions", BaseURL)
+    
+    reqData := ChatRequest{
+        Model: "gpt-5-2025-08-07",
+        Messages: []Message{
+            {
+                Role:    "user",
+                Content: message,
+            },
+        },
+        MaxTokens:   1000,
+        Temperature: 1,
+    }
+    
+    jsonData, err := json.Marshal(reqData)
+    if err != nil {
+        return "", err
+    }
+    
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return "", err
+    }
+    
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return "", err
+    }
+    
+    if resp.StatusCode != 200 {
+        return "", fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(body))
+    }
+    
+    var chatResp ChatResponse
+    err = json.Unmarshal(body, &chatResp)
+    if err != nil {
+        return "", err
+    }
+    
+    return chatResp.Choices[0].Message.Content, nil
+}
+
+func main() {
+    message := "你好，请介绍一下你自己"
+    reply, err := chatWithAI(message)
+    if err != nil {
+        fmt.Printf("错误: %v\n", err)
+        return
+    }
+    
+    fmt.Printf("AI回复: %s\n", reply)
+}
+```
+
+```java Java
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
+public class OpenAIBasicChat {
+    private static final String API_KEY = "<API-KEY>";
+    private static final String BASE_URL = "https://api.tokenops.ai/v1";
+    
+    public static class Message {
+        public String role;
+        public String content;
+        
+        public Message(String role, String content) {
+            this.role = role;
+            this.content = content;
+        }
+    }
+    
+    public static class ChatRequest {
+        public String model;
+        public Message[] messages;
+        public int max_tokens;
+        public double temperature;
+        
+        public ChatRequest(String model, Message[] messages, int maxTokens, double temperature) {
+            this.model = model;
+            this.messages = messages;
+            this.max_tokens = maxTokens;
+            this.temperature = temperature;
+        }
+    }
+    
+    public static String chatWithAI(String message) throws IOException, InterruptedException {
+        HttpClient client = HttpClient.newHttpClient();
+        ObjectMapper mapper = new ObjectMapper();
+        
+        ChatRequest request = new ChatRequest(
+            "gpt-5-2025-08-07",
+            new Message[]{new Message("user", message)},
+            1000,
+            0.7
+        );
+        
+        String jsonBody = mapper.writeValueAsString(request);
+        
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/chat/completions"))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + API_KEY)
+            .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+            .build();
+        
+        HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        
+        if (response.statusCode() == 200) {
+            JsonNode jsonResponse = mapper.readTree(response.body());
+            return jsonResponse.get("choices").get(0).get("message").get("content").asText();
+        } else {
+            throw new RuntimeException("API错误: " + response.statusCode() + " - " + response.body());
+        }
+    }
+    
+    public static void main(String[] args) {
+        try {
+            String message = "你好，请介绍一下你自己";
+            String reply = chatWithAI(message);
+            System.out.println("AI回复: " + reply);
+        } catch (Exception e) {
+            System.err.println("错误: " + e.getMessage());
+        }
+    }
+}
+```
+
+```php PHP
+<?php
+
+class OpenAIBasicChat {
+    private $apiKey;
+    private $baseUrl;
+    
+    public function __construct($apiKey, $baseUrl = 'https://api.tokenops.ai/v1') {
+        $this->apiKey = $apiKey;
+        $this->baseUrl = $baseUrl;
+    }
+    
+    public function chatWithAI($message) {
+        $url = $this->baseUrl . '/chat/completions';
+        
+        $data = [
+            'model' => 'gpt-5-2025-08-07',
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $message
+                ]
+            ],
+            'max_tokens' => 1000,
+            'temperature' => 1
+        ];
+        
+        $options = [
+            'http' => [
+                'header' => [
+                    'Content-Type: application/json',
+                    'Authorization: Bearer ' . $this->apiKey
+                ],
+                'method' => 'POST',
+                'content' => json_encode($data)
+            ]
+        ];
+        
+        $context = stream_context_create($options);
+        $response = file_get_contents($url, false, $context);
+        
+        if ($response === FALSE) {
+            return '请求失败';
+        }
+        
+        $responseData = json_decode($response, true);
+        
+        if (isset($responseData['choices'][0]['message']['content'])) {
+            return $responseData['choices'][0]['message']['content'];
+        } else {
+            return '解析响应失败: ' . $response;
+        }
+    }
+}
+
+// 使用示例
+$apiKey = '<API-KEY>';
+$chat = new OpenAIBasicChat($apiKey);
+
+$message = '你好，请介绍一下你自己';
+$reply = $chat->chatWithAI($message);
+
+echo "AI回复: " . $reply . "\n";
+
+?>
+```
+
+</CodeGroup>
+
+## 结果示例
+```bash 200
+{
+  "id": "165842b19b554b72a471aa73168f8d7c",
+  "object": "chat.completion",
+  "created": 1759131775,
+  "model": "gpt-5-2025-08-07",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是你的智能助手，可以用中文或英文和你交流，帮你查找与整理信息、解释概念、写作与改稿、生成和调试代码、做数学与数据分析、制定计划与建议，以及创意发想等。\n\n我的工作方式与特点：\n- 注重清晰与可操作性：会给出分步骤的思路、可执行的方案与示例。\n- 善于追问与澄清：如果问题不够明确，我会先确认需求以避免走偏。\n- 多语言支持：中文、英文为主，也可处理其他常见语言的文本。\n- 知识范围：训练数据覆盖到 2024年10月，之后的最新变化可能不了解；如需最新信息，建议提供来源或具体细节。\n\n使用和安全说明：\n- 隐私：除非你在对话中提供，我无法访问你的个人数据；我也不会在不同对话间记忆你的信息。\n- 局限：可能会出错或过时，涉及重要决策（医疗、法律、金融等）请务必二次核对或咨询专业人士。\n- 外部能力：我不能直接在现实世界执行操作（如下单、打电话），但可以提供步骤指导与模板。\n\n你可以这样和我合作：\n- 给出目标与约束（时间、预算、受众、风格）。\n- 提供已有材料或偏好，我可在此基础上优化。\n- 要代码时说明环境与语言版本；要写作时说明语气与字数。\n\n很高兴认识你！你今天想做什么？我可以先从一个具体问题或任务开始帮你。"
+      },
+      "finish_reason": "stop",
+      "content_filter_results": {
+        "hate": {
+          "filtered": false
+        },
+        "self_harm": {
+          "filtered": false
+        },
+        "sexual": {
+          "filtered": false
+        },
+        "violence": {
+          "filtered": false
+        },
+        "jailbreak": {
+          "filtered": false,
+          "detected": false
+        },
+        "profanity": {
+          "filtered": false,
+          "detected": false
+        }
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 758,
+    "total_tokens": 770,
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "audio_tokens": 0,
+      "reasoning_tokens": 384,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "system_fingerprint": ""
+}
+```
+
+## 重要参数说明
+
+- **model**: 指定要使用的模型，如 `gpt-5-2025-08-07`、`gpt-5-2025-08-07-mini`、`gpt-3.5-turbo` 等
+- **messages**: 对话消息数组，包含角色（role）和内容（content）
+- **max_tokens**: 最大生成token数量，控制回复长度
+- **temperature**: 控制回复的随机性，注意：`gpt-5-2025-08-07` 模型仅支持默认值 1
+
+## 支持的模型
+
+- gpt-5-chat-2025-08-07
+- gpt-5-nano-2025-08-07
+- gpt-5-mini-2025-08-07
+- gpt-5-2025-08-07
+- o4-mini-2025-04-16
+- o3-mini-2025-01-31
+- o1-2024-12-17
+- gpt-4o-2024-08-06
+- gpt-4.1-mini-2025-04-14
+- gpt-4o-2024-11-20
+- gpt-4.1-2025-04-14
+- gpt-4.1-nano-2025-04-14
+- gemini-2.5-pro
+- gemini-2.5-flash
+- gemini-2.5-flash-lite
+- gemini-2.0-flash-lite-001
+- gemini-2.0-flash-001
+- claude-sonnet-4-20250514
+- claude-opus-4-250514
+- claude-3-7-sonnet-20250219
+- claude-3-5-sonnet-20241022
+
+## 错误处理
+
+请确保处理以下常见错误：
+
+- **401 Unauthorized**: API密钥无效或缺失
+- **429 Too Many Requests**: 请求频率过高
+- **500 Internal Server Error**: 服务器内部错误
+
+建议在生产环境中添加重试逻辑和适当的错误处理机制。 

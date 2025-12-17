@@ -1,0 +1,947 @@
+---
+title: '豆包 Seedance 视频生成示例'
+description: '调用豆包 Seedance 视频生成模型的完整示例代码'
+---
+
+# 豆包 Seedance 视频生成示例
+
+以下示例展示如何使用豆包（Doubao）Seedance 视频生成模型通过 OpenAI 兼容接口生成高质量的视频内容。
+
+豆包视频生成分为三个步骤：
+1. **创建视频生成任务** - 提交生成请求，获得任务ID
+2. **查询任务状态** - 定期检查任务进度
+3. **下载生成的视频** - 任务完成后下载视频文件
+
+## 步骤1：创建视频生成任务
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "doubao-seedance-1.0-pro-250528",
+    "content": [
+        {
+            "type": "text",
+            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
+        }
+    ]
+  }'
+```
+
+```python Python
+import requests
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def create_doubao_video(content, model="doubao-seedance-1.0-pro-250528", **kwargs):
+    """
+    创建豆包视频生成任务
+    
+    Args:
+        content: 内容数组，支持文本和图片信息
+        model: 使用的模型名称
+        **kwargs: 其他参数（resolution, ratio, duration等）
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # 构建请求数据
+    data = {
+        "model": model,
+        "content": content
+    }
+    
+    # 添加豆包特有参数
+    for key in ["resolution", "ratio", "duration", "framespersecond", "camerafixed", "watermark", "return_last_frame"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"豆包视频生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 示例1：基础文本到视频生成
+text_content = [
+    {
+        "type": "text",
+        "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
+    }
+]
+
+result = create_doubao_video(content=text_content)
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function createDoubaoVideo(content, model = 'doubao-seedance-1.0-pro-250528', options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: model,
+        content: content,
+        ...options
+    };
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('豆包视频生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 示例1：基础文本到视频生成
+const textContent = [
+    {
+        type: 'text',
+        text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9'
+    }
+];
+
+const result = await createDoubaoVideo(textContent);
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type DoubaoContent struct {
+    Type     string           `json:"type"`                // 内容类型：text 或 image_url
+    Text     string           `json:"text,omitempty"`      // 文本内容（当type=text时）
+    ImageURL *DoubaoImageURL  `json:"image_url,omitempty"` // 图片信息（当type=image_url时）
+    Role     string           `json:"role,omitempty"`      // 图片角色：first_frame, last_frame, reference_image
+}
+
+type DoubaoImageURL struct {
+    URL string `json:"url"` // 图片URL或Base64编码
+}
+
+type DoubaoVideoRequest struct {
+    Model           string          `json:"model"`
+    Content         []DoubaoContent `json:"content"`
+    Resolution      string          `json:"resolution,omitempty"`      // 分辨率：480p, 720p, 1080p
+    Ratio           string          `json:"ratio,omitempty"`           // 宽高比：16:9, 4:3, 1:1, 3:4, 9:16, 21:9, keep_ratio, adaptive
+    Duration        *int            `json:"duration,omitempty"`        // 时长（秒）：2~12秒
+    FramesPerSecond *int            `json:"framespersecond,omitempty"` // 帧率：24
+    CameraFixed     *bool           `json:"camerafixed,omitempty"`     // 是否固定摄像头
+    Watermark       *bool           `json:"watermark,omitempty"`       // 是否包含水印
+    ReturnLastFrame *bool           `json:"return_last_frame,omitempty"` // 是否返回生成视频的尾帧图像
+}
+
+type DoubaoVideoResponse struct {
+    ID        string `json:"id"`
+    Object    string `json:"object"` 
+    CreatedAt int64  `json:"created_at"`
+    Status    string `json:"status"`
+}
+
+func createDoubaoVideo(request DoubaoVideoRequest) (*DoubaoVideoResponse, error) {
+    url := fmt.Sprintf("%s/videos", BaseURL)
+    
+    if request.Model == "" {
+        request.Model = "doubao-seedance-1.0-pro-250528"
+    }
+    
+    jsonData, err := json.Marshal(request)
+    if err != nil {
+        return nil, fmt.Errorf("JSON序列化失败: %v", err)
+    }
+    
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return nil, fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    req.Header.Set("Content-Type", "application/json")
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    responseBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("读取响应失败: %v", err)
+    }
+    
+    if resp.StatusCode != 200 {
+        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+    }
+    
+    var result DoubaoVideoResponse
+    if err := json.Unmarshal(responseBody, &result); err != nil {
+        return nil, fmt.Errorf("解析响应失败: %v", err)
+    }
+    
+    fmt.Printf("豆包视频生成任务已创建\n")
+    fmt.Printf("任务ID: %s\n", result.ID)
+    fmt.Printf("状态: %s\n", result.Status)
+    
+    return &result, nil
+}
+
+// 示例：创建任务
+func main() {
+    // 示例1：基础文本到视频生成
+    textRequest := DoubaoVideoRequest{
+        Content: []DoubaoContent{
+            {
+                Type: "text",
+                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9",
+            },
+        },
+    }
+    
+    result, err := createDoubaoVideo(textRequest)
+    if err != nil {
+        fmt.Printf("任务创建失败: %v\n", err)
+        return
+    }
+    fmt.Printf("任务创建成功: %+v\n", result)
+}
+```
+
+</CodeGroup>
+
+### 响应示例
+
+```json
+{
+  "id": "cgt-20251110203910-nmfp7",
+  "object": "video",
+  "status": "in_queue"
+}
+```
+
+## 步骤2：查询任务状态
+
+<CodeGroup>
+
+```bash cURL
+# 查询任务状态
+curl -X GET "https://api.tokenops.ai/v1/videos/cgt-20251110203910-nmfp7" \
+  --header 'Authorization: Bearer <API-KEY>'
+```
+
+```python Python
+def check_video_status(video_id):
+    """
+    检查视频生成状态
+    
+    Args:
+        video_id: 视频任务ID
+        
+    Returns:
+        任务状态信息
+    """
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"任务状态: {result.get('status')}")
+            
+            # 显示豆包特有的响应信息
+            if 'seed' in result:
+                print(f"使用的种子值: {result.get('seed')}")
+            if 'resolution' in result:
+                print(f"实际分辨率: {result.get('resolution')}")
+            if 'ratio' in result:
+                print(f"实际宽高比: {result.get('ratio')}")
+            if 'duration' in result:
+                print(f"实际时长: {result.get('duration')}秒")
+            if 'usage' in result:
+                usage = result.get('usage', {})
+                print(f"Token使用: {usage.get('total_tokens', 0)}")
+                
+            return result
+        else:
+            print(f"查询失败: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 示例：查询状态
+video_id = "cgt-20251110203910-nmfp7"
+status_info = check_video_status(video_id)
+```
+
+```javascript JavaScript/Node.js
+async function checkVideoStatus(videoId) {
+    const url = `${BASE_URL}/videos/${videoId}`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            }
+        });
+        
+        const result = response.data;
+        console.log(`任务状态: ${result.status}`);
+        
+        // 显示豆包特有的响应信息
+        if (result.seed) {
+            console.log(`使用的种子值: ${result.seed}`);
+        }
+        if (result.resolution) {
+            console.log(`实际分辨率: ${result.resolution}`);
+        }
+        if (result.ratio) {
+            console.log(`实际宽高比: ${result.ratio}`);
+        }
+        if (result.duration) {
+            console.log(`实际时长: ${result.duration}秒`);
+        }
+        if (result.usage) {
+            console.log(`Token使用: ${result.usage.total_tokens || 0}`);
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('状态查询失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 示例：查询状态
+const videoId = 'cgt-20251110203910-nmfp7';
+const statusInfo = await checkVideoStatus(videoId);
+```
+
+```go Go
+func checkVideoStatus(videoID string) (*DoubaoVideoResponse, error) {
+    url := fmt.Sprintf("%s/videos/%s", BaseURL, videoID)
+    
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return nil, fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    responseBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("读取响应失败: %v", err)
+    }
+    
+    if resp.StatusCode != 200 {
+        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+    }
+    
+    var result DoubaoVideoResponse
+    if err := json.Unmarshal(responseBody, &result); err != nil {
+        return nil, fmt.Errorf("解析响应失败: %v", err)
+    }
+    
+    fmt.Printf("任务状态: %s\n", result.Status)
+    return &result, nil
+}
+
+// 示例：查询状态
+videoID := "cgt-20251110203910-nmfp7"
+statusInfo, err := checkVideoStatus(videoID)
+```
+
+</CodeGroup>
+
+### 状态响应示例
+
+**排队中:**
+```json
+{
+  "id": "cgt-20251110203910-nmfp7",
+  "object": "video",
+  "status": "in_queue"
+}
+```
+
+**已完成:**
+```json
+{
+  "id": "cgt-20251110203910-nmfp7",
+  "object": "video",
+  "created_at": 1762778350,
+  "model": "doubao-seedance-1-0-pro-250528",
+  "status": "completed",
+  "usage": {
+    "completion_tokens": 246840,
+    "total_tokens": 246840
+  }
+}
+```
+
+## 步骤3：下载生成的视频
+
+<CodeGroup>
+
+```bash cURL
+# 下载视频文件
+curl -X GET "https://api.tokenops.ai/v1/videos/cgt-20251110203910-nmfp7/content" \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --output doubao_video.mp4
+```
+
+```python Python
+def download_video(video_id, output_path="doubao_video.mp4"):
+    """
+    下载生成的视频
+    
+    Args:
+        video_id: 视频任务ID
+        output_path: 输出文件路径
+        
+    Returns:
+        是否下载成功
+    """
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+            print(f"视频已保存: {output_path}")
+            return True
+        else:
+            print(f"下载失败: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"下载失败: {e}")
+        return False
+
+# 示例：下载视频
+video_id = "cgt-20251110203910-nmfp7"
+success = download_video(video_id, "doubao_seedance_video.mp4")
+```
+
+```javascript JavaScript/Node.js
+const fs = require('fs');
+
+async function downloadVideo(videoId, outputPath = 'doubao_video.mp4') {
+    const url = `${BASE_URL}/videos/${videoId}/content`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            responseType: 'stream'
+        });
+        
+        const writer = fs.createWriteStream(outputPath);
+        response.data.pipe(writer);
+        
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => {
+                console.log(`视频已保存: ${outputPath}`);
+                resolve(true);
+            });
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        console.error('视频下载失败:', error.response?.data || error.message);
+        return false;
+    }
+}
+
+// 示例：下载视频
+const videoId = 'cgt-20251110203910-nmfp7';
+const success = await downloadVideo(videoId, 'doubao_seedance_video.mp4');
+```
+
+```go Go
+import "os"
+
+func downloadVideo(videoID, outputPath string) error {
+    url := fmt.Sprintf("%s/videos/%s/content", BaseURL, videoID)
+    
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    if resp.StatusCode != 200 {
+        return fmt.Errorf("下载失败: %d", resp.StatusCode)
+    }
+    
+    file, err := os.Create(outputPath)
+    if err != nil {
+        return fmt.Errorf("创建文件失败: %v", err)
+    }
+    defer file.Close()
+    
+    _, err = io.Copy(file, resp.Body)
+    if err != nil {
+        return fmt.Errorf("写入文件失败: %v", err)
+    }
+    
+    fmt.Printf("视频已保存: %s\n", outputPath)
+    return nil
+}
+
+// 示例：下载视频
+videoID := "cgt-20251110203910-nmfp7"
+err := downloadVideo(videoID, "doubao_seedance_video.mp4")
+if err != nil {
+    fmt.Printf("下载失败: %v\n", err)
+}
+```
+
+</CodeGroup>
+
+## 完整流程示例
+
+<CodeGroup>
+
+```python Python
+import requests
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def complete_doubao_video_generation(content, **kwargs):
+    """
+    完整的豆包视频生成流程
+    """
+    # 步骤1: 创建任务
+    print("步骤1: 创建视频生成任务...")
+    create_result = create_doubao_video(content, **kwargs)
+    if not create_result:
+        return False
+    
+    video_id = create_result['id'] 
+    print(f"任务ID: {video_id}")
+    
+    # 步骤2: 等待任务完成
+    print("步骤2: 等待任务完成...")
+    max_wait_time = 900  # 15分钟
+    start_time = time.time()
+    
+    while time.time() - start_time < max_wait_time:
+        status_info = check_video_status(video_id)
+        if not status_info:
+            break
+            
+        status = status_info.get('status')
+        print(f"当前状态: {status}")
+        
+        if status == 'completed':
+            print("视频生成完成！")
+            break
+        elif status == 'failed':
+            error_info = status_info.get('error', {})
+            print(f"视频生成失败: {error_info.get('message', '未知错误')}")
+            return False
+        
+        time.sleep(20)  # 每20秒检查一次
+    else:
+        print("等待超时")
+        return False
+    
+    # 步骤3: 下载视频
+    print("步骤3: 下载视频...")
+    output_path = f"doubao_video_{video_id}.mp4"
+    if download_video(video_id, output_path):
+        print(f"视频生成完成: {output_path}")
+        return True
+    
+    return False
+
+# 使用示例
+if __name__ == "__main__":
+    # 示例1: 基础文本到视频生成
+    text_content = [
+        {
+            "type": "text",
+            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
+        }
+    ]
+    
+    success = complete_doubao_video_generation(content=text_content)
+    
+    if success:
+        print("✅ 视频生成成功！")
+    else:
+        print("❌ 视频生成失败！")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const fs = require('fs');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function completeDoubaoVideoGeneration(content, options = {}) {
+    try {
+        // 步骤1: 创建任务
+        console.log('步骤1: 创建视频生成任务...');
+        const createResult = await createDoubaoVideo(content, 'doubao-seedance-1.0-pro-250528', options);
+        if (!createResult) {
+            return false;
+        }
+        
+        const videoId = createResult.id;
+        console.log(`任务ID: ${videoId}`);
+        
+        // 步骤2: 等待任务完成
+        console.log('步骤2: 等待任务完成...');
+        const maxWaitTime = 15 * 60 * 1000; // 15分钟
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWaitTime) {
+            const statusInfo = await checkVideoStatus(videoId);
+            if (!statusInfo) {
+                break;
+            }
+            
+            const status = statusInfo.status;
+            console.log(`当前状态: ${status}`);
+            
+            if (status === 'completed') {
+                console.log('视频生成完成！');
+                break;
+            } else if (status === 'failed') {
+                const errorMessage = statusInfo.error?.message || '未知错误';
+                console.log(`视频生成失败: ${errorMessage}`);
+                return false;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 20000)); // 等待20秒
+        }
+        
+        // 步骤3: 下载视频
+        console.log('步骤3: 下载视频...');
+        const outputPath = `doubao_video_${videoId}.mp4`;
+        const success = await downloadVideo(videoId, outputPath);
+        
+        if (success) {
+            console.log(`视频生成完成: ${outputPath}`);
+            return true;
+        }
+        
+        return false;
+        
+    } catch (error) {
+        console.error('完整流程执行失败:', error);
+        return false;
+    }
+}
+
+// 使用示例
+(async () => {
+    const textContent = [
+        {
+            type: 'text',
+            text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9'
+        }
+    ];
+    
+    const success = await completeDoubaoVideoGeneration(textContent);
+    
+    if (success) {
+        console.log('✅ 视频生成成功！');
+    } else {
+        console.log('❌ 视频生成失败！');
+    }
+})();
+```
+
+```go Go
+package main
+
+import (
+    "fmt"
+    "time"
+)
+
+func completeDoubaoVideoGeneration(request DoubaoVideoRequest) error {
+    // 步骤1: 创建任务
+    fmt.Println("步骤1: 创建视频生成任务...")
+    createResult, err := createDoubaoVideo(request)
+    if err != nil {
+        return fmt.Errorf("创建任务失败: %v", err)
+    }
+    
+    videoID := createResult.ID
+    fmt.Printf("任务ID: %s\n", videoID)
+    
+    // 步骤2: 等待任务完成
+    fmt.Println("步骤2: 等待任务完成...")
+    maxWaitTime := 15 * time.Minute
+    startTime := time.Now()
+    
+    for time.Since(startTime) < maxWaitTime {
+        statusInfo, err := checkVideoStatus(videoID)
+        if err != nil {
+            return fmt.Errorf("查询状态失败: %v", err)
+        }
+        
+        status := statusInfo.Status
+        fmt.Printf("当前状态: %s\n", status)
+        
+        if status == "completed" {
+            fmt.Println("视频生成完成！")
+            break
+        } else if status == "failed" {
+            return fmt.Errorf("视频生成失败")
+        }
+        
+        time.Sleep(20 * time.Second) // 等待20秒
+    }
+    
+    // 步骤3: 下载视频
+    fmt.Println("步骤3: 下载视频...")
+    outputPath := fmt.Sprintf("doubao_video_%s.mp4", videoID)
+    if err := downloadVideo(videoID, outputPath); err != nil {
+        return fmt.Errorf("下载视频失败: %v", err)
+    }
+    
+    fmt.Printf("视频生成完成: %s\n", outputPath)
+    return nil
+}
+
+// 使用示例
+func main() {
+    textRequest := DoubaoVideoRequest{
+        Content: []DoubaoContent{
+            {
+                Type: "text",
+                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9",
+            },
+        },
+    }
+    
+    err := completeDoubaoVideoGeneration(textRequest)
+    
+    if err != nil {
+        fmt.Printf("❌ 视频生成失败: %v\n", err)
+    } else {
+        fmt.Println("✅ 视频生成成功！")
+    }
+}
+```
+
+</CodeGroup>
+
+## 支持的参数
+
+### 基础参数
+- **model**: 使用的模型名称（如 `doubao-seedance-1.0-pro-250528`）
+- **content**: 内容数组，支持文本和图片信息（必需）
+
+### 内容类型
+每个content对象支持以下字段：
+- **type**: 内容类型（`text` 或 `image_url`）
+- **text**: 文本内容（当type=text时）
+- **image_url**: 图片信息对象（当type=image_url时）
+  - **url**: 图片URL或Base64编码
+- **role**: 图片角色（`first_frame`, `last_frame`, `reference_image`）
+
+### 视频生成参数
+- **resolution**: 分辨率（480p, 720p, 1080p）
+- **ratio**: 宽高比（16:9, 4:3, 1:1, 3:4, 9:16, 21:9, keep_ratio, adaptive）
+- **duration**: 时长（秒）：2~12秒
+- **framespersecond**: 帧率 24
+- **camerafixed**: 是否固定摄像头（布尔值）
+- **watermark**: 是否包含水印（布尔值）
+- **return_last_frame**: 是否返回生成视频的尾帧图像（布尔值）
+
+## 任务状态说明
+
+- **in_queue**: 任务已提交，正在排队等待处理
+- **running**: 任务正在处理中
+- **completed**: 任务已完成，可以下载视频
+- **failed**: 任务失败
+
+## 豆包 Seedance 模型特点
+
+### 技术优势
+- **多模态输入**: 支持文本和图片的组合输入
+- **高质量生成**: Seedance 1.0 Pro版本，专业级视频生成质量
+- **灵活控制**: 支持多种参数精细控制视频生成效果
+- **中文优化**: 对中文提示词有优秀的理解能力
+
+### 生成规格
+- **时长范围**: 2-12秒可调
+- **分辨率**: 480p、720p、1080p多种选择
+- **宽高比**: 支持多种比例，包括自适应比例
+- **文件格式**: MP4格式输出
+
+## 内容格式示例
+
+### 纯文本输入
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨 --ratio 16:9 --duration 6"
+    }
+  ]
+}
+```
+
+### 文本+参考图片
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "基于这张图片生成一段动态视频"
+    },
+    {
+      "type": "image_url",
+      "image_url": {
+        "url": "https://example.com/image.jpg"
+      },
+      "role": "reference_image"
+    }
+  ]
+}
+```
+
+### 首帧指定
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "从这个场景开始，展现一个故事"
+    },
+    {
+      "type": "image_url",
+      "image_url": {
+        "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+      },
+      "role": "first_frame"
+    }
+  ]
+}
+```
+
+## 最佳实践
+
+### 1. 提示词优化
+```text
+推荐的提示词格式：
+"[场景描述] + [动作描述] + [视觉风格] + [技术参数]"
+
+优秀示例：
+"多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
+```
+
+### 2. 图片使用技巧
+- **first_frame**: 用于指定视频开始的画面
+- **last_frame**: 用于指定视频结束的画面
+- **reference_image**: 用于保持整体风格一致性
+
+## 注意事项
+
+1. **生成时间**: 豆包视频生成通常需要8-20分钟，具体取决于参数设置
+2. **内容审核**: 提示词和图片需符合内容安全规范
+3. **文件存储**: 生成的视频在服务器保存7天，请及时下载
+4. **并发限制**: 同时生成任务数量有限制
+5. **参数命令**: 支持在文本中使用 `--ratio`、`--duration` 等命令参数，
+详情：https://www.volcengine.com/docs/82379/1366799#api-%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E
+
+## 错误处理
+
+常见错误码和处理方法：
+
+- **400**: 请求参数错误，检查content格式和参数类型
+- **401**: API密钥无效或过期
+- **413**: 上传文件过大，压缩后重试
+- **429**: 请求频率超限，稍后重试
+- **500**: 服务器错误，联系技术支持
+
+### 任务失败原因
+- 提示词包含敏感内容
+- 参考图片格式不支持或内容不合规
+- 参数设置冲突或超出范围
+- 系统资源不足

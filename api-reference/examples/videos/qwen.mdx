@@ -1,0 +1,2609 @@
+---
+title: '通义万象视频生成示例'
+---
+
+# 通义万象视频生成示例
+
+以下示例展示如何使用通义万象（Qwen）视频生成模型通过 OpenAI 兼容接口生成高质量的视频内容。
+
+通义万象视频生成分为三个步骤：
+1. **创建视频生成任务** - 提交生成请求，获得任务ID
+2. **查询任务状态** - 定期检查任务进度
+3. **下载生成的视频** - 任务完成后下载视频文件
+
+## 支持的参数
+
+### 通用参数
+- **model**: 使用的模型名称
+- **prompt**: 视频描述文本（文生视频场景必需设置，支持中英文）
+- **size** (string, 可选): 指定生成的视频分辨率，格式为宽x高
+  - **重要**: size 直接影响费用，费用 = 单价（基于分辨率）× 时长（秒）。同一模型：1080P > 720P > 480P，请在调用前确认模型价格
+  - size 必须设置为具体数值（如 1280x720），而不是 1:1或480P
+  - 该参数的默认值和可用枚举值依赖于 model 参数
+  - **图生视频场景特别说明**：在图生视频的场景（包括首帧、首尾帧），size 参数不支持控制宽高比，只能用于设置清晰度档位（总像素）。比如，希望视频的清晰度是 1080P 这个档位，可以把 size 设置成 1920x1080 或 1080x1920，但实际输出视频的宽高比由输入首帧图像决定
+  - **480P档位**：832x480（16:9）、480x832（9:16）、624x624（1:1）
+  - **720P档位**：1280x720（16:9）、720x1280（9:16）、960x960（1:1）、1088x832（4:3）、832x1088（3:4）
+  - **1080P档位**：1920x1080（16:9）、1080x1920（9:16）、1440x1440（1:1）、1632x1248（4:3）、1248x1632（3:4）
+- **seconds** (string, 可选): 生成视频的时长，单位为秒
+  - **重要**: seconds直接影响费用。费用 = 单价（基于分辨率）× 时长（秒），请在调用前确认模型价格
+  - **wan2.5-t2v-preview**: 可选值为"5"、"10"，默认值为"5"
+  - **wan2.2-t2v-plus**: 固定为"5"秒，且不支持修改
+  - **wanx2.1-t2v-plus**: 固定为"5"秒，且不支持修改
+  - **wanx2.1-t2v-turbo**: 固定为"5"秒，且不支持修改
+  - 示例值："5"
+- **content.text** (string, 可选): 视频描述文本，用于指导视频生成的内容和风格
+  - **使用说明**: 在使用 content 数组格式时，通过 text 类型的 content 元素来传递视频描述
+  - **支持语言**: 中文和英文
+  - **内容要求**: 描述应该详细、具体，有助于模型理解所需生成的视频内容
+  - **与 prompt 的关系**: 二选一即可
+  - 示例值："一只可爱的小猫在花园里玩耍，阳光明媚，画面温馨"
+- **content.image_url.url** (string, 可选): 输入图像的公网可访问的HTTP/HTTPS链接
+  - **重要**: 链接不能包含中文等非ASCII字符，否则需要进行编码后再传入
+  - **本地文件**: 可通过上传文件获取临时URL
+  - **格式**: JPG、JPEG、PNG、BMP、WEBP
+  - **尺寸**: 图像的宽度和高度都在[200,4096]像素范围内，宽高比在1:3至3:1范围内
+  - **文件大小**: 不超过5MB
+  - **内容**: 画面中仅有一人，正对镜头，人脸完整无遮挡，且在画面中的占比适中，避免过大或过小
+  - 示例值：https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/adsyrp/move_input_image.jpeg
+- **content.audio_url.url** (string, 可选): 音频设置：通过content.audio_url.url和 audio参数组合控制音频行为，参数优先级：audio_url > audio。支持三种模式：
+  - **生成无声视频**: 参数设置：不传audio_url，且 audio 为 false。适用场景：纯视觉内容展示，后期自行添加音频或配乐
+  - **自动生成音频**: 参数设置：不传audio_url，且 audio 为 true。效果说明：模型根据提示词和画面内容，自动生成匹配的背景音频或音乐
+  - **使用自定义音频**: 参数设置：传入 audio_url（此时 audio参数无效）。效果说明：视频画面会与音频内容对齐（如口型、节奏等）
+  - 示例值：https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250923/hbiayh/%E4%BB%8E%E5%86%9B%E8%A1%8C.mp3
+
+### Qwen 扩展参数
+
+- **prompt_extend** (boolean, 可选): 是否开启prompt智能改写。开启后使用大模型对输入prompt进行智能改写。对于较短的prompt生成效果提升明显，但会增加耗时
+  - **true**: 默认值，开启智能改写
+  - **false**: 不开启智能改写
+  - 示例值：true
+
+- **watermark** (boolean, 可选): 是否添加水印标识，水印位于视频右下角，文案固定为"AI生成"
+  - **false**: 默认值，不添加水印
+  - **true**: 添加水印
+  - 示例值：false
+
+- **audio** (boolean, 可选): 仅 **wan2.5-t2v-preview** 支持。是否添加音频。参数优先级：content.audio_url.url > audio，仅在 content.audio_url.url为空时生效
+  - **true**: 默认值，自动为视频添加音频
+  - **false**: 不添加音频，输出无声视频
+  - 示例值：true
+
+- **seed** (integer, 可选): 随机数种子，取值范围为[0, 2147483647]。未指定时，系统自动生成随机种子。若需提升生成结果的可复现性，建议固定seed值。请注意，由于模型生成具有概率性，即使使用相同 seed，也不能保证每次生成结果完全一致
+  - 示例值：12345
+
+## 文生视频模型介绍
+
+以下是通义万象文生视频支持的各个模型及其规格说明：
+
+| 模型名称 | 模型简介 | 输出视频规格 |
+|---------|----------|-------------|
+| **wan2.5-t2v-preview** 🌟推荐 | **万相2.5 preview（有声视频）**<br/>新增音频能力：支持自动配音，或传入自定义音频文件 | • 分辨率档位：480P、720P、1080P<br/>• 视频时长：5秒，10秒<br/>• 固定规格：24fps、MP4 (H.264编码) |
+| **wan2.2-t2v-plus** 🌟推荐 | **万相2.2专业版（无声视频）**<br/>较2.1模型稳定性与成功率提升，速度提升50% | • 分辨率档位：480P、1080P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+| **wanx2.1-t2v-turbo** | **万相2.1极速版（无声视频）** | • 分辨率档位：480P、720P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+| **wanx2.1-t2v-plus** | **万相2.1专业版（无声视频）** | • 分辨率档位：720P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+
+## 步骤1：创建视频生成任务
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wan2.5-t2v-preview",
+    "prompt": "在森林中奔跑的狐狸，阳光透过树叶洒在地面上，微风轻拂树枝，鸟儿在枝头欢快地歌唱",
+    "size": "832x480",
+    "seconds": "10",
+    "qwen": {
+        "prompt_extend": true,
+        "audio": true,
+        "watermark": false,
+        "seed": 12345
+    }
+  }'
+```
+
+```python Python
+import requests
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def create_qwen_video(prompt, model="wan2.5-t2v-preview", **kwargs):
+    """
+    创建通义万象视频生成任务
+    
+    Args:
+        prompt: 视频描述文本
+        model: 使用的模型名称
+        **kwargs: 其他参数（size, seconds, qwen扩展参数）
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # 构建请求数据
+    data = {
+        "model": model,
+        "prompt": prompt
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds", "seed"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加通义万象特有参数
+    qwen_params = {}
+    for key in ["prompt_extend", "audio", "audio_url", "watermark", "seed"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"通义万象视频生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 示例：创建任务
+result = create_qwen_video(
+    prompt="在森林中奔跑的狐狸，阳光透过树叶洒在地面上，微风轻拂树枝，鸟儿在枝头欢快地歌唱",
+    size="832x480",
+    seconds="10",
+    prompt_extend=True,
+    audio=True,
+    watermark=False,
+    seed=12345
+)
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function createQwenVideo(prompt, model = 'wan2.5-t2v-preview', options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: model,
+        prompt: prompt
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds', 'seed'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加通义千问特有参数
+    const qwenParams = {};
+    ['prompt_extend', 'audio', 'audio_url', 'watermark', 'seed'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('通义万象视频生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 示例：创建任务
+const result = await createQwenVideo(
+    '在森林中奔跑的狐狸，阳光透过树叶洒在地面上，微风轻拂树枝，鸟儿在枝头欢快地歌唱',
+    'wan2.5-t2v-preview',
+    {
+        size: '832x480',
+        seconds: '10',
+        prompt_extend: true,
+        audio: true,
+        watermark: false,
+        seed: 12345
+    }
+);
+```
+
+
+</CodeGroup>
+
+### 响应示例
+
+```json
+{
+  "id": "eff1443c-ccab-4676-aad3-xxxxxx",
+  "object": "video", 
+  "created_at": 1762776961,
+  "status": "in_queue"
+}
+```
+
+## 步骤2：查询任务状态
+
+<CodeGroup>
+
+```bash cURL
+# 查询任务状态
+curl -X GET "https://api.tokenops.ai/v1/videos/eff1443c-ccab-4676-aad3-xxxxxx" \
+  --header 'Authorization: Bearer <API-KEY>'
+```
+
+```python Python
+def check_video_status(video_id):
+    """
+    检查视频生成状态
+    
+    Args:
+        video_id: 视频任务ID
+        
+    Returns:
+        任务状态信息
+    """
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"任务状态: {result.get('status')}")
+            return result
+        else:
+            print(f"查询失败: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 示例：查询状态
+video_id = "eff1443c-ccab-4676-aad3-xxxxxx"
+status_info = check_video_status(video_id)
+```
+
+```javascript JavaScript/Node.js
+async function checkVideoStatus(videoId) {
+    const url = `${BASE_URL}/videos/${videoId}`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            }
+        });
+        
+        console.log(`任务状态: ${response.data.status}`);
+        return response.data;
+    } catch (error) {
+        console.error('状态查询失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 示例：查询状态
+const videoId = 'eff1443c-ccab-4676-aad3-xxxxxx';
+const statusInfo = await checkVideoStatus(videoId);
+```
+
+
+</CodeGroup>
+
+### 状态响应示例
+
+**排队中:**
+```json
+{
+  "id": "eff1443c-ccab-4676-aad3-xxxxxx",
+  "object": "video",
+  "status": "in_queue"
+}
+```
+
+**处理中:**
+```json
+{
+  "id": "eff1443c-ccab-4676-aad3-xxxxxx",
+  "object": "video", 
+  "status": "in_progress"
+}
+```
+
+**已完成:**
+```json
+{
+  "id": "eff1443c-ccab-4676-aad3-xxxxxx",
+  "object": "video",
+  "status": "completed",
+  "url": "https://dashscope-result-sh.oss-accelerate.aliyuncs.com/xxx.mp4?Expires=xxx"
+}
+```
+
+## 步骤3：下载生成的视频
+
+<CodeGroup>
+
+```bash cURL
+# 下载视频文件
+curl -X GET "https://api.tokenops.ai/v1/videos/eff1443c-ccab-4676-aad3-xxxxxx/content" \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --output qwen_video.mp4
+```
+
+```python Python
+def download_video(video_id, output_path="qwen_video.mp4"):
+    """
+    下载生成的视频
+    
+    Args:
+        video_id: 视频任务ID
+        output_path: 输出文件路径
+        
+    Returns:
+        是否下载成功
+    """
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+            print(f"视频已保存: {output_path}")
+            return True
+        else:
+            print(f"下载失败: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"下载失败: {e}")
+        return False
+
+# 示例：下载视频
+video_id = "eff1443c-ccab-4676-aad3-xxxxxx"
+success = download_video(video_id, "qwen_forest_fox_video.mp4")
+```
+
+```javascript JavaScript/Node.js
+const fs = require('fs');
+
+async function downloadVideo(videoId, outputPath = 'qwen_video.mp4') {
+    const url = `${BASE_URL}/videos/${videoId}/content`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            responseType: 'stream'
+        });
+        
+        const writer = fs.createWriteStream(outputPath);
+        response.data.pipe(writer);
+        
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => {
+                console.log(`视频已保存: ${outputPath}`);
+                resolve(true);
+            });
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        console.error('视频下载失败:', error.response?.data || error.message);
+        return false;
+    }
+}
+
+// 示例：下载视频
+const videoId = 'eff1443c-ccab-4676-aad3-xxxxxx';
+const success = await downloadVideo(videoId, 'qwen_forest_fox_video.mp4');
+```
+
+
+</CodeGroup>
+
+## 使用音频背景音乐示例
+
+> **注意**: 音频背景音乐功能仅支持 **wan2.5-i2v-preview** 和 **wan2.5-t2v-preview** 模型。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wan2.5-t2v-preview",
+    "content": [
+      {
+        "type": "text",
+        "text": "一幅史诗级可爱的场景。一只小巧可爱的卡通小猫将军，身穿细节精致的金色盔甲，头戴一个稍大的头盔，勇敢地站在悬崖上。他骑着一匹虽小但英勇的战马，说：\"青海长云暗雪山，孤城遥望玉门关。黄沙百战穿金甲，不破楼兰终不还。\"。悬崖下方，一支由老鼠组成的、数量庞大、无穷无尽的军队正带着临时制作的武器向前冲锋。这是一个戏剧性的、大规模的战斗场景，灵感来自中国古代的战争史诗。远处的雪山上空，天空乌云密布。整体氛围是\"可爱\"与\"霸气\"的搞笑和史诗般的融合。"
+      },
+      {
+        "type": "audio_url",
+        "audio_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250923/hbiayh/%E4%BB%8E%E5%86%9B%E8%A1%8C.mp3"
+        }
+      }
+    ],
+    "size": "1280x720",
+    "seconds": "10",
+    "qwen": {
+        "prompt_extend": true,
+        "watermark": false
+    }
+  }'
+```
+
+```python Python
+def create_video_with_background_music(prompt, audio_url, **kwargs):
+    """
+    创建带有背景音乐的视频生成任务
+    
+    Args:
+        prompt: 视频描述文本
+        audio_url: 背景音乐URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # 构建请求数据
+    data = {
+        "model": "wan2.5-t2v-preview",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "audio_url",
+                "audio_url": {
+                    "url": audio_url
+                }
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加通义万象特有参数
+    qwen_params = {}
+    
+    for key in ["prompt_extend", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"带背景音乐的视频生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 示例：创建带背景音乐的史诗级可爱战斗场景
+result = create_video_with_background_music(
+    prompt="一幅史诗级可爱的场景。一只小巧可爱的卡通小猫将军，身穿细节精致的金色盔甲，头戴一个稍大的头盔，勇敢地站在悬崖上。他骑着一匹虽小但英勇的战马，说：\"青海长云暗雪山，孤城遥望玉门关。黄沙百战穿金甲，不破楼兰终不还。\"。悬崖下方，一支由老鼠组成的、数量庞大、无穷无尽的军队正带着临时制作的武器向前冲锋。这是一个戏剧性的、大规模的战斗场景，灵感来自中国古代的战争史诗。远处的雪山上空，天空乌云密布。整体氛围是\"可爱\"与\"霸气\"的搞笑和史诗般的融合。",
+    audio_url="https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250923/hbiayh/%E4%BB%8E%E5%86%9B%E8%A1%8C.mp3",
+    size="1280x720",
+    seconds="10",
+    prompt_extend=True,
+    watermark=False,
+)
+```
+
+</CodeGroup>
+
+## 图生视频模型介绍
+
+以下是通义万象图生视频支持的各个模型及其规格说明：
+
+| 模型名称 | 模型简介 | 输出视频规格 |
+|---------|----------|-------------|
+| **wan2.5-i2v-preview** 🌟推荐 | **万相2.5 preview（有声视频）**<br/>新增音频能力：支持自动配音，或传入自定义音频文件 | • 分辨率档位：480P、720P、1080P<br/>• 视频时长：5秒，10秒<br/>• 固定规格：24fps、MP4 (H.264编码) |
+| **wan2.2-i2v-flash** | **万相2.2极速版（无声视频）**<br/>较2.1模型速度提升50% | • 分辨率档位：480P、720P、1080P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+| **wan2.2-i2v-plus** | **万相2.2专业版（无声视频）**<br/>较2.1模型稳定性与成功率全面提升 | • 分辨率档位：480P、1080P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+| **wanx2.1-i2v-plus** | **万相2.1专业版（无声视频）** | • 分辨率档位：720P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+| **wanx2.1-i2v-turbo** | **万相2.1极速版（无声视频）** | • 分辨率档位：480P、720P<br/>• 视频时长：3、4、5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+
+## 图生视频-首帧示例
+
+通义万象支持基于图片生成视频（首帧生成），以下是图生视频-首帧的示例：
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wan2.5-i2v-preview",
+    "content": [
+      {
+        "type": "text",
+        "text": "一幅都市奇幻艺术的场景。一个充满动感的涂鸦艺术角色。一个由喷漆所画成的少年，正从一面混凝土墙上活过来。他一边用极快的语速演唱一首英文rap，一边摆着一个经典的、充满活力的说唱歌手姿势。场景设定在夜晚一个充满都市感的铁路桥下。灯光来自一盏孤零零的街灯，营造出电影般的氛围，充满高能量和惊人的细节。视频的音频部分完全由少年的rap构成，没有其他对话或杂音。"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/wpimhv/rap.png"
+        }
+      }
+    ],
+    "size": "1280x720",
+    "qwen": {
+      "audio": true
+    }
+  }'
+
+# 使用 Base64 编码图片的示例
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wan2.5-i2v-preview",
+    "content": [
+      {
+        "type": "text",
+        "text": "根据图片内容生成动态视频，保持画面风格一致"
+      },
+      {
+        "type": "image_base64",
+        "image_url": {
+          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        }
+      }
+    ],
+    "size": "1280x720",
+    "qwen": {
+      "audio": false
+    }
+  }'
+```
+
+```python Python
+def create_image_to_video(prompt, image_url, **kwargs):
+    """
+    图片到视频生成
+    
+    Args:
+        prompt: 视频描述文本
+        image_url: 参考图片URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wan2.5-i2v-preview",
+        "prompt": prompt,
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "image_url", 
+                "image_url": {
+                    "url": image_url
+                }
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["audio", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        return response.json() if response.status_code == 200 else None
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+image_url = "https://example.com/beautiful_landscape.jpg"
+result = create_image_to_video(
+    prompt="根据这张风景图生成一段视频，展现微风轻抚、云朵缓缓移动的动态效果",
+    image_url=image_url,
+    size="1280x720",
+    audio=True
+)
+```
+
+</CodeGroup>
+
+## 图生视频-首尾帧示例
+
+通义万象支持基于首帧和尾帧图片生成视频，以下是首尾帧生成视频的示例：
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wan2.2-kf2v-flash",
+    "content": [
+      {
+        "type": "text",
+        "text": "写实风格，一只黑色小猫好奇地看向天空，镜头从平视逐渐上升，最后俯拍小猫好奇的眼神。"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://wanx.alicdn.com/material/20250318/first_frame.png"
+        },
+        "role": "first_frame"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://wanx.alicdn.com/material/20250318/last_frame.png"
+        },
+        "role": "last_frame"
+      }
+    ],
+    "size": "1280x720",
+    "qwen": {
+      "audio": true
+    }
+  }'
+```
+
+```python Python
+def create_keyframe_to_video(prompt, first_frame_url, last_frame_url, **kwargs):
+    """
+    首尾帧生成视频
+    
+    Args:
+        prompt: 视频描述文本
+        first_frame_url: 首帧图片URL
+        last_frame_url: 尾帧图片URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wan2.2-kf2v-flash",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": first_frame_url
+                },
+                "role": "first_frame"
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": last_frame_url
+                },
+                "role": "last_frame"
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["audio", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        return response.json() if response.status_code == 200 else None
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+first_frame = "https://wanx.alicdn.com/material/20250318/first_frame.png"
+last_frame = "https://wanx.alicdn.com/material/20250318/last_frame.png"
+result = create_keyframe_to_video(
+    prompt="写实风格，一只黑色小猫好奇地看向天空，镜头从平视逐渐上升，最后俯拍小猫好奇的眼神。",
+    first_frame_url=first_frame,
+    last_frame_url=last_frame,
+    size="1280x720",
+    audio=True
+)
+```
+
+```javascript JavaScript/Node.js
+async function createKeyframeToVideo(prompt, firstFrameUrl, lastFrameUrl, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: 'wan2.2-kf2v-flash',
+        content: [
+            {
+                type: 'text',
+                text: prompt
+            },
+            {
+                type: 'image_url',
+                image_url: {
+                    url: firstFrameUrl
+                },
+                role: 'first_frame'
+            },
+            {
+                type: 'image_url',
+                image_url: {
+                    url: lastFrameUrl
+                },
+                role: 'last_frame'
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    ['size'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {};
+    ['audio', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('首尾帧视频生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const firstFrame = 'https://wanx.alicdn.com/material/20250318/first_frame.png';
+const lastFrame = 'https://wanx.alicdn.com/material/20250318/last_frame.png';
+const result = await createKeyframeToVideo(
+    '写实风格，一只黑色小猫好奇地看向天空，镜头从平视逐渐上升，最后俯拍小猫好奇的眼神。',
+    firstFrame,
+    lastFrame,
+    {
+        size: '1280x720',
+        audio: true
+    }
+);
+```
+
+
+</CodeGroup>
+
+## 图生动作示例
+
+通义万象支持基于图片和视频生成动作视频，通过 [`wan2.2-animate-move`](services/mintlify/api-reference/examples/videos/qwen.mdx:965) 模型实现图生动作功能：
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-service-api-test.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wan2.2-animate-move",
+    "content": [
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/adsyrp/move_input_image.jpeg"
+        }
+      },
+      {
+        "type": "video_url",
+        "video_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/kaakcn/move_input_video.mp4"
+        }
+      }
+    ],
+    "size": "1920x1080",
+    "qwen": {
+        "mode": "wan-std"
+    }
+  }'
+```
+
+```python Python
+def create_animate_move_video(image_url, video_url, **kwargs):
+    """
+    图生动作视频生成
+    
+    Args:
+        image_url: 输入图片URL
+        video_url: 参考动作视频URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wan2.2-animate-move",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": image_url
+                }
+            },
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": video_url
+                }
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["mode", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"图生动作视频生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+result = create_animate_move_video(
+    image_url="https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/adsyrp/move_input_image.jpeg",
+    video_url="https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/kaakcn/move_input_video.mp4",
+    size="1920x1080",
+    mode="wan-std"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createAnimateMoveVideo(imageUrl, videoUrl, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: 'wan2.2-animate-move',
+        content: [
+            {
+                type: 'image_url',
+                image_url: {
+                    url: imageUrl
+                }
+            },
+            {
+                type: 'video_url',
+                video_url: {
+                    url: videoUrl
+                }
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {};
+    ['mode', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('图生动作视频生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const result = await createAnimateMoveVideo(
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/adsyrp/move_input_image.jpeg',
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/kaakcn/move_input_video.mp4',
+    {
+        size: '1920x1080',
+        mode: 'wan-std'
+    }
+);
+```
+
+</CodeGroup>
+
+### 图生动作参数
+
+- **qwen.mode** (string, 图生动作场景必选): 用于图生动作场景。模型服务模式选择，支持两种模式：
+
+- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础动画场景，处理1s视频耗时约8s
+- **wan-pro**: 专业模式，动画流畅度更高，效果更佳，但处理时间和费用也相应增加，处理1s视频耗时约13s
+- 示例值："wan-std"
+
+### 图生动作模型说明
+
+| 模型名称 | 模型简介 | 功能特点 |
+|---------|----------|----------|
+| **wan2.2-animate-move** | **万相2.2动作生成模型** | • 基于图片和参考动作视频生成动态视频<br/>• 支持标准模式和专业模式<br/>• 适用于人物动作迁移和动画制作 |
+
+### 支持的模式
+
+- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础动画场景，处理1s视频耗时约8s
+- **wan-pro**: 专业模式，动画流畅度更高，效果更佳，但处理时间和费用也相应增加，处理1s视频耗时约13s
+
+## 视频特效示例
+
+通义万象支持基于首帧图片生成带有特效的视频，可以通过 `template` 参数指定不同的视频特效模板：
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wanx2.1-kf2v-plus",
+    "content": [
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://ty-yuanfang.oss-cn-hangzhou.aliyuncs.com/lizhengjia.lzj/tmp/11.png"
+        },
+        "role": "first_frame"
+      }
+    ],
+    "size": "1280x720",
+    "seconds": "5",
+    "qwen": {
+      "template": "hanfu-1"
+    }
+  }'
+```
+
+```python Python
+def create_video_with_effects(image_url, template, **kwargs):
+    """
+    使用视频特效生成视频
+    
+    Args:
+        image_url: 首帧图片URL
+        template: 特效模板名称
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wanx2.1-kf2v-plus",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": image_url
+                },
+                "role": "first_frame"
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    if "seconds" in kwargs:
+        data["seconds"] = kwargs["seconds"]
+    
+    # 添加qwen扩展参数
+    qwen_params = {
+        "template": template
+    }
+    
+    for key in ["audio", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        return response.json() if response.status_code == 200 else None
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+image_url = "https://ty-yuanfang.oss-cn-hangzhou.aliyuncs.com/lizhengjia.lzj/tmp/11.png"
+result = create_video_with_effects(
+    image_url=image_url,
+    template="hanfu-1",
+    size="1280x720",
+    seconds="5"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createVideoWithEffects(imageUrl, template, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: 'wanx2.1-kf2v-plus',
+        content: [
+            {
+                type: 'image_url',
+                image_url: {
+                    url: imageUrl
+                },
+                role: 'first_frame'
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    if (options.seconds !== undefined) {
+        data.seconds = options.seconds;
+    }
+    
+    // 添加qwen扩展参数
+    const qwenParams = {
+        template: template
+    };
+    
+    ['audio', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('视频特效生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const imageUrl = 'https://ty-yuanfang.oss-cn-hangzhou.aliyuncs.com/lizhengjia.lzj/tmp/11.png';
+const result = await createVideoWithEffects(
+    imageUrl,
+    'hanfu-1',
+    {
+        size: '1280x720',
+        seconds: '5'
+    }
+);
+```
+
+
+</CodeGroup>
+
+### 视频特效参数
+
+- **qwen.template** (string, 可选): 通过 template 参数从特效列表中选择一个动态效果。模型将根据模板生成指定的动态效果：
+
+- 示例值："hanfu-1"
+
+### 支持的视频特效模板
+
+> 更多特效模板请参考 [阿里云万相视频特效文档](https://help.aliyun.com/zh/model-studio/wanx-video-effects?spm=a2c4g.11186623.help-menu-2400256.d_2_3_2.59d3a492mg1zMt&scm=20140722.H_2930017._.OR_help-T_cn~zh-V_1#995f374aafh69)，获取最新的特效模板列表和使用说明。
+
+
+## 视频编辑-多图参考示例
+
+通义万象支持基于多张参考图像生成视频，可以分别指定主体和背景参考，以下是多图参考视频编辑的示例：
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wanx2.1-vace-plus",
+    "content": [
+      {
+        "type": "text",
+        "text": "视频中，一位女孩自晨雾缭绕的古老森林深处款款走出，她步伐轻盈，镜头捕捉她每一个灵动瞬间。当女孩站定，环顾四周葱郁林木时，她脸上绽放出惊喜与喜悦交织的笑容。这一幕，定格在了光影交错的瞬间，记录下女孩与大自然的美妙邂逅。"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "http://wanx.alicdn.com/material/20250318/image_reference_2_5_16.png"
+        },
+        "role": "reference_image"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "http://wanx.alicdn.com/material/20250318/image_reference_1_5_16.png"
+        },
+        "role": "reference_image"
+      }
+    ],
+    "size": "1280x720",
+    "qwen": {
+      "prompt_extend": true,
+      "obj_or_bg": ["obj", "bg"]
+    }
+  }'
+```
+
+```python Python
+def create_multi_reference_video(prompt, reference_images, obj_or_bg, **kwargs):
+    """
+    多图参考视频编辑
+    
+    Args:
+        prompt: 视频描述文本
+        reference_images: 参考图像URL列表
+        obj_or_bg: 图像用途标识列表 ["obj"|"bg"]
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # 构建content数组
+    content = [
+        {
+            "type": "text",
+            "text": prompt
+        }
+    ]
+    
+    # 添加参考图像
+    for img_url in reference_images:
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": img_url
+            },
+            "role": "reference_image"
+        })
+    
+    data = {
+        "model": "wanx2.1-vace-plus",
+        "content": content
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {
+        "obj_or_bg": obj_or_bg
+    }
+    
+    for key in ["prompt_extend", "audio", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        return response.json() if response.status_code == 200 else None
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+reference_images = [
+    "http://wanx.alicdn.com/material/20250318/image_reference_2_5_16.png",
+    "http://wanx.alicdn.com/material/20250318/image_reference_1_5_16.png"
+]
+result = create_multi_reference_video(
+    prompt="视频中，一位女孩自晨雾缭绕的古老森林深处款款走出，她步伐轻盈，镜头捕捉她每一个灵动瞬间。当女孩站定，环顾四周葱郁林木时，她脸上绽放出惊喜与喜悦交织的笑容。这一幕，定格在了光影交错的瞬间，记录下女孩与大自然的美妙邂逅。",
+    reference_images=reference_images,
+    obj_or_bg=["obj", "bg"],
+    size="1280x720",
+    prompt_extend=True
+)
+```
+
+```javascript JavaScript/Node.js
+async function createMultiReferenceVideo(prompt, referenceImages, objOrBg, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    // 构建content数组
+    const content = [
+        {
+            type: 'text',
+            text: prompt
+        }
+    ];
+    
+    // 添加参考图像
+    referenceImages.forEach(imgUrl => {
+        content.push({
+            type: 'image_url',
+            image_url: {
+                url: imgUrl
+            },
+            role: 'reference_image'
+        });
+    });
+    
+    const data = {
+        model: 'wanx2.1-vace-plus',
+        content: content
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {
+        obj_or_bg: objOrBg
+    };
+    
+    ['prompt_extend', 'audio', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('多图参考视频生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const referenceImages = [
+    'http://wanx.alicdn.com/material/20250318/image_reference_2_5_16.png',
+    'http://wanx.alicdn.com/material/20250318/image_reference_1_5_16.png'
+];
+const result = await createMultiReferenceVideo(
+    '视频中，一位女孩自晨雾缭绕的古老森林深处款款走出，她步伐轻盈，镜头捕捉她每一个灵动瞬间。当女孩站定，环顾四周葱郁林木时，她脸上绽放出惊喜与喜悦交织的笑容。这一幕，定格在了光影交错的瞬间，记录下女孩与大自然的美妙邂逅。',
+    referenceImages,
+    ['obj', 'bg'],
+    {
+        size: '1280x720',
+        prompt_extend: true
+    }
+);
+```
+
+
+</CodeGroup>
+
+### 多图参考参数
+
+- **qwen.obj_or_bg** (array[string], 可选): 该参数用于标识每张参考图像的用途，与参考图像一一对应。数组中每个元素表示对应位置的图像为"主体"还是"背景"：
+
+- **obj**: 表示该图像作为主体参考
+- **bg**: 表示该图像作为背景参考（最多仅允许一个）
+- 使用说明：建议传入该参数，且长度必须与参考图像数量保持一致，否则将报错。仅当参考图像为单元素时，可不传，此时默认值为 ["obj"]
+- 示例值：["obj", "bg"]
+
+## 视频编辑-视频重绘示例
+
+通义万象支持基于已有视频进行重绘，通过输入一个视频片段和文本描述，结合特征提取控制，可以生成新的视频内容。这种功能特别适用于需要保持原视频动作或构图的同时改变视频内容风格的场景。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-service-api-test.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Content-Type: application/json' \
+  --data '{
+	"model": "wanx2.1-vace-plus",
+	"content": [{
+			"type": "text",
+			"text": "视频展示了一辆黑色的蒸汽朋克风格汽车，绅士驾驶着，车辆装饰着齿轮和铜管。背景是蒸汽驱动的糖果工厂和复古元素，画面复古与趣味。"
+		},
+		{
+			"type": "video_url",
+			"video_url": {
+				"url": "http://wanx.alicdn.com/material/20250318/video_repainting_1.mp4"
+			}
+		}
+	],
+	"size": "1280x720",
+	"qwen": {
+        "prompt_extend": false,
+        "control_condition": "depth"
+    }
+}'
+```
+
+```python Python
+def create_video_repainting(prompt, video_url, **kwargs):
+    """
+    视频重绘生成
+    
+    Args:
+        prompt: 重绘描述文本
+        video_url: 原始视频URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wanx2.1-vace-plus",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": video_url
+                }
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["prompt_extend", "control_condition", "strength", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"视频重绘生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+result = create_video_repainting(
+    prompt="视频展示了一辆黑色的蒸汽朋克风格汽车，绅士驾驶着，车辆装饰着齿轮和铜管。背景是蒸汽驱动的糖果工厂和复古元素，画面复古与趣味。",
+    video_url="http://wanx.alicdn.com/material/20250318/video_repainting_1.mp4",
+    size="1280x720",
+    prompt_extend=False,
+    control_condition="depth"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createVideoRepainting(prompt, videoUrl, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: 'wanx2.1-vace-plus',
+        content: [
+            {
+                type: 'text',
+                text: prompt
+            },
+            {
+                type: 'video_url',
+                video_url: {
+                    url: videoUrl
+                }
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {};
+    ['prompt_extend', 'control_condition', 'strength', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('视频重绘生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const result = await createVideoRepainting(
+    '视频展示了一辆黑色的蒸汽朋克风格汽车，绅士驾驶着，车辆装饰着齿轮和铜管。背景是蒸汽驱动的糖果工厂和复古元素，画面复古与趣味。',
+    'http://wanx.alicdn.com/material/20250318/video_repainting_1.mp4',
+    {
+        size: '1280x720',
+        prompt_extend: false,
+        control_condition: 'depth'
+    }
+);
+```
+
+</CodeGroup>
+
+### 视频重绘参数
+
+视频重绘功能支持以下参数，用于控制视频特征提取和重绘强度：
+
+- **qwen.control_condition** (string, 必选): 设置视频特征提取的方式，用于视频重绘功能
+  - **posebodyface**: 提取输入视频中主体的脸部表情和肢体动作，适用于需保留主体表情细节的场景
+  - **posebody**: 提取输入视频中主体的肢体动作（不含脸部表情），适用于只需要控制主体身体动作的场景
+  - **depth**: 提取输入视频的构图和运动轮廓
+  - **scribble**: 提取输入视频的线稿结构
+  - 示例值："depth"
+
+- **qwen.strength** (float, 可选): 调节 control_condition 所指定的视频特征提取方式对生成视频的控制强度
+  - 默认值为1.0，取值范围[0.0, 1.0]
+  - 数值越大，生成视频越贴近原视频动作和构图
+  - 数值越小，生成内容越自由
+  - 示例值：1.0
+
+## 视频编辑-局部重绘示例
+
+通义万象支持基于掩码图像进行视频局部重绘，通过输入视频、掩码图像和文本描述，可以对视频中的特定区域进行编辑，而保持其他区域不变。这种功能特别适用于需要对视频中某个特定对象或区域进行样式变换的场景。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-service-api-test.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Content-Type: application/json' \
+  --data '{
+ "model": "wanx2.1-vace-plus",
+ "content": [{
+  	"type": "text",
+  	"text": "视频展示了一家巴黎风情的法式咖啡馆，一只穿着西装的狮子优雅地品着咖啡。它一手端着咖啡杯，轻轻啜饮，神情惬意。咖啡馆装饰雅致，柔和的色调与温暖灯光映照着狮子所在的区域。"
+  },
+    {
+      "type": "image_url",
+      "image_url": {
+        "url": "http://wanx.alicdn.com/material/20250318/video_edit_1_mask.png"
+      },
+      "role": "mask_image"
+    },
+  {
+  	"type": "video_url",
+  	"video_url": {
+  		"url": "http://wanx.alicdn.com/material/20250318/video_edit_2.mp4"
+  	}
+  }
+ ],
+ "size": "1280x720",
+ "qwen": {
+        "prompt_extend": false,
+        "mask_type": "tracking",
+        "expand_ratio": 0.05,
+        "mask_frame_id": 1
+    }
+}'
+```
+
+```python Python
+def create_video_local_edit(prompt, video_url, mask_image_url, **kwargs):
+    """
+    视频局部重绘生成
+    
+    Args:
+        prompt: 重绘描述文本
+        video_url: 原始视频URL
+        mask_image_url: 掩码图像URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wanx2.1-vace-plus",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": mask_image_url
+                },
+                "role": "mask_image"
+            },
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": video_url
+                }
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["prompt_extend", "mask_type", "expand_ratio", "expand_mode", "mask_frame_id", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"视频局部重绘生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+result = create_video_local_edit(
+    prompt="视频展示了一家巴黎风情的法式咖啡馆，一只穿着西装的狮子优雅地品着咖啡。它一手端着咖啡杯，轻轻啜饮，神情惬意。咖啡馆装饰雅致，柔和的色调与温暖灯光映照着狮子所在的区域。",
+    video_url="http://wanx.alicdn.com/material/20250318/video_edit_2.mp4",
+    mask_image_url="http://wanx.alicdn.com/material/20250318/video_edit_1_mask.png",
+    size="1280x720",
+    prompt_extend=False,
+    mask_type="tracking",
+    expand_ratio=0.05,
+    mask_frame_id=1
+)
+```
+
+```javascript JavaScript/Node.js
+async function createVideoLocalEdit(prompt, videoUrl, maskImageUrl, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: 'wanx2.1-vace-plus',
+        content: [
+            {
+                type: 'text',
+                text: prompt
+            },
+            {
+                type: 'image_url',
+                image_url: {
+                    url: maskImageUrl
+                },
+                role: 'mask_image'
+            },
+            {
+                type: 'video_url',
+                video_url: {
+                    url: videoUrl
+                }
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {};
+    ['prompt_extend', 'mask_type', 'expand_ratio', 'expand_mode', 'mask_frame_id', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('视频局部重绘生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const result = await createVideoLocalEdit(
+    '视频展示了一家巴黎风情的法式咖啡馆，一只穿着西装的狮子优雅地品着咖啡。它一手端着咖啡杯，轻轻啜饮，神情惬意。咖啡馆装饰雅致，柔和的色调与温暖灯光映照着狮子所在的区域。',
+    'http://wanx.alicdn.com/material/20250318/video_edit_2.mp4',
+    'http://wanx.alicdn.com/material/20250318/video_edit_1_mask.png',
+    {
+        size: '1280x720',
+        prompt_extend: false,
+        mask_type: 'tracking',
+        expand_ratio: 0.05,
+        mask_frame_id: 1
+    }
+);
+```
+
+</CodeGroup>
+
+### 局部重绘参数
+
+视频局部重绘功能支持以下参数，用于控制掩码区域的行为和编辑效果：
+
+- **qwen.mask_type** (string, 可选): 当使用掩码图像时，该参数用于指定编辑区域的行为方式
+  - **tracking**（默认值）: 编辑区域将根据目标物体的运动轨迹动态跟随，适用于主体运动场景
+  - **fixed**: 编辑区域保持固定不变，不会随画面内容变化
+  - 示例值："tracking"
+
+- **qwen.expand_ratio** (float, 可选): 当 mask_type 为 tracking 时生效，表示对掩码区域进行向外扩展的比例
+  - 取值范围为 [0.0, 1.0]，默认值为 0.05
+  - 取值越小，掩码区域越贴合目标物体；取值越大，掩码区域的扩展范围越广
+  - 示例值：0.05
+
+- **qwen.expand_mode** (string, 可选): 当 mask_type 为 tracking 时生效，表示掩码区域的形状
+  - **hull**（默认值）: 多边形模式，使用一个多边形包裹掩码目标
+  - **bbox**: 边界框模式，使用一个矩形包裹掩码目标
+  - **original**: 原始模式，尽量保持与原始掩码目标的形状一致
+  - 示例值："hull"
+
+- **qwen.mask_frame_id** (integer, 可选): 指定掩码对应的视频帧ID，用于局部编辑功能
+  - 示例值：1
+
+## 视频延展示例
+
+通义万象支持基于已有视频进行延展，通过输入一个视频片段和文本描述，可以生成延展后的视频内容。这种功能特别适用于需要扩展现有视频长度或改变视频内容的场景。
+
+<CodeGroup>
+
+```bash cURL
+# 使用视频URL的示例
+curl --request POST \
+  --url https://model-service-api-test.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wanx2.1-vace-plus",
+    "content": [{
+        "type": "text",
+        "text": "一只戴着墨镜的狗在街道上滑滑板，3D卡通。"
+      },
+      {
+        "type": "video_url",
+        "video_url": {
+          "url": "http://wanx.alicdn.com/material/20250318/video_extension_1.mp4"
+        },
+        "role": "first_clip"
+      }
+    ],
+    "size": "1280x720",
+    "qwen": {
+      "prompt_extend": false
+    }
+  }'
+
+# 使用Base64编码视频的示例
+curl --request POST \
+  --url https://model-service-api-test.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wanx2.1-vace-plus",
+    "content": [{
+        "type": "text",
+        "text": "一只戴着墨镜的狗在街道上滑滑板，3D卡通。"
+      },
+      {
+        "type": "video_base64",
+        "video_url": {
+          "url": "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAACKBtZGF0AAAC..."
+        },
+        "role": "first_clip"
+      }
+    ],
+    "size": "1280x720",
+    "qwen": {
+      "prompt_extend": false
+    }
+  }'
+```
+
+```python Python
+def create_video_extension(prompt, video_input, input_type="url", **kwargs):
+    """
+    视频延展生成
+    
+    Args:
+        prompt: 延展描述文本
+        video_input: 基础视频URL或Base64编码
+        input_type: 输入类型，"url" 或 "base64"
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # 根据输入类型构建content
+    content_type = "video_url" if input_type == "url" else "video_base64"
+    
+    data = {
+        "model": "wanx2.1-vace-plus",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": content_type,
+                "video_url": {
+                    "url": video_input
+                },
+                "role": "first_clip"
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["prompt_extend", "audio", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        return response.json() if response.status_code == 200 else None
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例 - URL方式
+video_url = "http://wanx.alicdn.com/material/20250318/video_extension_1.mp4"
+result_url = create_video_extension(
+    prompt="一只戴着墨镜的狗在街道上滑滑板，3D卡通。",
+    video_input=video_url,
+    input_type="url",
+    size="1280x720",
+    prompt_extend=False
+)
+
+# 使用示例 - Base64方式
+video_base64 = "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAACKBtZGF0AAAC..."
+result_base64 = create_video_extension(
+    prompt="一只戴着墨镜的狗在街道上滑滑板，3D卡通。",
+    video_input=video_base64,
+    input_type="base64",
+    size="1280x720",
+    prompt_extend=False
+)
+```
+
+```javascript JavaScript/Node.js
+async function createVideoExtension(prompt, videoInput, inputType = 'url', options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    // 根据输入类型构建content
+    const contentType = inputType === 'url' ? 'video_url' : 'video_base64';
+    
+    const data = {
+        model: 'wanx2.1-vace-plus',
+        content: [
+            {
+                type: 'text',
+                text: prompt
+            },
+            {
+                type: contentType,
+                video_url: {
+                    url: videoInput
+                },
+                role: 'first_clip'
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {};
+    ['prompt_extend', 'audio', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('视频延展生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例 - URL方式
+const videoUrl = 'http://wanx.alicdn.com/material/20250318/video_extension_1.mp4';
+const resultUrl = await createVideoExtension(
+    '一只戴着墨镜的狗在街道上滑滑板，3D卡通。',
+    videoUrl,
+    'url',
+    {
+        size: '1280x720',
+        prompt_extend: false
+    }
+);
+
+// 使用示例 - Base64方式
+const videoBase64 = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAACKBtZGF0AAAC...';
+const resultBase64 = await createVideoExtension(
+    '一只戴着墨镜的狗在街道上滑滑板，3D卡通。',
+    videoBase64,
+    'base64',
+    {
+        size: '1280x720',
+        prompt_extend: false
+    }
+);
+```
+
+</CodeGroup>
+
+## 视频编辑-视频画面扩展示例
+
+通义万象支持基于已有视频进行画面扩展，通过设置不同方向的扩展比例，可以扩大视频的可视范围，生成更宽广的画面内容。这种功能特别适用于需要扩展视频画面、增加背景内容的场景。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wanx2.1-vace-plus",
+    "content": [
+      {
+        "type": "text",
+        "text": "一位优雅的女士正在激情演奏小提琴，她身后是一支完整的交响乐团"
+      },
+      {
+        "type": "video_url",
+        "video_url": {
+          "url": "http://wanx.alicdn.com/material/20250318/video_outpainting_1.mp4"
+        }
+      }
+    ],
+    "size": "1920x1080",
+    "qwen": {
+      "prompt_extend": false,
+      "top_scale": 1.5,
+      "bottom_scale": 1.5,
+      "left_scale": 1.5,
+      "right_scale": 1.5
+    }
+  }'
+```
+
+```python Python
+def create_video_outpainting(prompt, video_url, **kwargs):
+    """
+    视频画面扩展
+    
+    Args:
+        prompt: 扩展内容描述文本
+        video_url: 原始视频URL
+        **kwargs: 其他参数，包括扩展比例设置
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wanx2.1-vace-plus",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": video_url
+                }
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["prompt_extend", "top_scale", "bottom_scale", "left_scale", "right_scale", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"视频画面扩展任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例 - 四个方向均匀扩展
+result = create_video_outpainting(
+    prompt="一位优雅的女士正在激情演奏小提琴，她身后是一支完整的交响乐团",
+    video_url="http://wanx.alicdn.com/material/20250318/video_outpainting_1.mp4",
+    size="1920x1080",
+    prompt_extend=False,
+    top_scale=1.5,
+    bottom_scale=1.5,
+    left_scale=1.5,
+    right_scale=1.5
+)
+
+# 使用示例 - 仅扩展左右两侧
+result_horizontal = create_video_outpainting(
+    prompt="展现更宽广的音乐厅场景，增加观众席和舞台两侧的细节",
+    video_url="http://wanx.alicdn.com/material/20250318/video_outpainting_1.mp4",
+    size="1920x1080",
+    prompt_extend=False,
+    left_scale=1.8,
+    right_scale=1.8
+)
+```
+
+```javascript JavaScript/Node.js
+async function createVideoOutpainting(prompt, videoUrl, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: 'wanx2.1-vace-plus',
+        content: [
+            {
+                type: 'text',
+                text: prompt
+            },
+            {
+                type: 'video_url',
+                video_url: {
+                    url: videoUrl
+                }
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {};
+    ['prompt_extend', 'top_scale', 'bottom_scale', 'left_scale', 'right_scale', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('视频画面扩展任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例 - 四个方向均匀扩展
+const result = await createVideoOutpainting(
+    '一位优雅的女士正在激情演奏小提琴，她身后是一支完整的交响乐团',
+    'http://wanx.alicdn.com/material/20250318/video_outpainting_1.mp4',
+    {
+        size: '1920x1080',
+        prompt_extend: false,
+        top_scale: 1.5,
+        bottom_scale: 1.5,
+        left_scale: 1.5,
+        right_scale: 1.5
+    }
+);
+
+// 使用示例 - 仅扩展左右两侧
+const resultHorizontal = await createVideoOutpainting(
+    '展现更宽广的音乐厅场景，增加观众席和舞台两侧的细节',
+    'http://wanx.alicdn.com/material/20250318/video_outpainting_1.mp4',
+    {
+        size: '1920x1080',
+        prompt_extend: false,
+        left_scale: 1.8,
+        right_scale: 1.8
+    }
+);
+```
+
+</CodeGroup>
+
+### 画面扩展参数
+
+视频画面扩展功能支持以下参数，用于控制不同方向的扩展比例：
+
+- **qwen.top_scale** (float, 可选): 设置顶部扩展比例
+  - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
+  - 数值越大，顶部扩展范围越大
+  - 示例值：1.5
+
+- **qwen.bottom_scale** (float, 可选): 设置底部扩展比例
+  - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
+  - 数值越大，底部扩展范围越大
+  - 示例值：1.5
+
+- **qwen.left_scale** (float, 可选): 设置左侧扩展比例
+  - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
+  - 数值越大，左侧扩展范围越大
+  - 示例值：1.5
+
+- **qwen.right_scale** (float, 可选): 设置右侧扩展比例
+  - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
+  - 数值越大，右侧扩展范围越大
+  - 示例值：1.5
+
+## 视频换人示例
+
+通义万象支持基于图片和参考视频进行视频换人，通过 [`wan2.2-animate-mix`](services/mintlify/api-reference/examples/videos/qwen.mdx:2400) 模型可以将输入图片中的人物融入到参考视频的动作中，实现人物替换效果：
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+	"model": "wan2.2-animate-mix",
+	"content": [
+    {
+			"type": "image_url",
+			"image_url": {
+				"url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/bhkfor/mix_input_image.jpeg"
+			}
+		},
+		{
+			"type": "video_url",
+			"video_url": {
+				"url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/wqefue/mix_input_video.mp4"
+			}
+		}
+	],
+	"size": "1280x720",
+	"qwen": {
+		"mode": "wan-std"
+	}
+}'
+```
+
+```python Python
+def create_video_face_swap(image_url, video_url, **kwargs):
+    """
+    视频换人生成
+    
+    Args:
+        image_url: 输入人物图片URL
+        video_url: 参考动作视频URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "wan2.2-animate-mix",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": image_url
+                }
+            },
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": video_url
+                }
+            }
+        ]
+    }
+    
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    # 添加qwen扩展参数
+    qwen_params = {}
+    for key in ["mode", "watermark"]:
+        if key in kwargs:
+            qwen_params[key] = kwargs[key]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"视频换人生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+result = create_video_face_swap(
+    image_url="https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/bhkfor/mix_input_image.jpeg",
+    video_url="https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/wqefue/mix_input_video.mp4",
+    size="1280x720",
+    mode="wan-std"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createVideoFaceSwap(imageUrl, videoUrl, options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: 'wan2.2-animate-mix',
+        content: [
+            {
+                type: 'image_url',
+                image_url: {
+                    url: imageUrl
+                }
+            },
+            {
+                type: 'video_url',
+                video_url: {
+                    url: videoUrl
+                }
+            }
+        ]
+    };
+    
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+    
+    // 添加qwen扩展参数
+    const qwenParams = {};
+    ['mode', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            qwenParams[key] = options[key];
+        }
+    });
+    
+    if (Object.keys(qwenParams).length > 0) {
+        data.qwen = qwenParams;
+    }
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('视频换人生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const result = await createVideoFaceSwap(
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/bhkfor/mix_input_image.jpeg',
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/wqefue/mix_input_video.mp4',
+    {
+        size: '1280x720',
+        mode: 'wan-std'
+    }
+);
+```
+
+</CodeGroup>
+
+### 视频换人参数
+
+- **qwen.mode** (string, 视频换人场景必选): 用于视频换人场景。模型服务模式选择，支持两种模式：
+
+- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础换人场景
+- **wan-pro**: 专业模式，换人效果更佳，但处理时间和费用也相应增加
+- 示例值："wan-std"
+
+### 视频换人模型说明
+
+| 模型名称 | 模型简介 | 功能特点 |
+|---------|----------|----------|
+| | **万相2.2换人模型** | • 基于输入人物图片和参考动作视频生成换人视频<br/>• 支持标准模式和专业模式<br/>• 适用于人物替换和动作迁移场景 |
+
+### 支持的模式
+
+- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础换人场景
+- **wan-pro**: 专业模式，换人效果更佳，面部一致性更高，但处理时间和费用也相应增加
+
+### 使用说明
+
+视频换人功能需要提供两个输入：
+1. **人物图片**: 需要替换到视频中的目标人物照片
+2. **参考视频**: 包含动作和场景的原始视频
+
+模型将自动将输入图片中的人物面部特征融合到参考视频的动作中，生成新的换人视频。
