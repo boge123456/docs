@@ -1,0 +1,455 @@
+---
+title: 'OpenAI 图片编辑示例'
+description: '使用OpenAI gpt-image-1 进行图片编辑和变体生成的完整示例代码'
+---
+
+# 图片编辑示例
+
+以下示例展示如何使用OpenAI兼容的图片编辑接口进行图片编辑和变体生成。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL - 图片编辑
+curl -X POST "https://api.tokenops.ai/v1/images/edits" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -F model="gpt-image-1" \
+  -F image="@original.png" \
+  -F mask="@mask.png" \
+  -F prompt="一只戴着帽子的猫" \
+  -F n=1 \
+  -F size="1024x1024"
+```
+
+```bash cURL - 图片变体
+curl -X POST "https://api.tokenops.ai/v1/images/variations" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -F image="@original.png" \
+  -F n=2 \
+  -F size="1024x1024"
+```
+
+```python Python
+import requests
+import os
+from PIL import Image
+import io
+import base64
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def edit_image(image_path, mask_path, prompt, n=1, size="1024x1024"):
+    """
+    编辑图片 - 根据遮罩和提示词修改图片的特定区域
+
+    Args:
+        image_path: 原始图片路径 (PNG格式，小于4MB)
+        mask_path: 遮罩图片路径 (PNG格式，透明区域为要编辑的部分)
+        prompt: 编辑提示词
+        n: 生成图片数量 (1-10)
+        size: 图片尺寸 ("256x256", "512x512", "1024x1024")
+    """
+    url = f"{BASE_URL}/images/edits"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    try:
+        with open(image_path, 'rb') as image_file, open(mask_path, 'rb') as mask_file:
+            files = {
+                'image': ('image.png', image_file, 'image/png'),
+                'mask': ('mask.png', mask_file, 'image/png'),
+            }
+
+            data = {
+                'prompt': prompt,
+                'n': n,
+                'size': size,
+                'response_format': 'url'  # 或 'b64_json'
+            }
+
+            response = requests.post(url, headers=headers, files=files, data=data)
+
+            if response.status_code == 200:
+                result = response.json()
+                return result['data']
+            else:
+                return {"error": f"API错误: {response.status_code} - {response.text}"}
+
+    except FileNotFoundError as e:
+        return {"error": f"文件未找到: {e}"}
+    except Exception as e:
+        return {"error": f"请求失败: {e}"}
+
+def create_image_variations(image_path, n=2, size="1024x1024"):
+    """
+    生成图片变体 - 基于原图生成相似但不同的图片
+
+    Args:
+        image_path: 原始图片路径 (PNG格式，小于4MB)
+        n: 生成变体数量 (1-10)
+        size: 图片尺寸 ("256x256", "512x512", "1024x1024")
+    """
+    url = f"{BASE_URL}/images/variations"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    try:
+        with open(image_path, 'rb') as image_file:
+            files = {
+                'image': ('image.png', image_file, 'image/png')
+            }
+
+            data = {
+                'n': n,
+                'size': size,
+                'response_format': 'url'
+            }
+
+            response = requests.post(url, headers=headers, files=files, data=data)
+
+            if response.status_code == 200:
+                result = response.json()
+                return result['data']
+            else:
+                return {"error": f"API错误: {response.status_code} - {response.text}"}
+
+    except FileNotFoundError as e:
+        return {"error": f"文件未找到: {e}"}
+    except Exception as e:
+        return {"error": f"请求失败: {e}"}
+
+def download_image(url, save_path):
+    """下载图片到本地"""
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+
+        with open(save_path, 'wb') as f:
+            f.write(response.content)
+        print(f"图片已保存到: {save_path}")
+        return True
+    except Exception as e:
+        print(f"下载失败: {e}")
+        return False
+
+def create_circular_mask(image_path, output_path):
+    """
+    创建圆形遮罩 - 用于演示图片编辑
+    遮罩的透明部分将被编辑
+    """
+    try:
+        # 打开图片
+        with Image.open(image_path) as img:
+            # 转换为RGBA模式
+            img = img.convert("RGBA")
+            width, height = img.size
+
+            # 创建遮罩
+            mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+
+            # 在中心创建圆形透明区域
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(mask)
+            center_x, center_y = width // 2, height // 2
+            radius = min(width, height) // 4
+
+            # 绘制圆形 (透明)
+            draw.ellipse([
+                center_x - radius, center_y - radius,
+                center_x + radius, center_y + radius
+            ], fill=(0, 0, 0, 0))
+
+            mask.save(output_path, "PNG")
+            print(f"遮罩已创建: {output_path}")
+            return True
+
+    except Exception as e:
+        print(f"创建遮罩失败: {e}")
+        return False
+
+# 使用示例
+if __name__ == "__main__":
+    # 确保有示例图片文件
+    image_file = "sample_image.png"
+    mask_file = "sample_mask.png"
+
+    print("=== gpt-image-1 图片编辑示例 ===\n")
+
+    # 示例1: 图片编辑
+    if os.path.exists(image_file):
+        print("1. 图片编辑示例:")
+
+        # 如果没有遮罩，创建一个圆形遮罩
+        if not os.path.exists(mask_file):
+            print("创建演示遮罩...")
+            create_circular_mask(image_file, mask_file)
+
+        if os.path.exists(mask_file):
+            edit_result = edit_image(
+                image_path=image_file,
+                mask_path=mask_file,
+                prompt="一朵美丽的花朵",
+                n=1,
+                size="1024x1024"
+            )
+
+            if 'error' not in edit_result:
+                print("编辑成功！生成的图片:")
+                for i, img_data in enumerate(edit_result):
+                    print(f"- 编辑图片 {i+1}: {img_data['url']}")
+                    # 下载图片
+                    download_image(img_data['url'], f"edited_image_{i+1}.png")
+            else:
+                print(f"编辑失败: {edit_result['error']}")
+
+        print("\n" + "="*50 + "\n")
+
+        # 示例2: 图片变体
+        print("2. 图片变体示例:")
+        variation_result = create_image_variations(
+            image_path=image_file,
+            n=2,
+            size="1024x1024"
+        )
+
+        if 'error' not in variation_result:
+            print("变体生成成功！")
+            for i, img_data in enumerate(variation_result):
+                print(f"- 变体图片 {i+1}: {img_data['url']}")
+                # 下载图片
+                download_image(img_data['url'], f"variation_{i+1}.png")
+        else:
+            print(f"变体生成失败: {variation_result['error']}")
+
+    else:
+        print(f"请先准备示例图片文件: {image_file}")
+        print("图片要求:")
+        print("- 格式: PNG")
+        print("- 大小: 小于4MB")
+        print("- 尺寸: 正方形，推荐1024x1024")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function editImage(imagePath, maskPath, prompt, n = 1, size = '1024x1024') {
+    const url = `${BASE_URL}/images/edits`;
+
+    try {
+        const formData = new FormData();
+        formData.append('image', fs.createReadStream(imagePath));
+        formData.append('mask', fs.createReadStream(maskPath));
+        formData.append('prompt', prompt);
+        formData.append('n', n.toString());
+        formData.append('size', size);
+        formData.append('response_format', 'url');
+
+        const response = await axios.post(url, formData, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                ...formData.getHeaders()
+            }
+        });
+
+        return response.data.data;
+    } catch (error) {
+        return { error: `API错误: ${error.response?.status} - ${error.response?.data || error.message}` };
+    }
+}
+
+async function createImageVariations(imagePath, n = 2, size = '1024x1024') {
+    const url = `${BASE_URL}/images/variations`;
+
+    try {
+        const formData = new FormData();
+        formData.append('image', fs.createReadStream(imagePath));
+        formData.append('n', n.toString());
+        formData.append('size', size);
+        formData.append('response_format', 'url');
+
+        const response = await axios.post(url, formData, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                ...formData.getHeaders()
+            }
+        });
+
+        return response.data.data;
+    } catch (error) {
+        return { error: `API错误: ${error.response?.status} - ${error.response?.data || error.message}` };
+    }
+}
+
+async function downloadImage(url, savePath) {
+    try {
+        const response = await axios.get(url, { responseType: 'stream' });
+        const writer = fs.createWriteStream(savePath);
+        response.data.pipe(writer);
+
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => {
+                console.log(`图片已保存到: ${savePath}`);
+                resolve(true);
+            });
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        console.log(`下载失败: ${error.message}`);
+        return false;
+    }
+}
+
+// 使用示例
+(async () => {
+    try {
+        const imageFile = 'sample_image.png';
+        const maskFile = 'sample_mask.png';
+
+        console.log('=== gpt-image-1 图片编辑示例 ===\n');
+
+        // 检查文件是否存在
+        if (fs.existsSync(imageFile)) {
+            // 示例1: 图片编辑
+            if (fs.existsSync(maskFile)) {
+                console.log('1. 图片编辑示例:');
+
+                const editResult = await editImage(
+                    imageFile,
+                    maskFile,
+                    '一朵美丽的花朵',
+                    1,
+                    '1024x1024'
+                );
+
+                if (!editResult.error) {
+                    console.log('编辑成功！生成的图片:');
+                    for (let i = 0; i < editResult.length; i++) {
+                        console.log(`- 编辑图片 ${i + 1}: ${editResult[i].url}`);
+                        await downloadImage(editResult[i].url, `edited_image_${i + 1}.png`);
+                    }
+                } else {
+                    console.log(`编辑失败: ${editResult.error}`);
+                }
+
+                console.log('\n' + '='.repeat(50) + '\n');
+            }
+
+            // 示例2: 图片变体
+            console.log('2. 图片变体示例:');
+            const variationResult = await createImageVariations(imageFile, 2, '1024x1024');
+
+            if (!variationResult.error) {
+                console.log('变体生成成功！');
+                for (let i = 0; i < variationResult.length; i++) {
+                    console.log(`- 变体图片 ${i + 1}: ${variationResult[i].url}`);
+                    await downloadImage(variationResult[i].url, `variation_${i + 1}.png`);
+                }
+            } else {
+                console.log(`变体生成失败: ${variationResult.error}`);
+            }
+        } else {
+            console.log(`请先准备示例图片文件: ${imageFile}`);
+            console.log('图片要求:');
+            console.log('- 格式: PNG');
+            console.log('- 大小: 小于4MB');
+            console.log('- 尺寸: 正方形，推荐1024x1024');
+        }
+    } catch (error) {
+        console.error('程序执行出错:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+## 功能特点
+
+### 1. 图片编辑 (Image Edits)
+- **遮罩编辑**: 使用遮罩图片指定要编辑的区域
+- **提示词控制**: 通过文字描述指定编辑内容
+- **精确修改**: 只修改遮罩透明区域，保持其他部分不变
+
+### 2. 图片变体 (Image Variations)
+- **风格变化**: 保持主体内容，改变风格和细节
+- **多样性生成**: 一次生成多个不同的变体
+- **创意扩展**: 基于原图创造新的可能性
+
+## 图片要求
+
+### 输入图片规格
+- **格式**: 必须为PNG格式
+- **大小**: 文件大小小于4MB
+- **尺寸**: 必须为正方形
+- **推荐尺寸**: 256x256, 1024x1024像素
+
+### 遮罩图片规格
+- **格式**: PNG格式，支持透明通道
+- **透明区域**: 透明(alpha=0)的区域将被编辑
+- **不透明区域**: 不透明的区域将保持原样
+- **尺寸**: 必须与原图尺寸完全一致
+
+## 参数说明
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `image` | file | 是 | 原始图片文件 |
+| `mask` | file | 编辑时必需 | 遮罩图片文件 |
+| `prompt` | string | 编辑时必需 | 编辑描述文字 |
+| `n` | integer | 否 | 生成图片数量 (1-10，默认1) |
+| `size` | string | 否 | 输出尺寸 (默认1024x1024) |
+| `response_format` | string | 否 | 返回格式 (url或b64_json) |
+
+## 应用场景
+
+### 创意设计
+- **产品展示**: 在不同背景下展示产品
+- **场景合成**: 将对象放置到新的环境中
+- **风格变换**: 改变图片的艺术风格
+
+### 内容创作
+- **社交媒体**: 创建多样化的内容素材
+- **广告设计**: 快速生成广告图片变体
+- **品牌设计**: 创建品牌视觉的不同版本
+
+### 图片修复
+- **对象替换**: 替换图片中的特定对象
+- **背景修改**: 改变图片背景
+- **细节调整**: 修改图片中的特定细节
+
+## 最佳实践
+
+### 1. 遮罩制作技巧
+- **精确边缘**: 确保遮罩边缘清晰，避免锯齿
+- **渐变过渡**: 使用半透明区域创建平滑过渡
+- **区域大小**: 遮罩区域不宜过小，建议至少50x50像素
+
+### 2. 提示词优化
+- **具体描述**: 提供具体而详细的描述
+- **风格指定**: 明确指定所需的艺术风格
+- **颜色说明**: 如有需要，指定颜色要求
+
+### 3. 质量控制
+- **多次尝试**: 生成多个版本，选择最佳效果
+- **参数调整**: 根据需要调整尺寸和数量
+- **后期处理**: 必要时进行后期调整
+
+## 注意事项
+
+1. **文件格式**: 严格要求PNG格式，JPEG等其他格式不被支持
+2. **网络稳定**: 图片上传需要稳定的网络连接
+3. **处理时间**: 图片处理需要一定时间，请耐心等待
+4. **费用计算**: 每次请求都会产生费用，与生成图片数量相关
+5. **内容政策**: 确保图片内容符合平台使用政策
