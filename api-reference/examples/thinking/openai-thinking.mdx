@@ -1,0 +1,387 @@
+---
+title: 'OpenAI 思考模式示例'
+description: '使用OpenAI o1系列模型展示AI思考过程的完整示例代码'
+---
+
+# OpenAI 思考模式示例
+
+<Warning>
+**重要提示：思考过程访问限制**
+
+由于OpenAI模型提供商的政策限制，通过标准的Chat Completions接口无法直接获取o1系列模型的原始思考内容（reasoning tokens）。
+
+如果您希望在GPT系列模型中展示AI的思考过程，请参考：
+[**TokenOPS Responses API 思考模式示例**](/api-reference/examples/thinking/responses-thinking)
+
+该接口专门为思考过程展示进行了优化，可以完整呈现AI的推理步骤。
+</Warning>
+
+以下示例展示如何使用OpenAI的o1系列模型（如o1-2024-12-17、o1-mini）进行高质量推理，虽然无法直接展示思考过程，但可以获得经过深度推理的高质量回答。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "o1-2024-12-17",
+    "messages": [
+      {
+        "role": "user",
+        "content": "请解决这个数学问题：一个圆的面积是78.54平方厘米，求这个圆的周长。请详细说明解题思路。"
+      }
+    ],
+    "max_completion_tokens": 2000
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def chat_with_thinking(message, model="o1-2024-12-17"):
+    url = f"{BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": message
+            }
+        ],
+        "max_completion_tokens": 2000
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        message = result['choices'][0]['message']
+        
+        # 注意：由于提供商政策限制，无法通过此接口获取思考过程
+        # 返回经过深度推理的高质量回答
+        return message['content']
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 数学问题求解示例
+def solve_math_problem():
+    problem = """
+    请解决这个数学问题：
+    一个圆的面积是78.54平方厘米，求这个圆的周长。
+    请详细说明解题思路和每一步计算过程。
+    """
+    
+    print("问题：", problem.strip())
+    result = chat_with_thinking(problem, "o1-2024-12-17")
+    return result
+
+# 逻辑推理示例
+def logical_reasoning():
+    problem = """
+    逻辑推理题：
+    在一个小镇上，有三个人：张三、李四、王五。
+    已知：
+    1. 如果张三说真话，那么李四就说假话
+    2. 如果李四说真话，那么王五就说假话
+    3. 王五说："我们三个人中至少有一个说真话"
+    
+    请分析每个人是否说真话，并说明推理过程。
+    """
+    
+    print("问题：", problem.strip())
+    result = chat_with_thinking(problem, "o1-2024-12-17")
+    return result
+
+# 编程问题求解示例
+def solve_programming_problem():
+    problem = """
+    编程问题：
+    给定一个整数数组，找出其中两个数，使得它们的和等于一个特定的目标值。
+    要求：
+    1. 时间复杂度尽可能低
+    2. 返回两个数的索引
+    3. 假设每种输入只会对应一个答案
+    
+    请提供算法思路、代码实现和复杂度分析。
+    """
+    
+    print("问题：", problem.strip())
+    result = chat_with_thinking(problem, "o1-2024-12-17")
+    return result
+
+# 复杂决策分析示例
+def complex_decision_analysis():
+    problem = """
+    商业决策分析：
+    你是一家初创公司的CEO，现在面临以下选择：
+    
+    选项A：专注于产品开发，投入80%资源到技术团队
+    - 优势：产品质量高，技术壁垒强
+    - 劣势：市场推广不足，用户增长慢
+    
+    选项B：专注于市场推广，投入80%资源到销售团队
+    - 优势：用户增长快，市场占有率高
+    - 劣势：产品可能不够完善，竞争力不足
+    
+    选项C：平衡发展，各投入50%资源
+    - 优势：相对平衡
+    - 劣势：可能两边都不够突出
+    
+    请分析每个选项的利弊，并给出你的建议和理由。
+    """
+    
+    print("问题：", problem.strip())
+    result = chat_with_thinking(problem, "o1-mini")  # 使用o1-mini进行分析
+    return result
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== 数学问题求解 ===")
+    math_result = solve_math_problem()
+    
+    print("\n" + "="*50)
+    print("=== 逻辑推理 ===")
+    logic_result = logical_reasoning()
+    
+    print("\n" + "="*50)
+    print("=== 编程问题求解 ===")
+    programming_result = solve_programming_problem()
+    
+    print("\n" + "="*50)
+    print("=== 复杂决策分析 ===")
+    decision_result = complex_decision_analysis()
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function chatWithThinking(message, model = 'o1-2024-12-17') {
+    const url = `${BASE_URL}/chat/completions`;
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+    
+    const data = {
+        model: model,
+        messages: [
+            {
+                role: 'user',
+                content: message
+            }
+        ],
+        max_completion_tokens: 2000
+    };
+    
+    try {
+        const response = await axios.post(url, data, { headers });
+        const message = response.data.choices[0].message;
+        
+        // o1模型会返回思考过程和最终回答
+        if (message.reasoning) {
+            console.log('=== AI思考过程 ===');
+            console.log(message.reasoning);
+            console.log('\n=== 最终回答 ===');
+            console.log(message.content);
+            return {
+                reasoning: message.reasoning,
+                answer: message.content
+            };
+        } else {
+            return message.content;
+        }
+    } catch (error) {
+        return `错误: ${error.response?.status} - ${error.response?.data || error.message}`;
+    }
+}
+
+// 科学问题分析示例
+async function analyzeScientificProblem() {
+    const problem = `
+    科学问题分析：
+    为什么天空是蓝色的？请从物理学角度详细解释这个现象，
+    包括光的散射、大气成分、波长等因素的影响。
+    `;
+    
+    console.log('问题：', problem.trim());
+    const result = await chatWithThinking(problem, 'o1-2024-12-17');
+    return result;
+}
+
+// 哲学思辨示例
+async function philosophicalThinking() {
+    const problem = `
+    哲学思辨：
+    "如果一棵树在森林里倒下，而没有人听到，它是否发出了声音？"
+    请从不同的哲学角度分析这个经典问题，包括：
+    1. 唯物主义观点
+    2. 唯心主义观点
+    3. 现代物理学观点
+    并给出你的综合分析。
+    `;
+    
+    console.log('问题：', problem.trim());
+    const result = await chatWithThinking(problem, 'o1-2024-12-17');
+    return result;
+}
+
+// 创意写作示例
+async function creativeWriting() {
+    const problem = `
+    创意写作挑战：
+    写一个500字的科幻短故事，要求：
+    1. 背景设定在2050年
+    2. 主题围绕人工智能与人类关系
+    3. 包含一个意想不到的转折
+    4. 结尾要有深刻的寓意
+    
+    请先构思故事框架，再进行创作。
+    `;
+    
+    console.log('问题：', problem.trim());
+    const result = await chatWithThinking(problem, 'o1-mini');
+    return result;
+}
+
+// 使用示例
+(async () => {
+    try {
+        console.log('=== 科学问题分析 ===');
+        await analyzeScientificProblem();
+        
+        console.log('\n' + '='.repeat(50));
+        console.log('=== 哲学思辨 ===');
+        await philosophicalThinking();
+        
+        console.log('\n' + '='.repeat(50));
+        console.log('=== 创意写作 ===');
+        await creativeWriting();
+    } catch (error) {
+        console.error('错误:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+示例结果：
+```json 思考示例结果
+{
+  "id": "9ac620c6da9d4333a3804c75414e672f",
+  "object": "chat.completion",
+  "created": 1759141931,
+  "model": "o1-2024-12-17",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "解题思路如下：\n\n1. 圆的面积公式为 A = πr²，其中 A 是面积，r 是圆的半径，π 为圆周率。  \n2. 已知面积 A = 78.54。我们可以通过下式求出半径：  \n   r = √(A / π)。  \n3. 计算时，常用 π ≈ 3.14 进行近似运算：  \n   先计算 A / π = 78.54 ÷ 3.14 ≈ 25，  \n   因此 r² ≈ 25，  \n   则 r ≈ 5 (厘米)。  \n4. 接下来，根据周长公式 C = 2πr，计算周长：  \n   C = 2 × 3.14 × 5 ≈ 31.4 (厘米)。  \n\n如果使用更精确的 π（如 3.14159...）进行计算，就会发现 78.54 和 25×π 很接近，此时半径仍近似为 5，周长约为 31.416 厘米。综上可知，该圆周长大约为 31.4 厘米（根据精度要求可做相应保留）。"
+      },
+      "finish_reason": "stop",
+      "content_filter_results": {
+        "hate": {
+          "filtered": false
+        },
+        "self_harm": {
+          "filtered": false
+        },
+        "sexual": {
+          "filtered": false
+        },
+        "violence": {
+          "filtered": false
+        },
+        "jailbreak": {
+          "filtered": false,
+          "detected": false
+        },
+        "profanity": {
+          "filtered": false,
+          "detected": false
+        }
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 38,
+    "completion_tokens": 794,
+    "total_tokens": 832,
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "audio_tokens": 0,
+      "reasoning_tokens": 512,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "system_fingerprint": "fp_a2dc940e6b"
+}
+```
+
+## o1系列模型的特点
+
+1. **深度推理能力**: 在内部进行复杂的推理过程，输出高质量答案
+2. **步骤化思考**: 虽然思考过程不可见，但会进行系统性分析
+3. **自我纠错**: 在推理过程中检查和修正逻辑
+4. **专业优化**: 特别适合数学、科学、编程等需要深度思考的领域
+
+<Note>
+**获取完整思考过程**
+
+如需查看AI的详细思考步骤和推理过程，请使用TokenOPS Responses API：
+[查看思考过程展示示例](/api-reference/examples/thinking/responses-thinking)
+</Note>
+
+## o1系列模型特点
+
+- **o1-2024-12-17**: 最强的推理能力，适合复杂问题
+- **o1-mini**: 更快的响应速度，适合中等复杂度问题
+- **专门优化**: 针对数学、科学、编程等领域优化
+- **思考时间**: 模型会花费更多时间进行推理
+
+## 应用场景
+
+- **教育辅导**: 展示解题思路，帮助学生理解
+- **科学研究**: 分析复杂的科学问题
+- **商业决策**: 多角度分析商业选择
+- **创意工作**: 展示创作思路和过程
+- **编程调试**: 分析代码问题和解决方案
+
+## 最佳实践
+
+1. **清晰的问题描述**: 提供详细的问题背景和要求
+2. **适当的复杂度**: o1模型适合需要深度思考的问题
+3. **耐心等待**: 思考模式需要更多时间生成回答
+4. **关注推理质量**: o1模型提供经过深度推理的高质量答案
+
+## 注意事项
+
+- o1模型的响应时间比普通模型更长，因为需要进行深度推理
+- 不支持流式输出和某些高级功能
+- 适合需要深度推理的场景，简单问题建议使用其他模型
+- 由于提供商政策限制，无法通过Chat Completions接口直接获取思考过程
+- 如需查看思考过程，请使用TokenOPS专门的Responses API接口

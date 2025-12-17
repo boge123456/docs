@@ -1,0 +1,965 @@
+---
+title: 'Responses API 工具调用'
+description: '使用Responses API进行工具调用的示例，让AI模型调用外部函数和服务'
+---
+
+# Responses API 工具调用
+
+工具调用（Function Calling）允许AI模型调用预定义的函数来获取实时信息或执行特定操作。通过工具调用，模型可以访问外部数据源、执行计算或与其他服务交互。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/responses" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gpt-5-2025-08-07",
+    "input": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": "北京今天的天气怎么样？"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "name": "get_current_weather",
+        "description": "获取指定城市的当前天气信息",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "城市名称，例如：北京、上海"
+            },
+            "unit": {
+              "type": "string",
+              "enum": ["celsius", "fahrenheit"],
+              "description": "温度单位"
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    ],
+    "tool_choice": "auto"
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def get_current_weather(location, unit="celsius"):
+    """模拟天气API调用"""
+    # 这里应该是真实的天气API调用
+    weather_data = {
+        "北京": {"temperature": 15, "condition": "晴朗", "humidity": 45},
+        "上海": {"temperature": 18, "condition": "多云", "humidity": 60},
+        "广州": {"temperature": 25, "condition": "小雨", "humidity": 80},
+        "深圳": {"temperature": 26, "condition": "阴天", "humidity": 75}
+    }
+
+    if location in weather_data:
+        data = weather_data[location]
+        if unit == "fahrenheit":
+            data["temperature"] = data["temperature"] * 9/5 + 32
+        return data
+    else:
+        return {"error": f"未找到城市{location}的天气信息"}
+
+def create_tool_calling_response():
+    """使用工具调用获取天气信息"""
+    url = f"{BASE_URL}/responses"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    # 定义工具
+    tools = [
+        {
+            "type": "function",
+            "name": "get_current_weather",
+            "description": "获取指定城市的当前天气信息",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "城市名称，例如：北京、上海"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "温度单位",
+                        "default": "celsius"
+                    }
+                },
+                "required": ["location"]
+            }
+        }
+    ]
+
+    payload = {
+        "model": "gpt-5-2025-08-07",
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "北京今天的天气怎么样？温度用摄氏度显示。"
+                    }
+                ]
+            }
+        ],
+        "tools": tools,
+        "tool_choice": "auto"
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code == 200:
+        result = response.json()
+        
+        # 检查响应中的输出
+        if result.get("output") and len(result["output"]) > 0:
+            output_item = result["output"][0]
+            
+            print("=== 工具调用响应 ===")
+            
+            # 检查是否有工具调用
+            if "tool_calls" in result:
+                tool_calls = result["tool_calls"]
+                print(f"模型请求调用 {len(tool_calls)} 个工具:")
+
+                # 执行工具调用
+                for tool_call in tool_calls:
+                    function_name = tool_call["name"]
+                    function_args = json.loads(tool_call["arguments"])
+                    
+                    print(f"调用函数: {function_name}")
+                    print(f"参数: {function_args}")
+
+                    # 执行函数
+                    if function_name == "get_current_weather":
+                        function_result = get_current_weather(**function_args)
+                        print(f"函数结果: {function_result}")
+
+                        # 注意：在实际应用中，你需要将工具结果发送回模型
+                        # 这里我们只是演示工具调用的过程
+                        
+                return result
+            else:
+                # 如果没有工具调用，直接显示回答
+                if output_item.get("content"):
+                    content = output_item["content"][0]
+                    if content.get("type") == "output_text":
+                        print("直接回答:", content.get("text", ""))
+                
+                return result
+        else:
+            print("响应格式异常")
+            return None
+
+    else:
+        print(f"HTTP错误: {response.status_code}")
+        print(response.text)
+        return None
+
+def create_multiple_tools_example():
+    """多个工具调用示例"""
+    url = f"{BASE_URL}/responses"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    # 定义多个工具
+    tools = [
+        {
+            "type": "function",
+            "name": "get_current_weather",
+            "description": "获取指定城市的天气信息",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "城市名称"}
+                },
+                "required": ["location"]
+            }
+        },
+        {
+            "type": "function",
+            "name": "calculate",
+            "description": "执行数学计算",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "数学表达式，如 '2+3*4'"
+                    }
+                },
+                "required": ["expression"]
+            }
+        },
+        {
+            "type": "function",
+            "name": "search_information",
+            "description": "搜索相关信息",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "搜索关键词"},
+                    "category": {
+                        "type": "string",
+                        "enum": ["news", "tech", "finance"],
+                        "description": "搜索类别"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    ]
+
+    def calculate(expression):
+        """安全的数学计算函数"""
+        try:
+            # 简单的安全检查
+            allowed_chars = set('0123456789+-*/.() ')
+            if all(c in allowed_chars for c in expression):
+                result = eval(expression)
+                return {"result": result, "expression": expression}
+            else:
+                return {"error": "不支持的数学表达式"}
+        except Exception as e:
+            return {"error": f"计算错误: {str(e)}"}
+
+    def search_information(query, category="tech"):
+        """模拟信息搜索"""
+        mock_results = {
+            "人工智能": [
+                "AI技术在医疗领域的新突破",
+                "机器学习算法的最新进展", 
+                "ChatGPT等大语言模型的发展趋势"
+            ],
+            "科技": [
+                "量子计算取得重大进展",
+                "5G网络覆盖率持续提升",
+                "新能源汽车市场快速增长"
+            ]
+        }
+
+        results = mock_results.get(query, ["未找到相关信息"])
+        return {
+            "query": query,
+            "category": category,
+            "results": results[:3]  # 返回前3个结果
+        }
+
+    payload = {
+        "model": "gpt-5-2025-08-07",
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "请帮我：1. 查询深圳的天气；2. 计算 25*4+10 的结果；3. 搜索人工智能相关的科技新闻"
+                    }
+                ]
+            }
+        ],
+        "tools": tools,
+        "tool_choice": "auto"
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code == 200:
+        result = response.json()
+        
+        print("=== 多工具调用示例 ===")
+
+        if "tool_calls" in result:
+            tool_calls = result["tool_calls"]
+            print(f"模型请求调用 {len(tool_calls)} 个工具:")
+
+            # 执行所有工具调用
+            for i, tool_call in enumerate(tool_calls):
+                function_name = tool_call["name"]
+                function_args = json.loads(tool_call["arguments"])
+
+                print(f"\n第{i+1}个工具调用:")
+                print(f"函数名: {function_name}")
+                print(f"参数: {function_args}")
+
+                # 根据函数名执行相应函数
+                if function_name == "get_current_weather":
+                    function_result = get_current_weather(**function_args)
+                elif function_name == "calculate":
+                    function_result = calculate(**function_args)
+                elif function_name == "search_information":
+                    function_result = search_information(**function_args)
+                else:
+                    function_result = {"error": f"未知函数: {function_name}"}
+
+                print(f"执行结果: {function_result}")
+
+            return result
+        else:
+            print("模型没有请求工具调用")
+            return result
+
+    else:
+        print(f"HTTP错误: {response.status_code}")
+        print(response.text)
+        return None
+
+# 使用示例
+if __name__ == "__main__":
+    print("1. 基本工具调用示例")
+    basic_result = create_tool_calling_response()
+
+    print("\n" + "="*60 + "\n")
+
+    print("2. 多工具调用示例")
+    multiple_result = create_multiple_tools_example()
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+// 模拟天气API
+function getCurrentWeather(location, unit = 'celsius') {
+    const weatherData = {
+        '北京': { temperature: 15, condition: '晴朗', humidity: 45 },
+        '上海': { temperature: 18, condition: '多云', humidity: 60 },
+        '广州': { temperature: 25, condition: '小雨', humidity: 80 },
+        '深圳': { temperature: 26, condition: '阴天', humidity: 75 }
+    };
+
+    if (weatherData[location]) {
+        const data = { ...weatherData[location] };
+        if (unit === 'fahrenheit') {
+            data.temperature = data.temperature * 9/5 + 32;
+        }
+        return data;
+    } else {
+        return { error: `未找到城市${location}的天气信息` };
+    }
+}
+
+async function createToolCallingResponse() {
+    const url = `${BASE_URL}/responses`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+
+    // 定义工具
+    const tools = [
+        {
+            type: 'function',
+            name: 'get_current_weather',
+            description: '获取指定城市的当前天气信息',
+            parameters: {
+                type: 'object',
+                properties: {
+                    location: {
+                        type: 'string',
+                        description: '城市名称，例如：北京、上海'
+                    },
+                    unit: {
+                        type: 'string',
+                        enum: ['celsius', 'fahrenheit'],
+                        description: '温度单位',
+                        default: 'celsius'
+                    }
+                },
+                required: ['location']
+            }
+        }
+    ];
+
+    const payload = {
+        model: 'gpt-5-2025-08-07',
+        input: [
+            {
+                role: 'user',
+                content: [
+                    {
+                        type: 'input_text',
+                        text: '北京今天的天气怎么样？温度用摄氏度显示。'
+                    }
+                ]
+            }
+        ],
+        tools: tools,
+        tool_choice: 'auto'
+    };
+
+    try {
+        const response = await axios.post(url, payload, { headers });
+        const result = response.data;
+
+        console.log('=== 工具调用响应 ===');
+
+        // 检查是否有工具调用
+        if (result.tool_calls && result.tool_calls.length > 0) {
+            const toolCalls = result.tool_calls;
+            console.log(`模型请求调用 ${toolCalls.length} 个工具:`);
+
+            // 执行工具调用
+            for (const toolCall of toolCalls) {
+                const functionName = toolCall.name;
+                const functionArgs = JSON.parse(toolCall.arguments);
+
+                console.log(`调用函数: ${functionName}`);
+                console.log(`参数:`, functionArgs);
+
+                // 执行函数
+                if (functionName === 'get_current_weather') {
+                    const functionResult = getCurrentWeather(functionArgs.location, functionArgs.unit);
+                    console.log(`函数结果:`, functionResult);
+
+                    // 注意：在实际应用中，你需要将工具结果发送回模型
+                    // 这里我们只是演示工具调用的过程
+                }
+            }
+
+            return result;
+        } else {
+            // 如果没有工具调用，检查输出内容
+            if (result.output && result.output.length > 0) {
+                const outputItem = result.output[0];
+                if (outputItem.content) {
+                    const content = outputItem.content[0];
+                    if (content.type === 'output_text') {
+                        console.log('直接回答:', content.text);
+                    }
+                }
+            }
+            return result;
+        }
+    } catch (error) {
+        console.error('请求出错:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+async function createMultipleToolsExample() {
+    const url = `${BASE_URL}/responses`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+
+    // 计算函数
+    function calculate(expression) {
+        try {
+            // 简单的安全检查
+            const allowedChars = /^[0-9+\\-*/.() ]+$/;
+            if (allowedChars.test(expression)) {
+                const result = Function(`"use strict"; return (${expression})`)();
+                return { result, expression };
+            } else {
+                return { error: '不支持的数学表达式' };
+            }
+        } catch (e) {
+            return { error: `计算错误: ${e.message}` };
+        }
+    }
+
+    // 搜索函数
+    function searchInformation(query, category = 'tech') {
+        const mockResults = {
+            '人工智能': [
+                'AI技术在医疗领域的新突破',
+                '机器学习算法的最新进展',
+                'ChatGPT等大语言模型的发展趋势'
+            ],
+            '科技': [
+                '量子计算取得重大进展',
+                '5G网络覆盖率持续提升',
+                '新能源汽车市场快速增长'
+            ]
+        };
+
+        const results = mockResults[query] || ['未找到相关信息'];
+        return {
+            query,
+            category,
+            results: results.slice(0, 3)
+        };
+    }
+
+    // 定义多个工具
+    const tools = [
+        {
+            type: 'function',
+            name: 'get_current_weather',
+            description: '获取指定城市的天气信息',
+            parameters: {
+                type: 'object',
+                properties: {
+                    location: { type: 'string', description: '城市名称' }
+                },
+                required: ['location']
+            }
+        },
+        {
+            type: 'function',
+            name: 'calculate',
+            description: '执行数学计算',
+            parameters: {
+                type: 'object',
+                properties: {
+                    expression: {
+                        type: 'string',
+                        description: '数学表达式，如 "2+3*4"'
+                    }
+                },
+                required: ['expression']
+            }
+        },
+        {
+            type: 'function',
+            name: 'search_information',
+            description: '搜索相关信息',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: '搜索关键词' },
+                    category: {
+                        type: 'string',
+                        enum: ['news', 'tech', 'finance'],
+                        description: '搜索类别'
+                    }
+                },
+                required: ['query']
+            }
+        }
+    ];
+
+    const payload = {
+        model: 'gpt-5-2025-08-07',
+        input: [
+            {
+                role: 'user',
+                content: [
+                    {
+                        type: 'input_text',
+                        text: '请帮我：1. 查询深圳的天气；2. 计算 25*4+10 的结果；3. 搜索人工智能相关的科技新闻'
+                    }
+                ]
+            }
+        ],
+        tools: tools,
+        tool_choice: 'auto'
+    };
+
+    try {
+        const response = await axios.post(url, payload, { headers });
+        const result = response.data;
+
+        console.log('=== 多工具调用示例 ===');
+
+        if (result.tool_calls && result.tool_calls.length > 0) {
+            const toolCalls = result.tool_calls;
+            console.log(`模型请求调用 ${toolCalls.length} 个工具:`);
+
+            // 执行所有工具调用
+            for (let i = 0; i < toolCalls.length; i++) {
+                const toolCall = toolCalls[i];
+                const functionName = toolCall.name;
+                const functionArgs = JSON.parse(toolCall.arguments);
+
+                console.log(`\\n第${i+1}个工具调用:`);
+                console.log(`函数名: ${functionName}`);
+                console.log(`参数:`, functionArgs);
+
+                let functionResult;
+                // 根据函数名执行相应函数
+                if (functionName === 'get_current_weather') {
+                    functionResult = getCurrentWeather(functionArgs.location);
+                } else if (functionName === 'calculate') {
+                    functionResult = calculate(functionArgs.expression);
+                } else if (functionName === 'search_information') {
+                    functionResult = searchInformation(functionArgs.query, functionArgs.category);
+                } else {
+                    functionResult = { error: `未知函数: ${functionName}` };
+                }
+
+                console.log(`执行结果:`, functionResult);
+            }
+
+            return result;
+        } else {
+            console.log('模型没有请求工具调用');
+            return result;
+        }
+    } catch (error) {
+        console.error('请求出错:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+async function main() {
+    try {
+        console.log('1. 基本工具调用示例');
+        await createToolCallingResponse();
+
+        console.log('\\n' + '='.repeat(60) + '\\n');
+
+        console.log('2. 多工具调用示例');
+        await createMultipleToolsExample();
+    } catch (error) {
+        console.error('执行出错:', error);
+    }
+}
+
+main();
+```
+
+</CodeGroup>
+
+## 工具定义格式
+
+### 函数工具格式
+
+```json
+{
+  "type": "function",
+  "name": "function_name",
+  "description": "函数功能的详细描述",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "param1": {
+        "type": "string",
+        "description": "参数描述"
+      },
+      "param2": {
+        "type": "integer",
+        "description": "数值参数"
+      }
+    },
+    "required": ["param1"],
+    "additionalProperties": false
+  }
+}
+```
+
+### tool_choice 参数
+
+控制模型是否以及如何使用工具：
+
+- `"auto"` (默认) - 模型自动决定是否调用工具
+- `"none"` - 模型不会调用任何工具
+- `"required"` - 模型必须调用至少一个工具
+- `{"type": "function", "function": {"name": "specific_function"}}` - 强制调用特定工具
+
+## 工具调用流程
+
+### 标准流程
+
+1. **发送请求** - 包含工具定义和用户消息
+2. **模型分析** - 判断是否需要调用工具
+3. **返回工具调用** - 如需要，返回工具调用请求
+4. **执行工具** - 在客户端执行相应函数
+5. **发送结果** - 将工具执行结果发送回模型
+6. **生成回答** - 模型基于工具结果生成最终回答
+
+### 并行工具调用
+
+模型可以同时请求多个工具调用：
+
+```json
+{
+  "tool_calls": [
+    {
+      "id": "call_1",
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "arguments": "{\"city\": \"北京\"}"
+      }
+    },
+    {
+      "id": "call_2",
+      "type": "function",
+      "function": {
+        "name": "calculate",
+        "arguments": "{\"expression\": \"25*4+10\"}"
+      }
+    }
+  ]
+}
+```
+
+## 响应结果示例
+
+### 工具调用请求响应
+
+```json
+{
+  "id": "resp_0948535d85b90d090068fe0836b9ec8197aedf2021e8583bc4",
+  "object": "response",
+  "created_at": 1761478710,
+  "status": "completed",
+  "background": false,
+  "content_filters": null,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": 13107,
+  "max_tool_calls": null,
+  "model": "gpt-5-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0948535d85b90d090068fe08374734819786eeaedf68914f1e",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "fc_0948535d85b90d090068fe08391cf081979ec4967124bf4c2b",
+      "type": "function_call",
+      "status": "completed",
+      "arguments": "{\"location\":\"\u5317\u4eac\",\"unit\":\"celsius\"}",
+      "call_id": "call_vD526gYJBbcU9nnsDz5uAM0G",
+      "name": "get_current_weather"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "description": "\u83b7\u53d6\u6307\u5b9a\u57ce\u5e02\u7684\u5f53\u524d\u5929\u6c14\u4fe1\u606f",
+      "name": "get_current_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "description": "\u57ce\u5e02\u540d\u79f0\uff0c\u4f8b\u5982\uff1a\u5317\u4eac\u3001\u4e0a\u6d77",
+            "type": "string"
+          },
+          "unit": {
+            "description": "\u6e29\u5ea6\u5355\u4f4d",
+            "enum": [
+              "celsius",
+              "fahrenheit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "location",
+          "unit"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 76,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 218,
+    "output_tokens_details": {
+      "reasoning_tokens": 192
+    },
+    "total_tokens": 294
+  },
+  "user": null,
+  "metadata": {}
+}
+```
+
+
+## 常用工具类型
+
+### 1. 信息查询工具
+
+```python
+{
+    "name": "search_information",
+    "description": "搜索相关信息",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "搜索查询"},
+            "source": {"type": "string", "enum": ["web", "database", "api"]}
+        }
+    }
+}
+```
+
+### 2. 计算工具
+
+```python
+{
+    "name": "calculate",
+    "description": "执行数学计算",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "expression": {"type": "string", "description": "数学表达式"}
+        }
+    }
+}
+```
+
+### 3. 数据处理工具
+
+```python
+{
+    "name": "process_data",
+    "description": "处理和分析数据",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "data": {"type": "array", "description": "要处理的数据"},
+            "operation": {"type": "string", "enum": ["sum", "average", "filter"]}
+        }
+    }
+}
+```
+
+### 4. 外部API调用
+
+```python
+{
+    "name": "call_api",
+    "description": "调用外部API服务",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "endpoint": {"type": "string", "description": "API端点"},
+            "method": {"type": "string", "enum": ["GET", "POST"]},
+            "params": {"type": "object", "description": "请求参数"}
+        }
+    }
+}
+```
+
+## 应用场景
+
+1. **实时信息获取** - 天气、新闻、股价等
+2. **计算和分析** - 数学运算、数据处理
+3. **外部服务集成** - 发送邮件、创建日历事件
+4. **数据库操作** - 查询、更新数据
+5. **文件操作** - 读取、写入、处理文件
+6. **API调用** - 调用第三方服务
+
+## 最佳实践
+
+### 1. 工具设计原则
+
+- **单一职责**: 每个工具只做一件事
+- **清晰描述**: 提供详细的函数和参数描述
+- **参数验证**: 验证输入参数的合法性
+- **错误处理**: 优雅处理执行错误
+
+### 2. 安全考虑
+
+- **输入验证**: 严格验证工具参数
+- **权限控制**: 限制工具的执行权限
+- **资源限制**: 防止无限制的资源消耗
+- **敏感操作**: 对敏感操作进行确认
+
+### 3. 性能优化
+
+- **并行执行**: 支持并行工具调用
+- **缓存结果**: 缓存频繁调用的结果
+- **超时控制**: 设置合理的执行超时
+- **资源管理**: 合理管理计算资源
+
+## 注意事项
+
+### 技术限制
+- **模型支持**: 确保使用支持工具调用的模型（如gpt-5-2025-08-07、gpt-4o、gpt-4-turbo等）
+- **工具数量**: 单次请求最多支持128个工具定义
+- **参数格式**: 工具参数必须遵循JSON Schema格式
+- **响应格式**: 工具执行结果需要是可序列化的JSON格式
+
+### 安全考虑
+- **输入验证**: 严格验证工具参数的合法性和安全性
+- **权限控制**: 限制工具的执行权限，避免敏感操作
+- **资源限制**: 防止无限制的资源消耗和超时控制
+- **错误处理**: 优雅处理工具执行失败的情况
+
+### 性能优化
+- **并行执行**: 支持模型并行调用多个工具
+- **缓存策略**: 对频繁调用的工具结果进行缓存
+- **超时控制**: 设置合理的工具执行超时时间
+- **资源管理**: 合理管理计算和网络资源
+
+### 最佳实践
+- **工具设计**: 遵循单一职责原则，每个工具只处理一类任务
+- **参数命名**: 使用清晰、一致的参数命名规范
+- **错误信息**: 提供详细、有用的错误信息帮助调试
+- **文档完善**: 为每个工具提供详细的描述和使用示例
+
+## 常见问题解答
+
+**Q: 如何处理工具执行失败的情况？**  
+A: 在工具函数中捕获异常并返回包含错误信息的结构化响应，让模型了解失败原因并给出相应回答。
+
+**Q: 是否可以嵌套调用工具？**  
+A: 可以，模型可以根据第一个工具的结果决定是否调用其他工具，实现复杂的工具调用链。
+
+**Q: 如何控制工具调用的频率？**  
+A: 使用`tool_choice`参数控制模型的工具使用行为，或在业务层面实现频率限制机制。
+
+**Q: 工具调用的成本如何计算？**  
+A: 工具调用本身不额外收费，但会消耗input和output tokens，按标准token计费方式收费。
+
+**Q: 支持哪些类型的工具参数？**  
+A: 支持JSON Schema定义的所有基础类型：string、number、integer、boolean、array、object等。
+
+**Q: 如何调试工具调用问题？**  
+A: 检查工具定义格式、参数验证、执行日志，确保工具函数返回正确的JSON格式数据。

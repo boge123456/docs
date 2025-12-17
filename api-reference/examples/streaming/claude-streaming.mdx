@@ -1,0 +1,240 @@
+---
+title: 'Claude 流式对话示例'
+description: '使用Claude API进行流式对话的完整示例代码'
+---
+
+# Claude 流式对话示例
+
+以下示例展示如何使用Claude的 `/v1/messages` 接口进行流式对话，实现实时打字效果。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/messages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1000,
+    "stream": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "请写一首关于秋天的诗"
+      }
+    ]
+  }' \
+  --no-buffer
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def stream_chat_with_claude(message):
+    url = f"{BASE_URL}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+        "anthropic-version": "2023-06-01"
+    }
+    
+    data = {
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 1000,
+        "stream": True,
+        "messages": [
+            {
+                "role": "user",
+                "content": message
+            }
+        ]
+    }
+    
+    response = requests.post(url, headers=headers, json=data, stream=True)
+    
+    if response.status_code == 200:
+        full_response = ""
+        
+        for line in response.iter_lines(decode_unicode=True):
+            if line.startswith('data: '):
+                data = line[6:]
+                
+                if data == '[DONE]':
+                    break
+                
+                try:
+                    parsed = json.loads(data)
+                    if parsed.get('type') == 'content_block_delta':
+                        if 'delta' in parsed and 'text' in parsed['delta']:
+                            content = parsed['delta']['text']
+                            full_response += content
+                            print(content, end="", flush=True)
+                except json.JSONDecodeError:
+                    continue
+                    
+        return full_response
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 使用示例
+if __name__ == "__main__":
+    message = "请写一首关于秋天的诗"
+    print("Claude回复: ", end="")
+    reply = stream_chat_with_claude(message)
+    print(f"\n\n完整回复: {reply}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function streamChatWithClaude(message) {
+    const url = `${BASE_URL}/messages`;
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        'anthropic-version': '2023-06-01'
+    };
+    
+    const data = {
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1000,
+        stream: true,
+        messages: [
+            {
+                role: 'user',
+                content: message
+            }
+        ]
+    };
+    
+    return new Promise((resolve, reject) => {
+        let fullResponse = '';
+        
+        fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function processStream() {
+                return reader.read().then(({ done, value }) => {
+                    if (done) {
+                        resolve(fullResponse);
+                        return;
+                    }
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            
+                            if (data === '[DONE]') {
+                                resolve(fullResponse);
+                                return;
+                            }
+                            
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
+                                    const content = parsed.delta.text;
+                                    fullResponse += content;
+                                    process.stdout.write(content);
+                                }
+                            } catch (error) {
+                                // 忽略解析错误
+                            }
+                        }
+                    }
+                    
+                    return processStream();
+                });
+            }
+            
+            return processStream();
+        })
+        .catch(reject);
+    });
+}
+
+// 使用示例
+(async () => {
+    try {
+        const message = '请写一首关于秋天的诗';
+        process.stdout.write('Claude回复: ');
+        const reply = await streamChatWithClaude(message);
+        console.log(`\n\n完整回复: ${reply}`);
+    } catch (error) {
+        console.error('错误:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+## Claude流式响应格式
+
+Claude的流式响应包含多种事件类型：
+
+```json
+event: message_start
+data: {"message":{"id":"aa3bf21da7f548a791c409fc7507897c","content":[],"model":"claude-3-5-sonnet-20241022","role":"assistant","stop_reason":"","stop_sequence":"","type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0},"service_tier":""}},"type":"message_start","delta":{"stop_reason":"","stop_sequence":"","text":"","type":"","partial_json":"","citation":{"cited_text":"","document_index":0,"document_title":"","end_char_index":0,"file_id":"","start_char_index":0,"type":"","end_page_number":0,"start_page_number":0,"end_block_index":0,"start_block_index":0,"encrypted_index":"","title":"","url":"","search_result_index":0,"source":""},"thinking":"","signature":""},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0}},"content_block":{"citations":null,"text":"","type":"","signature":"","thinking":"","data":"","id":"","input":null,"name":"","content":{"OfWebSearchResultBlockArray":null,"error_code":"","type":"web_search_tool_result_error"},"tool_use_id":""},"index":0}
+
+event: content_block_delta
+data: {"message":{"id":"","content":[],"model":"","role":"assistant","stop_reason":"","stop_sequence":"","type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0},"service_tier":""}},"type":"content_block_delta","delta":{"stop_reason":"","stop_sequence":"","text":"《","type":"text_delta","partial_json":"","citation":{"cited_text":"","document_index":0,"document_title":"","end_char_index":0,"file_id":"","start_char_index":0,"type":"","end_page_number":0,"start_page_number":0,"end_block_index":0,"start_block_index":0,"encrypted_index":"","title":"","url":"","search_result_index":0,"source":""},"thinking":"","signature":""},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0}},"content_block":{"citations":null,"text":"","type":"","signature":"","thinking":"","data":"","id":"","input":null,"name":"","content":{"OfWebSearchResultBlockArray":null,"error_code":"","type":"web_search_tool_result_error"},"tool_use_id":""},"index":0}
+
+event: content_block_delta
+data: {"message":{"id":"","content":[],"model":"","role":"assistant","stop_reason":"","stop_sequence":"","type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0},"service_tier":""}},"type":"content_block_delta","delta":{"stop_reason":"","stop_sequence":"","text":"秋意","type":"text_delta","partial_json":"","citation":{"cited_text":"","document_index":0,"document_title":"","end_char_index":0,"file_id":"","start_char_index":0,"type":"","end_page_number":0,"start_page_number":0,"end_block_index":0,"start_block_index":0,"encrypted_index":"","title":"","url":"","search_result_index":0,"source":""},"thinking":"","signature":""},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0}},"content_block":{"citations":null,"text":"","type":"","signature":"","thinking":"","data":"","id":"","input":null,"name":"","content":{"OfWebSearchResultBlockArray":null,"error_code":"","type":"web_search_tool_result_error"},"tool_use_id":""},"index":0}
+
+.
+.
+.
+
+event: content_block_delta
+data: {"message":{"id":"","content":[],"model":"","role":"assistant","stop_reason":"","stop_sequence":"","type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0},"service_tier":""}},"type":"content_block_delta","delta":{"stop_reason":"","stop_sequence":"","text":"感悟。","type":"text_delta","partial_json":"","citation":{"cited_text":"","document_index":0,"document_title":"","end_char_index":0,"file_id":"","start_char_index":0,"type":"","end_page_number":0,"start_page_number":0,"end_block_index":0,"start_block_index":0,"encrypted_index":"","title":"","url":"","search_result_index":0,"source":""},"thinking":"","signature":""},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0}},"content_block":{"citations":null,"text":"","type":"","signature":"","thinking":"","data":"","id":"","input":null,"name":"","content":{"OfWebSearchResultBlockArray":null,"error_code":"","type":"web_search_tool_result_error"},"tool_use_id":""},"index":0}
+
+event: content_block_stop
+data: {"message":{"id":"","content":[],"model":"","role":"assistant","stop_reason":"","stop_sequence":"","type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0},"service_tier":""}},"type":"content_block_stop","delta":{"stop_reason":"","stop_sequence":"","text":"","type":"","partial_json":"","citation":{"cited_text":"","document_index":0,"document_title":"","end_char_index":0,"file_id":"","start_char_index":0,"type":"","end_page_number":0,"start_page_number":0,"end_block_index":0,"start_block_index":0,"encrypted_index":"","title":"","url":"","search_result_index":0,"source":""},"thinking":"","signature":""},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0}},"content_block":{"citations":null,"text":"","type":"","signature":"","thinking":"","data":"","id":"","input":null,"name":"","content":{"OfWebSearchResultBlockArray":null,"error_code":"","type":"web_search_tool_result_error"},"tool_use_id":""},"index":0}
+
+event: message_delta
+data: {"message":{"id":"","content":[],"model":"","role":"assistant","stop_reason":"","stop_sequence":"","type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0},"service_tier":""}},"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":"","text":"","type":"","partial_json":"","citation":{"cited_text":"","document_index":0,"document_title":"","end_char_index":0,"file_id":"","start_char_index":0,"type":"","end_page_number":0,"start_page_number":0,"end_block_index":0,"start_block_index":0,"encrypted_index":"","title":"","url":"","search_result_index":0,"source":""},"thinking":"","signature":""},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":20,"output_tokens":209,"server_tool_use":{"web_search_requests":0}},"content_block":{"citations":null,"text":"","type":"","signature":"","thinking":"","data":"","id":"","input":null,"name":"","content":{"OfWebSearchResultBlockArray":null,"error_code":"","type":"web_search_tool_result_error"},"tool_use_id":""},"index":0}
+
+event: message_stop
+data: {"message":{"id":"","content":[],"model":"","role":"assistant","stop_reason":"","stop_sequence":"","type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0},"service_tier":""}},"type":"message_stop","delta":{"stop_reason":"","stop_sequence":"","text":"","type":"","partial_json":"","citation":{"cited_text":"","document_index":0,"document_title":"","end_char_index":0,"file_id":"","start_char_index":0,"type":"","end_page_number":0,"start_page_number":0,"end_block_index":0,"start_block_index":0,"encrypted_index":"","title":"","url":"","search_result_index":0,"source":""},"thinking":"","signature":""},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0}},"content_block":{"citations":null,"text":"","type":"","signature":"","thinking":"","data":"","id":"","input":null,"name":"","content":{"OfWebSearchResultBlockArray":null,"error_code":"","type":"web_search_tool_result_error"},"tool_use_id":""},"index":0}
+```
+
+## 重要参数说明
+
+- **stream**: 设置为 `true` 启用流式输出
+- **type**: 事件类型，主要关注 `content_block_delta`
+- **delta.text**: 每个数据块包含的文本增量
+- **anthropic-version**: 必需的API版本头
+
+## Claude流式特点
+
+1. **事件驱动**: 使用不同的事件类型标识流的各个阶段
+2. **结构化**: 内容块有明确的开始和增量事件
+3. **元数据丰富**: 提供详细的消息和内容块信息 

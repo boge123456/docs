@@ -1,0 +1,829 @@
+---
+title: 'Claude 思考模式示例'
+description: '使用Claude展示AI逐步分析和推理过程的完整示例代码'
+---
+
+# Claude 思考模式示例
+
+以下示例展示如何使用Claude的思考模式功能，通过设置 `thinking` 参数让Claude展示其内部推理过程，帮助用户理解AI的分析思路和解题步骤。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/messages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 2000,
+    "thinking": {
+        "type": "enabled",
+        "budget_tokens": 10000
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "一个正方形的面积是64平方厘米，求它的周长。"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def claude_thinking_mode(problem, enable_thinking=True):
+    """
+    使用Claude的思考模式功能展示推理过程
+
+    Args:
+        problem: 要解决的问题
+        enable_thinking: 是否启用思考模式
+    """
+    url = f"{BASE_URL}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+        "anthropic-version": "2023-06-01"
+    }
+
+    data = {
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 2000,
+        "messages": [
+            {
+                "role": "user",
+                "content": problem
+            }
+        ]
+    }
+    
+    # 添加thinking配置
+    if enable_thinking:
+        data["thinking"] = {
+            "type": "enabled",
+            "budget_tokens": 10000
+        }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+
+        # 提取思考过程和文本回答
+        thinking_content = ""
+        text_content = ""
+        
+        content = result.get('content', [])
+        for item in content:
+            if item.get('type') == 'thinking':
+                thinking_content = item.get('thinking', '')
+                print("=== Claude的思考过程 ===")
+                print(thinking_content)
+                print("\n=== 最终回答 ===")
+            elif item.get('type') == 'text':
+                text_content = item.get('text', '')
+
+        return thinking_content, text_content
+    else:
+        return None, f"错误: {response.status_code} - {response.text}"
+
+# 数学问题求解示例
+def solve_geometry_problem():
+    problem = """
+    一个正三角形的周长是18厘米，求这个三角形的面积。
+    （提示：可能需要用到根号，可以保留根号形式）
+    """
+
+    print("=== 几何问题求解 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = claude_thinking_mode(problem)
+    print(result)
+    return result
+
+# 逻辑推理示例
+def logical_puzzle_solving():
+    problem = """
+    有红、黄、蓝三种颜色的帽子，A、B、C三个人各戴一顶。
+    已知：
+    1. A说："我戴的不是红帽子"
+    2. B说："我戴的不是蓝帽子"
+    3. C说："我戴的不是黄帽子"
+    4. 三个人中只有一个人说了真话
+
+    请推断每个人戴的是什么颜色的帽子？
+    """
+
+    thinking_template = """
+请用逻辑推理的方式分析这个问题，展示完整的推理过程：
+
+1. 【题目理解】- 梳理题目给出的所有条件
+2. 【假设建立】- 列出所有可能的情况
+3. 【逻辑推理】- 逐一验证每种假设
+4. 【排除过程】- 说明哪些情况不符合条件
+5. 【结论验证】- 检查最终答案是否满足所有条件
+6. 【最终答案】- 明确每个人的帽子颜色
+"""
+
+    print("=== 逻辑推理示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = claude_thinking_mode(problem, thinking_template)
+    print(result)
+    return result
+
+# 决策分析示例
+def decision_analysis():
+    problem = """
+    你是一名项目经理，面临以下情况：
+
+    项目背景：开发一个电商APP，预算100万，周期6个月
+
+    现在有两个技术方案：
+    方案A：使用原生开发
+    - 性能好，用户体验佳
+    - 开发周期长，成本高
+    - 需要iOS和Android两套代码
+
+    方案B：使用跨平台框架（如React Native）
+    - 开发效率高，成本较低
+    - 一套代码多端运行
+    - 性能略逊于原生，部分功能受限
+
+    请分析应该选择哪种方案？
+    """
+
+    thinking_template = """
+请从项目管理的角度进行全面分析：
+
+1. 【需求分析】- 分析项目的核心需求和约束条件
+2. 【方案对比】- 详细对比两个方案的优缺点
+3. 【风险评估】- 分析每种方案可能面临的风险
+4. 【成本效益】- 从时间、金钱、资源角度分析
+5. 【决策依据】- 说明决策的关键因素
+6. 【推荐方案】- 给出明确的建议和理由
+"""
+
+    print("=== 决策分析示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = claude_thinking_mode(problem, thinking_template)
+    print(result)
+    return result
+
+# 创意问题解决示例
+def creative_problem_solving():
+    problem = """
+    设计挑战：为老年人设计一款智能手机应用
+
+    要求：
+    1. 界面简洁易用
+    2. 功能实用且不复杂
+    3. 考虑老年人的生理特点（视力、听力、手部灵活性等）
+    4. 能够帮助老年人与家人保持联系
+
+    请设计这个应用的核心功能和界面方案。
+    """
+
+    thinking_template = """
+请用设计思维的方式分析这个问题：
+
+1. 【用户研究】- 分析目标用户的特点和需求
+2. 【痛点分析】- 识别老年人使用智能手机的主要困难
+3. 【设计原则】- 确定设计的核心原则和理念
+4. 【功能规划】- 设计核心功能模块
+5. 【界面设计】- 描述界面布局和交互方式
+6. 【实现建议】- 提供具体的实现建议
+"""
+
+    print("=== 创意问题解决示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = claude_thinking_mode(problem, thinking_template)
+    print(result)
+    return result
+
+# 科学问题分析示例
+def scientific_analysis():
+    problem = """
+    为什么在太空中宇航员会感到失重？
+    请从物理学角度详细解释这个现象，
+    包括重力、加速度、参考系等概念的作用。
+    """
+
+    thinking_template = """
+请用科学分析的方法解释这个现象：
+
+1. 【现象描述】- 准确描述失重现象
+2. 【相关概念】- 解释涉及的物理概念
+3. 【原理分析】- 从物理学角度分析产生原因
+4. 【类比说明】- 用日常例子帮助理解
+5. 【常见误区】- 指出人们可能的误解
+6. 【总结解释】- 用简洁的语言总结原理
+"""
+
+    print("=== 科学问题分析示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = claude_thinking_mode(problem, thinking_template)
+    print(result)
+    return result
+
+# 综合使用示例
+if __name__ == "__main__":
+    try:
+        # 运行各种思考模式示例
+        solve_geometry_problem()
+        print("\n" + "="*70 + "\n")
+
+        logical_puzzle_solving()
+        print("\n" + "="*70 + "\n")
+
+        decision_analysis()
+        print("\n" + "="*70 + "\n")
+
+        creative_problem_solving()
+        print("\n" + "="*70 + "\n")
+
+        scientific_analysis()
+
+    except Exception as e:
+        print(f"程序执行出错: {e}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function claudeThinkingMode(problem, thinkingTemplate) {
+    const url = `${BASE_URL}/messages`;
+
+    const defaultTemplate = `
+请详细展示你的思考过程，逐步分析问题并给出解答。
+
+请按照以下格式回答：
+1. 【问题理解】- 重新描述问题，确保理解正确
+2. 【信息提取】- 提取关键信息和已知条件
+3. 【分析思路】- 说明解决问题的方法和策略
+4. 【推理过程】- 详细的推理和计算步骤
+5. 【结果检验】- 验证答案的合理性
+6. 【总结回答】- 给出最终答案
+`;
+
+    const template = thinkingTemplate || defaultTemplate;
+    const prompt = `${template}\n\n问题：${problem}`;
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        'anthropic-version': '2023-06-01'
+    };
+
+    const data = {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        thinking: {
+            type: 'enabled',
+            budget_tokens: 10000
+        },
+        messages: [
+            {
+                role: 'user',
+                content: prompt
+            }
+        ]
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+        
+        // 提取思考过程和文本回答
+        const content = response.data.content || [];
+        let thinkingContent = '';
+        let textContent = '';
+        
+        for (const item of content) {
+            if (item.type === 'thinking') {
+                thinkingContent = item.thinking || '';
+                console.log('=== Claude的思考过程 ===');
+                console.log(thinkingContent);
+                console.log('\n=== 最终回答 ===');
+            } else if (item.type === 'text') {
+                textContent = item.text || '';
+            }
+        }
+        
+        return textContent;
+    } catch (error) {
+        return `错误: ${error.response?.status} - ${error.response?.data || error.message}`;
+    }
+}
+
+// 编程问题分析示例
+async function solveProgrammingProblem() {
+    const problem = `
+    算法问题：给定一个整数数组 nums 和一个目标值 target，
+    在数组中找到两个数，使它们的和等于目标值，并返回它们的索引。
+
+    示例：
+    输入: nums = [2, 7, 11, 15], target = 9
+    输出: [0, 1] （因为 nums[0] + nums[1] = 2 + 7 = 9）
+
+    要求：时间复杂度尽可能低
+    `;
+
+    const thinkingTemplate = `
+请用算法分析的方式解决这个编程问题：
+
+1. 【问题分析】- 理解问题要求和约束条件
+2. 【算法思路】- 分析可能的解决方案
+3. 【复杂度分析】- 比较不同方案的时间和空间复杂度
+4. 【最优方案】- 选择最优的算法方法
+5. 【代码实现】- 提供具体的代码实现
+6. 【测试验证】- 用示例验证算法正确性
+`;
+
+    console.log('=== 编程问题分析示例 ===');
+    console.log(`问题：${problem.trim()}`);
+    console.log('\n' + '='.repeat(50));
+
+    const result = await claudeThinkingMode(problem, thinkingTemplate);
+    console.log(result);
+    return result;
+}
+
+// 商业分析示例
+async function businessAnalysis() {
+    const problem = `
+    商业案例分析：
+    一家传统书店面临电商冲击，客流量下降50%，
+    但房租和人工成本依然很高。店主考虑以下转型方向：
+
+    1. 转型为咖啡书店，增加餐饮服务
+    2. 专注于儿童教育，开设亲子阅读课程
+    3. 转为线上销售，关闭实体店面
+    4. 转型为文化空间，举办读书会等活动
+
+    请分析各选项的可行性，并给出建议。
+    `;
+
+    const thinkingTemplate = `
+请用商业分析的框架来分析这个问题：
+
+1. 【现状分析】- 分析当前面临的问题和挑战
+2. 【市场环境】- 分析外部环境和行业趋势
+3. 【选项评估】- 逐一分析每个转型方向的优缺点
+4. 【SWOT分析】- 分析内部优势劣势和外部机会威胁
+5. 【可行性评估】- 从资源、风险、收益角度评估
+6. 【建议方案】- 给出最终建议和实施建议
+`;
+
+    console.log('=== 商业分析示例 ===');
+    console.log(`问题：${problem.trim()}`);
+    console.log('\n' + '='.repeat(50));
+
+    const result = await claudeThinkingMode(problem, thinkingTemplate);
+    console.log(result);
+    return result;
+}
+
+// 哲学思辨示例
+async function philosophicalThinking() {
+    const problem = `
+    哲学问题：什么是"真实"？
+
+    在虚拟现实技术日益发达的今天，我们如何定义和判断什么是真实的？
+    如果我们无法区分虚拟世界和现实世界，那么这种区分还有意义吗？
+
+    请从不同的哲学角度分析这个问题。
+    `;
+
+    const thinkingTemplate = `
+请用哲学思辨的方式分析这个深刻问题：
+
+1. 【问题阐释】- 澄清问题的核心含义
+2. 【概念辨析】- 分析"真实"概念的不同层面
+3. 【历史观点】- 回顾哲学史上的相关观点
+4. 【现代视角】- 结合现代科技分析新的挑战
+5. 【多元思考】- 从不同哲学流派的角度分析
+6. 【个人思考】- 提出自己的观点和思考
+`;
+
+    console.log('=== 哲学思辨示例 ===');
+    console.log(`问题：${problem.trim()}`);
+    console.log('\n' + '='.repeat(50));
+
+    const result = await claudeThinkingMode(problem, thinkingTemplate);
+    console.log(result);
+    return result;
+}
+
+// 使用示例
+(async () => {
+    try {
+        await solveProgrammingProblem();
+        console.log('\n' + '='.repeat(70) + '\n');
+
+        await businessAnalysis();
+        console.log('\n' + '='.repeat(70) + '\n');
+
+        await philosophicalThinking();
+    } catch (error) {
+        console.error('程序执行出错:', error.message);
+    }
+})();
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "strings"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type Message struct {
+    Role    string `json:"role"`
+    Content string `json:"content"`
+}
+
+type ThinkingConfig struct {
+    Type         string `json:"type"`
+    BudgetTokens int    `json:"budget_tokens"`
+}
+
+type ClaudeRequest struct {
+    Model     string           `json:"model"`
+    MaxTokens int              `json:"max_tokens"`
+    Thinking  *ThinkingConfig  `json:"thinking,omitempty"`
+    Messages  []Message        `json:"messages"`
+}
+
+type ContentBlock struct {
+    Type     string `json:"type"`
+    Text     string `json:"text,omitempty"`
+    Thinking string `json:"thinking,omitempty"`
+}
+
+type ClaudeResponse struct {
+    Content []ContentBlock `json:"content"`
+}
+
+func claudeThinkingMode(problem, thinkingTemplate string) (string, error) {
+    url := fmt.Sprintf("%s/messages", BaseURL)
+
+    defaultTemplate := `
+请详细展示你的思考过程，逐步分析问题并给出解答。
+
+请按照以下格式回答：
+1. 【问题理解】- 重新描述问题，确保理解正确
+2. 【信息提取】- 提取关键信息和已知条件
+3. 【分析思路】- 说明解决问题的方法和策略
+4. 【推理过程】- 详细的推理和计算步骤
+5. 【结果检验】- 验证答案的合理性
+6. 【总结回答】- 给出最终答案
+`
+
+    template := thinkingTemplate
+    if template == "" {
+        template = defaultTemplate
+    }
+
+    prompt := fmt.Sprintf("%s\n\n问题：%s", template, problem)
+
+    reqData := ClaudeRequest{
+        Model:     "claude-sonnet-4-20250514",
+        MaxTokens: 2000,
+        Thinking: &ThinkingConfig{
+            Type:         "enabled",
+            BudgetTokens: 10000,
+        },
+        Messages: []Message{
+            {
+                Role:    "user",
+                Content: prompt,
+            },
+        },
+    }
+
+    jsonData, err := json.Marshal(reqData)
+    if err != nil {
+        return "", err
+    }
+
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return "", err
+    }
+
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    req.Header.Set("anthropic-version", "2023-06-01")
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return "", err
+    }
+
+    if resp.StatusCode != 200 {
+        return "", fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(body))
+    }
+
+    var claudeResp ClaudeResponse
+    err = json.Unmarshal(body, &claudeResp)
+    if err != nil {
+        return "", err
+    }
+
+    // 提取思考过程和文本回答
+    var thinkingContent, textContent string
+    for _, item := range claudeResp.Content {
+        if item.Type == "thinking" {
+            thinkingContent = item.Thinking
+            fmt.Println("=== Claude的思考过程 ===")
+            fmt.Println(thinkingContent)
+            fmt.Println("\n=== 最终回答 ===")
+        } else if item.Type == "text" {
+            textContent = item.Text
+        }
+    }
+    
+    return textContent, nil
+}
+
+// 数据分析问题示例
+func analyzeDataProblem() {
+    problem := `
+    数据分析问题：
+    一家电商公司的数据显示：
+    - 网站日访问量：10万人次
+    - 注册转化率：2%
+    - 购买转化率：5%（基于注册用户）
+    - 平均客单价：200元
+    - 获客成本：50元/人
+
+    问题：
+    1. 计算每日营业额
+    2. 分析盈利情况
+    3. 提出优化建议
+    `
+
+    thinkingTemplate := `
+请用数据分析的方法解决这个问题：
+
+1. 【数据理解】- 理解给出的各项数据指标
+2. 【指标计算】- 计算相关的业务指标
+3. 【数据关联】- 分析数据之间的关联关系
+4. 【问题诊断】- 识别存在的问题和机会
+5. 【优化建议】- 基于数据分析提出改进方案
+6. 【实施建议】- 给出具体的行动建议
+`
+
+    fmt.Println("=== 数据分析问题示例 ===")
+    fmt.Printf("问题：%s\n", strings.TrimSpace(problem))
+    fmt.Println("\n" + strings.Repeat("=", 50))
+
+    result, err := claudeThinkingMode(problem, thinkingTemplate)
+    if err != nil {
+        fmt.Printf("错误: %v\n", err)
+        return
+    }
+
+    fmt.Printf("%s\n", result)
+}
+
+// 系统设计问题示例
+func systemDesignProblem() {
+    problem := `
+    系统设计问题：
+    设计一个支持百万用户的在线聊天系统
+
+    需求：
+    1. 支持一对一聊天和群聊
+    2. 消息实时传递
+    3. 支持文字、图片、文件发送
+    4. 消息历史记录
+    5. 用户在线状态显示
+    6. 高可用和可扩展性
+    `
+
+    thinkingTemplate := `
+请用系统设计的方法分析这个问题：
+
+1. 【需求分析】- 分析功能需求和非功能需求
+2. 【容量估算】- 估算系统的容量和性能需求
+3. 【架构设计】- 设计系统的整体架构
+4. 【技术选型】- 选择合适的技术栈
+5. 【详细设计】- 设计核心模块和接口
+6. 【扩展优化】- 考虑扩展性和优化方案
+`
+
+    fmt.Println("=== 系统设计问题示例 ===")
+    fmt.Printf("问题：%s\n", strings.TrimSpace(problem))
+    fmt.Println("\n" + strings.Repeat("=", 50))
+
+    result, err := claudeThinkingMode(problem, thinkingTemplate)
+    if err != nil {
+        fmt.Printf("错误: %v\n", err)
+        return
+    }
+
+    fmt.Printf("%s\n", result)
+}
+
+func main() {
+    analyzeDataProblem()
+    fmt.Println("\n" + strings.Repeat("=", 70) + "\n")
+
+    systemDesignProblem()
+}
+```
+
+</CodeGroup>
+
+## 结果示例
+```json 200
+{
+  "id": "6edd11314ea64e8c88a3cdf9735656c5",
+  "content": [
+    {
+      "citations": null,
+      "text": "",
+      "type": "thinking",
+      "signature": "EroECkgICRABGAIqQIiqaRJm/iXRdjb4W+A47BolHcX8RewWGMCbgHTSUw0PsPdLwlNV4N/Bil2w1gwM/yD7qEMWeT2bwUFlbcOqrzQSDPo+aQKicsj1bFQR3RoM1ynT85Y1bqEVqovGIjDQzhttKIV9aN0e9reJL5o2jcUk2f/e7WxYC/7kfCyemJKSmqcoaL5KZCyi7HFX1nwqnwPyBnWDNfndVts9suVkDLvYbijoybHl77KUbTTn77Bfnef8ngMs4ToKQpJABdY5loiu3a88yxpXY/QCwDq4fYWCBGsb+K6IHIEJ/4jGYwqt1Ovw3hNseliejYyOFe7u8dHNKCnZ3nGq5MwiP9NrZ6Rff9r7bYTgvj/1V1MaicWIhG1Mn1jH6f7eu4IXQ63xFncSfbacIdE/R1tTvAQKt5L/ixsbcHf2G0W1McleSgdYkZwn60x6KKNI+deTgRpqpFwWLcS8/IJigDQSaSdB5p6n6sHoO2Tp9n0KZBPrb75k9gw/QA4SgnwZZmsvB/vXpbSoubJBIh27ysznOiW/VLYjVjQLQrRSioqpqaDnbJyXMX/gmcJc20TlT8SlkS/WKSX+E1ytgOqsPXipGcqHDStjCSw0u2d5wZzoD+XlGWDDR8FAQBucoCDgSzFUfUyAcXQJQzQv+UI+4IOCaO2wQx53oGZYt4p9MDbMtv9rbGZa6z2N6mXv1SW2P1lVRh/XFTkeObmgZjHd5HvUYm0IZDTOc0M/+braCUbhjp6V6UFsGAE=",
+      "thinking": "这是一个关于正方形面积和周长的数学问题。\n\n已知：正方形的面积是64平方厘米\n求：正方形的周长\n\n让我来解决这个问题：\n\n设正方形的边长为 a 厘米。\n\n正方形的面积公式是：面积 = a²\n所以：a² = 64\n\n要求边长，需要开平方：\na = √64 = 8 厘米\n\n正方形的周长公式是：周长 = 4a\n所以：周长 = 4 × 8 = 32 厘米",
+      "data": "",
+      "id": "",
+      "input": null,
+      "name": "",
+      "content": {
+        "OfWebSearchResultBlockArray": null,
+        "error_code": "",
+        "type": "web_search_tool_result_error"
+      },
+      "tool_use_id": ""
+    },
+    {
+      "citations": null,
+      "text": "我来帮你解决这个问题。\n\n**已知**\n- 正方形面积 = 64平方厘米\n\n**求解过程：**\n\n1) 设正方形的边长为 a 厘米\n\n2) 根据正方形面积公式：\n   面积 = a²\n   \n   所以：a² = 64\n\n3) 求边长：\n   a = √64 = 8 厘米\n\n4) 根据正方形周长公式\n   周长 = 4a = 4 × 8 = 32 厘米\n\n**答案：** 这个正方形的周长是 32 厘米。",
+      "type": "text",
+      "signature": "",
+      "thinking": "",
+      "data": "",
+      "id": "",
+      "input": null,
+      "name": "",
+      "content": {
+        "OfWebSearchResultBlockArray": null,
+        "error_code": "",
+        "type": "web_search_tool_result_error"
+      },
+      "tool_use_id": ""
+    }
+  ],
+  "model": "claude-sonnet-4-20250514",
+  "role": "assistant",
+  "stop_reason": "end_turn",
+  "stop_sequence": "",
+  "type": "message",
+  "usage": {
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 58,
+    "output_tokens": 356,
+    "server_tool_use": {
+      "web_search_requests": 0
+    },
+    "service_tier": ""
+  }
+}
+```
+
+## Claude思考模式的特点
+
+### 1. 结构化思考
+Claude通过明确的步骤标记（【】）来组织思考过程，使逻辑更清晰：
+- 问题理解阶段
+- 信息提取阶段
+- 分析思路阶段
+- 推理过程阶段
+- 结果检验阶段
+- 总结回答阶段
+
+### 2. 多角度分析
+Claude能够从不同角度分析问题：
+- 逻辑推理角度
+- 数学计算角度
+- 实际应用角度
+- 风险评估角度
+
+### 3. 自我验证
+Claude会主动验证答案的合理性，提供多种解法进行交叉验证。
+
+## 思考模板设计
+
+### 基础模板
+```
+1. 【问题理解】- 重新描述问题
+2. 【信息提取】- 提取关键信息
+3. 【分析思路】- 说明解决方法
+4. 【推理过程】- 详细推理步骤
+5. 【结果检验】- 验证答案合理性
+6. 【总结回答】- 给出最终答案
+```
+
+### 专业领域模板
+
+**数学问题**
+```
+1. 【题目分析】
+2. 【已知条件】
+3. 【解题策略】
+4. 【计算过程】
+5. 【答案验证】
+6. 【最终结果】
+```
+
+**商业分析**
+```
+1. 【现状分析】
+2. 【环境分析】
+3. 【问题诊断】
+4. 【方案对比】
+5. 【风险评估】
+6. 【建议方案】
+```
+
+**技术设计**
+```
+1. 【需求分析】
+2. 【技术调研】
+3. 【架构设计】
+4. 【实现方案】
+5. 【性能评估】
+6. 【总结建议】
+```
+
+## 应用场景
+
+- **教育培训**: 展示解题思路，帮助学习者理解
+- **决策支持**: 提供决策分析的完整思路
+- **问题解决**: 系统性地分析和解决复杂问题
+- **创意设计**: 展示创意思考和设计过程
+- **技术分析**: 深入分析技术问题和解决方案
+
+## 最佳实践
+
+### 1. 设计合适的思考模板
+根据问题类型设计专门的思考框架，确保分析的全面性。
+
+### 2. 提供足够的上下文
+给出详细的问题背景和要求，帮助AI更好地理解问题。
+
+### 3. 鼓励多角度思考
+在提示中要求从多个角度分析问题，提高分析的深度。
+
+### 4. 要求验证和检查
+明确要求AI验证结果的合理性，提高答案的可靠性。
+
+## 注意事项
+
+1. **提示设计重要性**: Claude的思考质量很大程度上依赖于提示的设计
+2. **模板的灵活性**: 根据不同问题类型调整思考模板
+3. **上下文长度**: 复杂问题的思考过程可能较长，注意token限制
+4. **主观性考虑**: 某些问题可能有多个合理答案，注意分析的客观性

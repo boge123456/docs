@@ -1,0 +1,186 @@
+---
+title: "Claude Code 接入指南"
+---
+
+Claude Code 是 Anthropic 推出的专业编码助手，功能强大但使用门槛较高。不仅需登录专属 Claude 账号，还需购买官方月度订阅才能解锁。为了让 TokenOPS.AI 平台用户更便捷的享受这一工具，我们已完成对 Claude Code 进行兼容，您可通过下列方式安装使用。
+
+> 适用于 macOS / Linux / Windows(WSL/PowerShell)  
+> 国内网络已给出镜像方案，5 分钟搞定。
+
+### 准备工作
+
+1. 获取TokenOPS.AI平台的API-Key  
+   获取方式：登陆平台 → 点击API密钥 → 创建密钥 → 点击复制即可获取API-Key
+
+### 前置条件
+
+| 项目      | 最低要求                                           |
+|-----------|---------------------------------------------------|
+| Node.js   | ≥ 18.x （LTS 即可）                               |
+| 系统      | macOS 10.15+ / Ubuntu 20.04+ / Win10+（需 WSL 或 Git Bash） |
+| 网络      | 能访问 npm 或国内镜像                             |
+
+**检查命令**
+
+```bash
+node -v        # 需返回 v18.x.x
+npm -v         # 8.x 以上即可
+```
+
+### 安装方式一览
+
+**示例：官方推荐命令**
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### macOS/Linux 配置指南
+
+#### 步骤一：安装 Claude Code
+
+首先，我们需要使用 npm (Node Package Manager) 在您的系统上全局安装 Claude Code。打开您的终端并运行以下命令：
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+安装完成后，您就可以在终端的任何位置使用 `claude` 命令了。
+
+#### 步骤二：配置 API 接入点和 API Key
+
+Claude Code 需要配置环境变量来连接 TokenOPS.AI 服务：
+- `ANTHROPIC_BASE_URL` - API 接入点
+- `ANTHROPIC_AUTH_TOKEN` - TokenOPS.AI 平台的API-Key
+- `ANTHROPIC_MODEL` - 模型名称
+
+将以下命令添加到您的 shell 配置文件中（例如 `~/.zshrc`、`~/.bashrc` 或 `~/.bash_profile`），以 `~/.bash_profile` 为例：
+
+```bash
+vim ~/.bash_profile
+```
+
+添加以下配置内容：
+
+```bash
+# TokenOPS.AI Claude Code配置(必填项)
+export ANTHROPIC_BASE_URL="https://api.tokenops.ai"
+export ANTHROPIC_MODEL="Claude-xxxxxxxx"
+export ANTHROPIC_AUTH_TOKEN="ak-xxxxxxxxxxxxxxxx"
+```
+
+激活环境变量，使之生效：
+
+```bash
+source ~/.bash_profile
+```
+
+#### 步骤三：启动 Claude Code
+
+现在，您可以在终端中启动 Claude Code：
+
+```bash
+claude
+```
+
+### Windows 用户配置指南
+
+Windows 用户需要额外安装 Git Bash，并且在设置环境变量时有不同的方法。
+
+#### 步骤一：安装 Node.js
+
+访问 **[https://nodejs.org/](https://nodejs.org/)** 下载并安装 LTS 版本的 Node.js。
+
+#### 步骤二：安装 Git for Windows
+
+1. 访问 **[https://git-scm.com/downloads/win](https://git-scm.com/downloads/win)**
+2. 下载并安装 **Git for Windows**
+3. 安装过程中保持默认设置
+4. 安装完成后，您可以在开始菜单或右键菜单中找到 **"Git Bash"**
+
+#### 步骤三：安装 Claude Code
+
+**重要：必须在 Git Bash 中执行此命令**
+
+打开 Git Bash，运行以下命令：
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+#### 步骤四：设置环境变量
+
+##### 设置系统环境变量
+
+1. 右键"此电脑" → "属性" → "高级系统设置"
+2. 点击"环境变量"按钮
+3. 在"用户变量"中点击"新建"，添加以下三个变量：
+
+**变量 1：**
+- 变量名：`ANTHROPIC_BASE_URL`
+- 变量值：`https://api.tokenops.ai`
+
+**变量 2：**
+- 变量名：`ANTHROPIC_AUTH_TOKEN`
+- 变量值：`ak-xxxxxxxxxxxxxxxx` （替换为您的实际 API Key）
+
+**变量 3：**
+- 变量名：`ANTHROPIC_MODEL`
+- 变量值：`Claude-xxxxxxxx`（替换为 TokenOPS 平台的实际模型名称）
+
+> **重要提醒：** 设置完环境变量后，请关闭并重新打开 PowerShell、CMD 或 Git Bash，确保环境变量生效。
+
+##### 验证环境变量设置
+
+在 PowerShell 中运行以下命令验证：
+
+```powershell
+echo $env:ANTHROPIC_BASE_URL
+echo $env:ANTHROPIC_AUTH_TOKEN
+echo $env:ANTHROPIC_MODEL
+```
+
+在 CMD 中验证：
+
+```cmd
+echo %ANTHROPIC_BASE_URL%
+echo %ANTHROPIC_AUTH_TOKEN%
+echo %ANTHROPIC_MODEL%
+```
+
+#### 步骤五：开始使用
+
+现在您可以在 PowerShell 或 CMD 中启动 Claude Code：
+
+```bash
+claude
+```
+
+#### 步骤六：跳过登录提示
+
+Claude Code 首次启动时会需要你登录Claude官方账号，你如果挂了VPN，会弹出登录，如果没挂VPN会直接报错: `Failed to connect to api.anthropic.com`，可以通过添加配置文件来跳过：
+
+在用户目录下创建 `.claude.json` 文件（注意是 `.claude.json`，不是 `.claude` 文件夹），添加以下内容：
+
+```json
+{
+  "hasCompletedOnboarding": true
+}
+```
+
+这个配置会告诉 Claude Code 跳过初始登录流程。
+
+### 开始使用
+
+恭喜您！所有配置都已完成。Claude Code 会启动一个交互式的 REPL 会话，您可以直接开始提问和交互。由于我们已经配置好了 API 接入点和 Key，它现在完全通过 TokenOPS.AI 平台运行。
+
+在项目目录中使用 Claude Code：
+
+```bash
+# 进入您的项目目录
+cd /path/to/your/project
+# 启动 Claude Code
+claude
+```
+
+尽情享受由 TokenOPS.AI 驱动的强大编码体验吧！

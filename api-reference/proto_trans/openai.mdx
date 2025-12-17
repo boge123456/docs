@@ -1,0 +1,197 @@
+# 协议转换
+
+TokenOPS.AI 提供了OpenAI协议的兼容层，使您能够使用OpenAI SDK来测试Claude和Gemini模型。通过少量代码更改，您可以快速评估不同模型的能力。
+
+## 快速开始
+
+要使用OpenAI SDK兼容功能，您需要：
+
+1. 使用官方OpenAI SDK
+2. 更改以下配置：
+   - 更新base URL指向TokenOPS.AI API
+   - 使用您的TokenOPS.AI API密钥
+   - 更新模型名称为Claude或Gemini模型
+
+### 示例代码
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_TOKENOPS_API_KEY",  # 您的TokenOPS.AI API密钥
+    base_url="https://api.tokenops.ai/v1/"  # TokenOPS.AI API端点
+)
+
+# 使用Claude模型
+response = client.chat.completions.create(
+    model="claude-3-5-sonnet-20241022",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Who are you?"}
+    ],
+)
+
+# 使用Gemini模型
+response = client.chat.completions.create(
+    model="gemini-2.5-flash",
+    messages=[
+        {"role": "user", "content": "Hello, world!"}
+    ],
+)
+```
+
+## 协议字段映射表
+
+### 请求字段映射
+
+| OpenAI字段 | Claude字段 | Gemini字段 | 支持状态 | 说明 |
+|------------|------------|------------|----------|------|
+| **基础字段** |
+| `model` | `model` | `接口路径参数model` | ✅ 完全支持 | 使用相应厂商的模型名称 |
+| `messages` | `messages` | `generationConfig.contents` | ✅ 完全支持 | 消息格式转换，详见下表 |
+| `max_completion_tokens` | `max_tokens` | `generationConfig.maxOutputTokens` | ✅ 完全支持 | 最大输出token数 |
+| `temperature` | `temperature` | `generationConfig.temperature` | ✅ 完全支持 | Claude: 0-1, Gemini: 0-2 |
+| `top_p` | `top_p` | `generationConfig.topP` | ✅ 完全支持 | 核采样参数 |
+| `stream` | `stream` | `流式接口` | ✅ 完全支持 | 流式响应 |
+| **控制参数** |
+| `stop` | `stop_sequences` | `generationConfig.stopSequences` | ✅ 完全支持 | 停止序列 |
+| `n` | ❌ 不支持 | `generationConfig.candidateCount` | 🔸 部分支持 | Claude不支持，Gemini支持 |
+| `presence_penalty` | ❌ 不支持 | `generationConfig.presencePenalty` | 🔸 部分支持 | Claude不支持，Gemini支持 |
+| `frequency_penalty` | ❌ 不支持 | `generationConfig.frequencyPenalty` | 🔸 部分支持 | Claude不支持，Gemini支持 |
+| `logit_bias` | ❌ 忽略 | ❌ 忽略 | ❌ 不支持 | 两个厂商都不支持 |
+| `logprobs` | ❌ 忽略 | `generationConfig.logprobs` | ✅ 完全支持 | 两个厂商都不支持 |
+| `seed` | ❌ 忽略 | `generationConfig.seed` | ✅ 完全支持 | 两个厂商都不支持 |
+| **工具调用** |
+| `tools` | `tools` | `tools` | ✅ 完全支持 | 函数调用工具定义 |
+| `tool_choice` | `tool_choice` | `toolConfig` | ✅ 完全支持 | 工具选择策略 |
+| `parallel_tool_calls` | ✅ 支持 | ✅ 支持 | ✅ 完全支持 | 并行工具调用 |
+| **格式化输出** |
+| `response_format` | ❌ 转换为工具调用 | `generationConfig.responseMimeType`<br/>`generationConfig.responseSchema` | ✅ 完全支持 | Claude通过工具调用实现，Gemini原生支持 |
+| **推理能力** |
+| `reasoning_effort` | `thinking` | `thinkingConfig` | ✅ 完全支持 | 推理能力控制 |
+| **元数据** |
+| `metadata` | `metadata` | ❌ 忽略 | 🔸 部分支持 | Claude支持，Gemini不支持 |
+| `user` | ❌ 忽略 | ❌ 忽略 | ❌ 不支持 | 用于跟踪用户ID |
+
+### 消息格式映射
+
+| OpenAI消息格式 | Claude消息格式 | Gemini消息格式 | 支持状态 |
+|----------------|----------------|----------------|----------|
+| **角色映射** |
+| `system` | 合并到系统提示 | 系统指令 | ✅ 完全支持 |
+| `developer` | 合并到系统提示 | 系统指令 | ✅ 完全支持 |
+| `user` | `user` | `user` | ✅ 完全支持 |
+| `assistant` | `assistant` | `model` | ✅ 完全支持 |
+| `tool` | `user` | `user` | ✅ 完全支持 |
+| **内容类型** |
+| 文本内容 | `text` | `text` | ✅ 完全支持 |
+| 图像内容 | `image` | `inlineData` | ✅ 完全支持 |
+| 文件内容 | ❌ 忽略 | `fileData/inlineData` | 🔸 部分支持 |
+| 视频内容 | ❌ 忽略 | `inlineData` | 🔸 部分支持 |
+| 音频内容 | ❌ 忽略 | `inlineData` | 🔸 部分支持 |
+
+### 响应字段映射
+
+| OpenAI字段 | Claude字段 | Gemini字段 | 支持状态 |
+|------------|------------|------------|----------|
+| `id` | 请求id | 请求id | ✅ 完全支持 |
+| `object` | 固定值 | 固定值 | ✅ 完全支持 |
+| `created` | 响应时间戳 | 响应时间戳 | ✅ 完全支持 |
+| `model` | 平台模型名 | 平台模型名 | ✅ 完全支持 |
+| `choices[].message.role` | `role` | `candidates[].content.role` | ✅ 完全支持 |
+| `choices[].message.content` | `content[].text` | `candidates[].content.parts.text` | ✅ 完全支持 |
+| `choices[].message.tool_calls` | `content[].tool_use` | `candidates[].content.parts[].functionCall` | ✅ 完全支持 |
+| `choices[].finish_reason` | `stop_reason` | `candidates[].finishReason` | ✅ 完全支持 |
+| `usage.prompt_tokens` | `usage.input_tokens` | `usageMetadata.promptTokenCount` | ✅ 完全支持 |
+| `usage.completion_tokens` | `usage.output_tokens` | `usageMetadata.candidatesTokenCount` | ✅ 完全支持 |
+| `usage.total_tokens` | 计算得出 | `usageMetadata.totalTokenCount` | ✅ 完全支持 |
+
+### 完成原因映射
+
+| OpenAI完成原因 | Claude完成原因 | Gemini完成原因 |
+|----------------|----------------|----------------|
+| `stop` | `end_turn/stop_sequence` | `STOP/OTHER` |
+| `length` | `max_tokens` | `MAX_TOKENS` |
+| `content_filter` | `content_filtered` | `SAFETY/RECITATION/PROHIBITED_CONTENT` |
+| `tool_calls` | `tool_use` | `STOP` |
+
+## 重要兼容性限制
+
+### Claude API限制
+
+1. **系统消息处理**: 所有`system`和`developer`消息会被合并为单个系统提示
+2. **格式化输出**: `response_format`通过工具调用实现，而非原生支持
+3. **推理内容**: 支持推理能力，但OpenAI SDK无法返回详细的思考过程
+4. **不支持的参数**: `presence_penalty`, `frequency_penalty`, `n`等参数被忽略
+
+### Gemini API限制
+
+1. **角色映射**: `assistant`角色映射为`model`
+2. **安全设置**: 自动配置安全阈值，预览模型使用较高阈值
+3. **频率惩罚**: 仅1.5 Pro和Flash模型支持
+
+### 通用限制
+
+1. **错误格式**: 保持与OpenAI API一致的错误格式，但详细错误信息可能不同
+2. **流式响应**: 支持SSE流式传输，但具体实现细节可能有差异
+3. **速率限制**: 遵循各厂商的原生速率限制规则
+
+## 最佳实践
+
+1. **提示词优化**: 如果您的提示词针对OpenAI进行了大量调优，建议使用TokenOPS.AI控制台的提示词改进工具
+2. **错误处理**: 仅将错误信息用于日志记录和调试，不要依赖具体的错误文本内容
+3. **功能测试**: 在生产环境使用前，请充分测试所需的功能特性
+4. **原生API**: 如需使用完整功能集（PDF处理、引用、扩展思考、提示缓存等），建议使用原生API
+
+## 支持的模型
+
+### Claude模型
+- `claude-sonnet-4-20250514`
+- `claude-opus-4-250514`
+- `claude-3-7-sonnet-20250219`
+- `claude-3-5-sonnet-20241022`
+
+
+### Gemini模型
+- `gemini-2.5-pro`
+- `gemini-2.5-flash`
+- `gemini-2.5-flash-lite`
+- `gemini-2.0-flash-lite-001`
+- `gemini-2.0-flash-001`
+
+## 扩展功能
+
+### 推理能力支持
+
+您可以通过添加`reasoning_effort`参数来启用扩展推理功能：
+
+```python
+response = client.chat.completions.create(
+    model="claude-3-5-sonnet-20241022",
+    messages=...,
+    reasoning_effort="medium"  # low, medium, high
+)
+```
+
+### 多模态支持
+
+支持图像和文档输入（取决于具体模型）：
+
+```python
+response = client.chat.completions.create(
+    model="claude-3-5-sonnet-20241022",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "描述这张图片"},
+                {"type": "image_url", {"url": "data:image/jpeg;base64,..."}}
+            ]
+        }
+    ]
+)
+```
+
+---
+
+如遇到任何兼容性问题，请联系技术支持。

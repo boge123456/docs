@@ -1,0 +1,605 @@
+---
+title: 'Model Extra 参数示例'
+description: '使用模型扩展参数进行高级功能配置的完整示例代码'
+---
+
+# Model Extra 参数示例
+
+以下示例展示如何使用各模型的扩展参数（model_extra）来启用和配置高级功能，如思考模式、联网搜索、音频输出等特殊能力。
+
+## 概述
+
+TokenOPS & ModelHub 平台为不同的模型提供商提供了扩展参数支持，允许你使用各模型的专有功能：
+
+- **千问（Qwen）扩展参数**: 支持思考模式、联网搜索、高分辨率图像处理等
+- **豆包（Doubao）扩展参数**: 支持上下文缓存、思考配置等
+
+<Note>
+**重要说明**
+
+与厂商原生接口不同，我们的平台将扩展参数包装在对应的模型对象中（如 `qwen`、`doubao`），以确保参数的正确传递和处理。
+</Note>
+
+## 千问（Qwen）扩展参数示例
+
+### 联网搜索功能
+
+<Warning>
+**重要提示：OpenAI 兼容接口限制**
+
+使用 OpenAI 兼容接口时，即使设置 `enable_search: true`，响应中**不会包含** `search_info` 等搜索相关的元数据信息。搜索功能会正常工作并影响回答内容，但搜索过程的详细信息不会在 API 响应中返回。
+
+如果你需要获取搜索相关的元数据，请考虑使用厂商原生接口。
+</Warning>
+
+<CodeGroup>
+
+```bash cURL - 千问联网搜索
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "qwen3-14b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个有用的助手。"
+      },
+      {
+        "role": "user", 
+        "content": "中国队在巴黎奥运会获得了多少枚金牌？"
+      }
+    ],
+    "qwen": {
+      "enable_search": true,
+      "search_options": {
+        "forced_search": true,
+        "search_strategy": "max",
+        "enable_search_extension": false
+      }
+    }
+  }'
+```
+
+```python Python - 千问联网搜索
+import requests
+import json
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def qwen_with_search(query, model="qwen3-14b"):
+    """
+    使用千问模型进行联网搜索
+    
+    注意：OpenAI兼容接口不会返回search_info信息
+    
+    Args:
+        query: 查询问题
+        model: 千问模型名称
+    """
+    url = f"{BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "你是一个有用的助手。"
+            },
+            {
+                "role": "user",
+                "content": query
+            }
+        ],
+        "qwen": {
+            "enable_search": True,
+            "search_options": {
+                "forced_search": True,
+                "search_strategy": "max",  # 可选: turbo(默认)、max、agent
+                "enable_search_extension": False
+            }
+        }
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        # 注意：即使启用搜索，response中也不会包含search_info
+        return result['choices'][0]['message']['content']
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 使用示例
+if __name__ == "__main__":
+    query = "中国队在巴黎奥运会获得了多少枚金牌？"
+    answer = qwen_with_search(query)
+    print(f"AI回答（已联网搜索）: {answer}")
+    print("注意：虽然启用了搜索功能，但API响应中不包含search_info详情")
+```
+
+</CodeGroup>
+
+### 思考模式功能
+
+<CodeGroup>
+
+```bash cURL - 千问思考模式
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "qwen3-14b",
+    "messages": [
+      {
+        "role": "user",
+        "content": "解决这个数学问题：如果一个圆的面积是50.24平方厘米，求圆的周长。"
+      }
+    ],
+    "stream": true,
+    "qwen": {
+      "enable_thinking": true,
+      "thinking_budget": 2000,
+      "stream_options": {
+        "include_usage": false
+      }
+    }
+  }'
+```
+
+```python Python - 千问思考模式
+import requests
+import json
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def qwen_thinking_mode(problem, model="qwen3-14b", thinking_budget=2000):
+    """
+    使用千问思考模式解决复杂问题
+    
+    Args:
+        problem: 需要思考的问题
+        model: 千问模型名称  
+        thinking_budget: 思考过程的最大token数
+    """
+    url = f"{BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": problem
+            }
+        ],
+        "qwen": {
+            "enable_thinking": True,
+            "thinking_budget": thinking_budget,
+            "stream_options": {
+                "include_usage": False  # 注意：我们总是设置为true进行计费
+            }
+        }
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        message = result['choices'][0]['message']
+        
+        # 检查是否有思考过程
+        if 'thinking' in message:
+            print("=== 思考过程 ===")
+            print(message['thinking'])
+            print("\n=== 最终答案 ===")
+            
+        return message['content']
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 数学问题求解
+def solve_math_problem():
+    problem = "解决这个数学问题：如果一个圆的面积是50.24平方厘米，求圆的周长。请详细说明解题步骤。"
+    answer = qwen_thinking_mode(problem)
+    return answer
+
+# 逻辑推理问题
+def logical_reasoning():
+    problem = """
+    三个朋友A、B、C参加考试：
+    1. 如果A通过，那么B也通过
+    2. 如果B通过，那么C不通过  
+    3. C说："我们三人中至少有一人通过了"
+    请分析每个人是否通过考试，并说明推理过程。
+    """
+    answer = qwen_thinking_mode(problem, thinking_budget=3000)
+    return answer
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== 数学问题求解 ===")
+    math_answer = solve_math_problem()
+    print(math_answer)
+    
+    print("\n=== 逻辑推理 ===")
+    logic_answer = logical_reasoning()
+    print(logic_answer)
+```
+
+</CodeGroup>
+
+## 豆包（Doubao）扩展参数示例
+
+### 上下文缓存功能
+
+<CodeGroup>
+
+```bash cURL - 豆包上下文缓存
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "doubao-pro-256k",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个专业的技术顾问，擅长解答编程和技术问题。"
+      },
+      {
+        "role": "user",
+        "content": "请解释什么是RESTful API的设计原则？"
+      }
+    ],
+    "doubao": {
+      "context_id": "tech_consultation_session_001"
+    }
+  }'
+```
+
+```python Python - 豆包上下文缓存
+import requests
+import json
+import uuid
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+class DoubaoContextChat:
+    def __init__(self, model="doubao-pro-256k"):
+        self.model = model
+        self.context_id = f"session_{uuid.uuid4().hex[:8]}"
+        self.conversation_history = []
+    
+    def chat(self, message, role="user"):
+        """
+        使用豆包上下文缓存进行对话
+        
+        Args:
+            message: 消息内容
+            role: 角色类型 (user/system/assistant)
+        """
+        url = f"{BASE_URL}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
+        
+        # 添加消息到历史
+        if role == "user":
+            self.conversation_history.append({
+                "role": role,
+                "content": message
+            })
+        
+        data = {
+            "model": self.model,
+            "messages": self.conversation_history,
+            "doubao": {
+                "context_id": self.context_id
+            }
+        }
+        
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            assistant_message = result['choices'][0]['message']['content']
+            
+            # 将助手回复添加到历史
+            self.conversation_history.append({
+                "role": "assistant", 
+                "content": assistant_message
+            })
+            
+            return assistant_message
+        else:
+            return f"错误: {response.status_code} - {response.text}"
+    
+    def get_context_info(self):
+        return {
+            "context_id": self.context_id,
+            "message_count": len(self.conversation_history)
+        }
+
+# 技术咨询会话示例
+def tech_consultation_demo():
+    """技术咨询对话示例"""
+    chat = DoubaoContextChat(model="doubao-pro-256k")
+    
+    # 设置系统提示
+    chat.conversation_history.append({
+        "role": "system",
+        "content": "你是一个专业的技术顾问，擅长解答编程和技术问题。请提供详细、准确的技术建议。"
+    })
+    
+    # 多轮对话
+    questions = [
+        "请解释什么是RESTful API的设计原则？",
+        "在设计RESTful API时，如何处理错误响应？",
+        "能否给个具体的Python Flask API示例？"
+    ]
+    
+    for i, question in enumerate(questions, 1):
+        print(f"\n=== 第{i}轮对话 ===")
+        print(f"用户: {question}")
+        
+        answer = chat.chat(question)
+        print(f"助手: {answer}")
+        
+        # 显示上下文信息
+        context_info = chat.get_context_info()
+        print(f"上下文ID: {context_info['context_id']}, 消息数: {context_info['message_count']}")
+
+# 使用示例
+if __name__ == "__main__":
+    tech_consultation_demo()
+```
+
+</CodeGroup>
+
+### 豆包思考模式
+
+<CodeGroup>
+
+```bash cURL - 豆包思考模式
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "doubao-pro-32k",
+    "messages": [
+      {
+        "role": "user",
+        "content": "分析这个商业案例：一家初创公司应该选择自建团队还是外包开发？"
+      }
+    ],
+    "doubao": {
+      "thinking": {
+        "type": "disable"
+      }
+    }
+  }'
+```
+
+```python Python - 豆包思考模式
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def doubao_thinking_analysis(question, thinking_type="disable", model="doubao-pro-32k"):
+    """
+    使用豆包思考模式进行深度分析
+    
+    Args:
+        question: 分析问题
+        thinking_type: 思考类型
+        model: 豆包模型名称
+    """
+    url = f"{BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": question
+            }
+        ],
+        "doubao": {
+            "thinking": {
+                "type": thinking_type
+            }
+        }
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        return result['choices'][0]['message']['content']
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 商业分析示例
+def business_analysis():
+    question = """
+    分析这个商业案例：
+    一家初创公司需要开发移动应用，面临两个选择：
+    1. 自建技术团队（成本高，周期长，但控制度高）
+    2. 外包给专业公司（成本相对低，周期短，但依赖性强）
+    
+    请从多个维度分析并给出建议。
+    """
+    
+    analysis = doubao_thinking_analysis(question, "disable")
+    return analysis
+
+# 技术决策分析
+def technical_decision():
+    question = """
+    技术架构选择：
+    一个电商网站需要选择技术栈，有以下选项：
+    A. 单体架构（简单，易部署）
+    B. 微服务架构（复杂，灵活性高）
+    C. Serverless架构（运维成本低，但有限制）
+    
+    请分析每种架构的适用场景。
+    """
+    
+    analysis = doubao_thinking_analysis(question, "disable")
+    return analysis
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== 商业决策分析 ===")
+    business_result = business_analysis()
+    print(business_result)
+    
+    print("\n=== 技术架构分析 ===")
+    tech_result = technical_decision()
+    print(tech_result)
+```
+
+</CodeGroup>
+
+
+## MiniMax 扩展参数示例
+
+MiniMax 的 `model_extra` 通过 `minimax` 字段暴露扩展能力：`role_meta` 用来声明用户与机器人的身份，`bot_setting` 定义机器人设定，配合 `reply_constraints`、`sample_messages` 等字段即可约束输出格式并注入 few-shot 提示。
+
+### 多角色剧本生成
+
+<CodeGroup>
+
+```bash cURL - MiniMax bot_setting
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "abab5.5-chat",
+    "messages": [
+      {
+        "role": "user",
+        "content": "场景：电商直播预热\\n产品：智能睡眠眼罩\\n语气：元气幽默\\n需求：三段式口播脚本"
+      }
+    ],
+    "minimax": {
+      "role_meta": {
+        "user_name": "品牌小编",
+        "bot_name": "脚本设计官"
+      },
+      "bot_setting": [
+        {
+          "bot_name": "脚本设计官",
+          "content": "bot信息设定: 你是一名资深直播脚本导演，擅长把枯燥的卖点写成段子。\\n输出要求：\\n1. A 段给出直播口号，保持8字内的梗句。\\n2. B 段解释口号指向的产品亮点，控制12字内。\\n3. C 段生成15-25字的口播词，包含行动号召和产品昵称。\\n4. 语气要轻松、带一点互联网热梗，但不能粗鲁。\\n5. 如用户提供语气或受众，必须体现在脚本里。"
+        }
+      ],
+      "sample_messages": [
+        {
+          "sender_type": "USER",
+          "sender_name": "品牌小编",
+          "text": "场景：校园摆摊\\n产品：能量咖啡\\n语气：元气活泼"
+        },
+        {
+          "sender_type": "BOT",
+          "sender_name": "脚本设计官",
+          "text": "A：清醒不打烊\\nB：双倍咖啡因暖场\\nC：同学们快来抬手，醒神小金杯等你端走！"
+        }
+      ]
+    }
+  }'
+```
+
+</CodeGroup>
+
+
+### 结构化字段提取
+
+<CodeGroup>
+
+```bash cURL - MiniMax JSON glyph
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "abab5.5-chat",
+    "messages": [
+      {"role": "system", "content": "你是一个叫小智的智能助手，你可以帮助用户回答各种问题。"},
+      {"role": "user", "content": "帮我提取以下信息的关键词：我叫月无双，来自太阳大学，今年18岁，刚刚考完《斗气化翼》课程，得了99.99分"}
+    ],
+    "minimax": {
+      "role_meta": {
+        "user_name": "我",
+        "bot_name": "小智"
+      },
+      "reply_constraints": {
+        "sender_type": "BOT",
+        "sender_name": "小智",
+        "glyph": {
+          "type": "json_value",
+          "json_properties": {
+            "name": {
+              "type": "string"
+            },
+            "age": {
+              "type": "number"
+            },
+            "is_student": {
+              "type": "boolean"
+            },
+            "is_boy": {
+              "type": "boolean"
+            },
+            "courses": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }'
+```
+
+</CodeGroup>
+
+
+## 注意事项
+
+<Warning>
+**重要提醒**
+
+1. **搜索功能限制**: 在OpenAI兼容接口中，`enable_search: true` 不会在返回包中包含 `search_info`
+2. **参数兼容性**: 不同模型支持的扩展参数不同，详情需要查阅官方文档
+3. **费用考虑**: 启用高级功能（如思考模式、联网搜索）会增加Token消耗，请合理使用
+</Warning>
+
+<Info>
+**性能优化提示**
+
+- 对于简单问题，建议不启用思考模式以节省时间和费用
+- 联网搜索适合需要实时信息的查询
+- 上下文缓存可以显著提高多轮对话的效率
+</Info>

@@ -1,0 +1,628 @@
+---
+title: 'Response API MCP 集成'
+description: '使用Model Context Protocol连接外部工具和系统'
+---
+
+# Response API MCP 集成
+
+Model Context Protocol (MCP) 是一个开源标准，用于连接AI应用程序与外部系统。通过MCP，AI模型可以访问文件系统、数据库、API服务等外部工具，大大扩展AI应用的能力。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/responses" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gpt-5-2025-08-07",
+    "tools": [
+      {
+        "type": "mcp",
+        "server_label": "howtocook-mcp",
+        "server_description": "查询菜谱的工具",
+        "server_url": "https://mcp.api-inference.modelscope.net/5742da85755f4e/sse",
+        "require_approval": "never"
+      }
+    ],
+    "input": "帮我查询一个菜谱"
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def use_mcp_servers():
+    """使用MCP服务器的基础示例"""
+    url = f"{BASE_URL}/responses"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    payload = {
+        "model": "gpt-5-2025-08-07",
+        "tools": [
+            {
+                "type": "mcp",
+                "server_label": "howtocook-mcp",
+                "server_description": "查询菜谱的工具",
+                "server_url": "https://mcp.api-inference.modelscope.net/5742da85755f4e/sse",
+                "require_approval": "never"
+            }
+        ],
+        "input": "请帮我查询一个简单易做的家常菜菜谱"
+    }
+    
+    response = requests.post(url, headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        result = response.json()
+        
+        # 显示AI回复
+        if result.get("output") and len(result["output"]) > 0:
+            for output_item in result["output"]:
+                if output_item.get("type") == "message" and output_item.get("content"):
+                    content = output_item["content"][0]
+                    if content.get("type") == "output_text":
+                        print(f"AI回复: {content.get('text', '')}")
+        
+        return result
+    else:
+        print(f"请求失败: {response.status_code}")
+        print(response.text)
+        return None
+
+# 多服务器示例
+def use_multiple_mcp_servers():
+    """使用多个MCP服务器的示例"""
+    payload = {
+        "model": "gpt-5-2025-08-07",
+        "tools": [
+            {
+                "type": "mcp",
+                "server_label": "howtocook-mcp",
+                "server_description": "查询菜谱的工具",
+                "server_url": "https://mcp.api-inference.modelscope.net/5742da85755f4e/sse",
+                "require_approval": "never"
+            },
+            {
+                "type": "mcp",
+                "server_label": "filesystem-mcp",
+                "server_description": "文件系统操作工具",
+                "server_url": "https://filesystem-mcp.example.com/sse",
+                "require_approval": "never"
+            }
+        ],
+        "input": "先帮我查询一个菜谱，然后将菜谱保存到文件中"
+    }
+    
+    url = f"{BASE_URL}/responses"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    response = requests.post(url, headers=headers, json=payload)
+    return response.json()
+
+# 使用示例
+if __name__ == "__main__":
+    response = use_mcp_servers()
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function useMCPServers() {
+    const url = `${BASE_URL}/responses`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+    
+    const payload = {
+        model: 'gpt-5-2025-08-07',
+        tools: [
+            {
+                type: 'mcp',
+                server_label: 'howtocook-mcp',
+                server_description: '查询菜谱的工具',
+                server_url: 'https://mcp.api-inference.modelscope.net/5742da85755f4e/sse',
+                require_approval: 'never'
+            }
+        ],
+        input: '请帮我查询一个简单易做的家常菜菜谱'
+    };
+    
+    try {
+        const response = await axios.post(url, payload, { headers });
+        const result = response.data;
+        
+        // 显示AI回复
+        if (result.output && result.output.length > 0) {
+            result.output.forEach(outputItem => {
+                if (outputItem.type === 'message' && outputItem.content) {
+                    const content = outputItem.content[0];
+                    if (content.type === 'output_text') {
+                        console.log(`AI回复: ${content.text}`);
+                    }
+                }
+            });
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('请求失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+useMCPServers();
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type MCPTool struct {
+    Type              string `json:"type"`
+    ServerLabel       string `json:"server_label"`
+    ServerDescription string `json:"server_description"`
+    ServerURL         string `json:"server_url"`
+    RequireApproval   string `json:"require_approval"`
+}
+
+type MCPRequest struct {
+    Model string    `json:"model"`
+    Tools []MCPTool `json:"tools"`
+    Input string    `json:"input"`
+}
+
+type MCPContent struct {
+    Type string `json:"type"`
+    Text string `json:"text"`
+}
+
+type MCPOutput struct {
+    Type    string       `json:"type"`
+    Content []MCPContent `json:"content"`
+}
+
+type MCPResponse struct {
+    Output []MCPOutput `json:"output"`
+}
+
+func useMCPServers() (*MCPResponse, error) {
+    url := fmt.Sprintf("%s/responses", BaseURL)
+    
+    request := MCPRequest{
+        Model: "gpt-5-2025-08-07",
+        Tools: []MCPTool{
+            {
+                Type:              "mcp",
+                ServerLabel:       "howtocook-mcp",
+                ServerDescription: "查询菜谱的工具",
+                ServerURL:         "https://mcp.api-inference.modelscope.net/5742da85755f4e/sse",
+                RequireApproval:   "never",
+            },
+        },
+        Input: "请帮我查询一个简单易做的家常菜菜谱",
+    }
+    
+    jsonData, err := json.Marshal(request)
+    if err != nil {
+        return nil, err
+    }
+    
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return nil, err
+    }
+    
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    
+    var result MCPResponse
+    err = json.NewDecoder(resp.Body).Decode(&result)
+    if err != nil {
+        return nil, err
+    }
+    
+    // 显示AI回复
+    if len(result.Output) > 0 {
+        for _, outputItem := range result.Output {
+            if outputItem.Type == "message" && len(outputItem.Content) > 0 {
+                content := outputItem.Content[0]
+                if content.Type == "output_text" {
+                    fmt.Printf("AI回复: %s\n", content.Text)
+                }
+            }
+        }
+    }
+    
+    return &result, nil
+}
+
+func main() {
+    response, err := useMCPServers()
+    if err != nil {
+        fmt.Printf("错误: %v\n", err)
+        return
+    }
+    
+    fmt.Printf("请求完成\n")
+}
+```
+
+```java Java
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
+public class ResponsesMCP {
+    private static final String API_KEY = "<API-KEY>";
+    private static final String BASE_URL = "https://api.tokenops.ai/v1";
+    
+    private final HttpClient client;
+    private final ObjectMapper mapper;
+    
+    public ResponsesMCP() {
+        this.client = HttpClient.newHttpClient();
+        this.mapper = new ObjectMapper();
+    }
+    
+    public JsonNode useMCPServers() throws Exception {
+        String url = BASE_URL + "/responses";
+        
+        String payload = """
+            {
+                "model": "gpt-5-2025-08-07",
+                "tools": [
+                    {
+                        "type": "mcp",
+                        "server_label": "howtocook-mcp",
+                        "server_description": "查询菜谱的工具",
+                        "server_url": "https://mcp.api-inference.modelscope.net/5742da85755f4e/sse",
+                        "require_approval": "never"
+                    }
+                ],
+                "input": "请帮我查询一个简单易做的家常菜菜谱"
+            }
+            """;
+        
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + API_KEY)
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+        
+        HttpResponse<String> response = client.send(request,
+            HttpResponse.BodyHandlers.ofString());
+        
+        JsonNode result = mapper.readTree(response.body());
+        
+        // 显示AI回复
+        if (result.has("output")) {
+            JsonNode output = result.get("output");
+            for (JsonNode outputItem : output) {
+                if ("message".equals(outputItem.get("type").asText()) && outputItem.has("content")) {
+                    JsonNode content = outputItem.get("content").get(0);
+                    if ("output_text".equals(content.get("type").asText())) {
+                        System.out.println("AI回复: " + content.get("text").asText());
+                    }
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    public static void main(String[] args) {
+        ResponsesMCP api = new ResponsesMCP();
+        
+        try {
+            JsonNode response = api.useMCPServers();
+            System.out.println("请求完成");
+        } catch (Exception e) {
+            System.out.println("执行出错: " + e.getMessage());
+        }
+    }
+}
+```
+
+```php PHP
+<?php
+
+class ResponsesMCP {
+    private $apiKey;
+    private $baseUrl;
+    
+    public function __construct($apiKey) {
+        $this->apiKey = $apiKey;
+        $this->baseUrl = 'https://api.tokenops.ai/v1';
+    }
+    
+    public function useMCPServers() {
+        $url = $this->baseUrl . '/responses';
+        
+        $payload = [
+            'model' => 'gpt-5-2025-08-07',
+            'tools' => [
+                [
+                    'type' => 'mcp',
+                    'server_label' => 'howtocook-mcp',
+                    'server_description' => '查询菜谱的工具',
+                    'server_url' => 'https://mcp.api-inference.modelscope.net/5742da85755f4e/sse',
+                    'require_approval' => 'never'
+                ]
+            ],
+            'input' => '请帮我查询一个简单易做的家常菜菜谱'
+        ];
+        
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->apiKey
+        ];
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 200) {
+            $result = json_decode($response, true);
+            
+            // 显示AI回复
+            if (isset($result['output']) && is_array($result['output'])) {
+                foreach ($result['output'] as $outputItem) {
+                    if (isset($outputItem['type']) && $outputItem['type'] === 'message' && isset($outputItem['content'])) {
+                        $content = $outputItem['content'][0];
+                        if (isset($content['type']) && $content['type'] === 'output_text') {
+                            echo "AI回复: " . $content['text'] . "\n";
+                        }
+                    }
+                }
+            }
+            
+            return $result;
+        } else {
+            echo "HTTP错误: " . $httpCode . "\n";
+            echo $response . "\n";
+            return null;
+        }
+    }
+}
+
+// 使用示例
+$api = new ResponsesMCP('<API-KEY>');
+$response = $api->useMCPServers();
+
+if ($response) {
+    echo "请求完成\n";
+}
+
+?>
+```
+
+</CodeGroup>
+
+## MCP工作原理
+
+1. **配置MCP工具**: 在 `tools` 数组中定义MCP工具配置
+2. **服务器连接**: API自动连接到指定的MCP服务器
+3. **工具导入**: 自动从MCP服务器获取可用工具列表
+4. **工具调用**: AI模型根据需要调用相应的MCP工具
+5. **结果返回**: 工具执行结果整合到AI响应中
+
+## MCP工具配置
+
+每个MCP工具在 tools 数组中定义：
+
+### 配置格式
+```javascript
+{
+  "tools": [
+    {
+      "type": "mcp",
+      "server_label": "服务器标识符",
+      "server_description": "服务器描述",
+      "server_url": "服务器URL",
+      "require_approval": "审批要求"
+    }
+  ]
+}
+```
+
+### 必需字段
+- **type**: 工具类型，必须为 `"mcp"`
+- **server_label**: 自定义的服务器标识符
+- **server_description**: 服务器功能描述
+- **server_url**: MCP服务器的端点URL
+- **require_approval**: 审批要求（"never", "always", "once"）
+
+## 参数说明
+
+### 必需参数
+- `model` - 要使用的模型ID
+- `tools` - MCP工具配置数组
+- `input` - 输入内容（文本或消息列表）
+
+### 可选参数
+- `max_output_tokens` - 最大输出token数量
+- `temperature` - 控制输出随机性
+- `tool_choice` - 工具选择策略（"auto", "required", "none"）
+
+## 响应格式
+
+### MCP工具列表响应
+
+当API成功连接到MCP服务器并导入工具时，会返回以下格式：
+
+```json
+{
+    "id": "mcpl_68a6102a4968819c8177b05584dd627b0679e572a900e618",
+    "type": "mcp_list_tools", 
+    "server_label": "howtocook-mcp",
+    "tools": [
+        {
+            "annotations": null,
+            "description": "搜索菜谱和烹饪方法",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string"
+                    }
+                },
+                "required": ["query"],
+                "additionalProperties": false
+            },
+            "name": "search_recipe"
+        }
+    ]
+}
+```
+
+### 完整响应格式
+
+包含AI生成内容的完整响应：
+
+```json
+{
+    "id": "resp_0d6e102b1212ec030068fe0c5b00d48196aba4c7306f06178e",
+    "object": "response",
+    "created_at": 1761479771,
+    "status": "completed",
+    "background": false,
+    "content_filters": null,
+    "error": null,
+    "incomplete_details": null,
+    "instructions": null,
+    "max_output_tokens": 13107,
+    "max_tool_calls": null,
+    "model": "gpt-5-2025-08-07",
+    "output": [
+        {
+            "id": "rs_0d6e102b1212ec030068fe0c5b8cd8819681b4c8c2c91f2472",
+            "type": "reasoning",
+            "summary": []
+        },
+        {
+            "id": "msg_0d6e102b1212ec030068fe0c5fc3188196a1677c52f2be231d",
+            "type": "message",
+            "status": "completed",
+            "content": [
+                {
+                    "type": "output_text",
+                    "annotations": [],
+                    "logprobs": [],
+                    "text": "当然可以！请告诉我下面的信息，我就给你一份详细菜谱：\n\n- 想做的菜名，或你手头有的3-5种食材\n- 口味偏好（清淡/家常/重辣/酸甜等）\n- 是否有饮食限制（素食、少油少盐、无麸质等）\n- 可用厨具（炒锅/烤箱/空气炸锅/电饭煲等）\n- 预计时间与份量（几人吃）\n\n如果还没想好菜名，我也可以给你推荐，比如：\n- 快手家常：番茄炒蛋、蒜蓉西兰花、醋溜土豆丝\n- 下饭硬菜：宫保鸡丁、红烧肉、麻婆豆腐\n- 清淡健康：清蒸鲈鱼、口蘑青菜、滑蛋虾仁\n- 西式简餐：蒜香黄油虾、培根奶油意面、烤蔬菜鸡胸\n\n也可以拍一张你冰箱或食材的照片，我来根据食材给你定制菜谱。"
+                }
+            ],
+            "role": "assistant"
+        }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "prompt_cache_key": null,
+    "reasoning": {
+        "effort": "medium",
+        "summary": null
+    },
+    "safety_identifier": null,
+    "service_tier": "default",
+    "store": true,
+    "temperature": 1.0,
+    "text": {
+        "format": {
+            "type": "text"
+        },
+        "verbosity": "medium"
+    },
+    "tool_choice": "auto",
+    "tools": [],
+    "top_logprobs": 0,
+    "top_p": 1.0,
+    "truncation": "disabled",
+    "usage": {
+        "input_tokens": 12,
+        "input_tokens_details": {
+            "cached_tokens": 0
+        },
+        "output_tokens": 646,
+        "output_tokens_details": {
+            "reasoning_tokens": 384
+        },
+        "total_tokens": 658
+    },
+    "user": null,
+    "metadata": {}
+}
+```
+
+## 计费说明
+
+MCP工具使用采用按需计费：
+
+- **工具导入**: 仅在首次导入工具定义时计费
+- **工具调用**: 每次实际调用MCP工具时计费
+- **无额外费用**: 除标准token使用外无其他费用
+
+## 注意事项
+
+1. **服务器可用性**: 确保MCP服务器正常运行和可访问
+2. **HTTP端点**: MCP服务器必须提供HTTP端点
+3. **网络连接**: 远程MCP服务器需要稳定的网络连接
+4. **服务器类型**: 确保使用正确的服务器类型（如 `streamable_http`）
+5. **数据安全**: 注意MCP工具访问的数据安全性
+
+## 常见错误
+
+- **MCP server not found**: 检查服务器URL和可用性
+- **Tool import failed**: 验证MCP服务器配置和HTTP端点
+- **Connection timeout**: 检查网络连接和服务器响应时间
+- **Invalid server configuration**: 确保所有必需字段都已正确配置
+- **Server type mismatch**: 检查服务器类型是否正确设置

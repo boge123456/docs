@@ -1,0 +1,563 @@
+---
+title: 'Claude 结构化输出示例'
+description: '使用Claude API获取JSON格式结构化输出的完整示例代码'
+---
+
+# Claude 结构化输出示例
+
+以下示例展示如何使用Claude的 `/v1/messages` 接口获取JSON格式的结构化输出，适用于需要机器可读格式的场景。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/messages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-3-7-sonnet-20250219",
+    "max_tokens": 1000,
+    "messages": [
+      {
+        "role": "user",
+        "content": "分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务等，请以JSON格式返回，格式如下：{\"company_name\": \"公司名称\", \"founded_year\": 年份, \"founders\": [\"创始人列表\"], \"main_business\": [\"主要业务\"], \"headquarters\": \"总部位置\"}"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def get_structured_response_claude(prompt, schema_description=""):
+    url = f"{BASE_URL}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+        "anthropic-version": "2023-06-01"
+    }
+
+    # 构建包含结构化要求的提示
+    structured_prompt = f"""{prompt}
+
+请严格按照以下JSON格式返回结果：
+{schema_description}
+
+重要：
+1. 只返回JSON格式的数据，不要包含任何解释文字
+2. 确保JSON格式正确且完整
+3. 所有字符串值请使用双引号"""
+
+    data = {
+        "model": "claude-3-7-sonnet-20250219",
+        "max_tokens": 1000,
+        "messages": [
+            {
+                "role": "user",
+                "content": structured_prompt
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        content = result['content'][0]['text']
+        try:
+            # 尝试解析JSON
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # 如果直接解析失败，尝试提取JSON部分
+            import re
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                try:
+                    return json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    pass
+            return {"error": "返回的内容不是有效的JSON格式", "content": content}
+    else:
+        return {"error": f"API错误: {response.status_code} - {response.text}"}
+
+# 公司信息分析示例
+def analyze_company_info():
+    prompt = "分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务等"
+
+    schema = """{
+  "company_name": "公司名称",
+  "founded_year": 成立年份(数字),
+  "founders": ["创始人列表"],
+  "main_business": ["主要业务领域"],
+  "headquarters": "总部位置",
+  "market_cap": "市值（如果知道）",
+  "key_products": ["主要产品"]
+}"""
+
+    result = get_structured_response_claude(prompt, schema)
+    return result
+
+# 文档摘要示例
+def summarize_document():
+    prompt = """请分析以下文档并生成结构化摘要：
+
+"人工智能技术正在快速发展，特别是大语言模型在各个领域都展现出了巨大的潜力。然而，AI技术的发展也带来了一些挑战，包括数据隐私、算法偏见和就业影响等问题。企业在采用AI技术时需要权衡收益与风险，制定合适的策略。"
+
+请分析上述内容"""
+
+    schema = """{
+  "main_topic": "主要话题",
+  "key_points": ["关键要点列表"],
+  "opportunities": ["机遇"],
+  "challenges": ["挑战"],
+  "recommendations": ["建议"],
+  "sentiment": "整体情感倾向(positive/negative/neutral)",
+  "word_count": "大约字数"
+}"""
+
+    result = get_structured_response_claude(prompt, schema)
+    return result
+
+# 客户反馈分析示例
+def analyze_customer_feedback():
+    prompt = """分析以下客户反馈：
+
+"这个产品的界面很直观，使用起来很方便。但是有时候会有些卡顿，希望能优化一下性能。客服回应很及时，服务态度也很好。价格相对同类产品来说有点贵，但整体体验还是满意的。"
+
+请对这段反馈进行详细分析"""
+
+    schema = """{
+  "overall_satisfaction": "整体满意度(1-10分)",
+  "positive_aspects": ["积极方面"],
+  "negative_aspects": ["需要改进的方面"],
+  "feature_ratings": {
+    "usability": "易用性评分(1-10)",
+    "performance": "性能评分(1-10)",
+    "customer_service": "客服评分(1-10)",
+    "value_for_money": "性价比评分(1-10)"
+  },
+  "priority_improvements": ["优先改进项目"],
+  "customer_type": "客户类型推测",
+  "likelihood_to_recommend": "推荐可能性(1-10)"
+}"""
+
+    result = get_structured_response_claude(prompt, schema)
+    return result
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== 公司信息分析 ===")
+    company_result = analyze_company_info()
+    print(json.dumps(company_result, ensure_ascii=False, indent=2))
+
+    print("\n=== 文档摘要 ===")
+    summary_result = summarize_document()
+    print(json.dumps(summary_result, ensure_ascii=False, indent=2))
+
+    print("\n=== 客户反馈分析 ===")
+    feedback_result = analyze_customer_feedback()
+    print(json.dumps(feedback_result, ensure_ascii=False, indent=2))
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function getStructuredResponseClaude(prompt, schemaDescription = '') {
+    const url = `${BASE_URL}/messages`;
+
+    // 构建包含结构化要求的提示
+    const structuredPrompt = `${prompt}
+
+请严格按照以下JSON格式返回结果：
+${schemaDescription}
+
+重要：
+1. 只返回JSON格式的数据，不要包含任何解释文字
+2. 确保JSON格式正确且完整
+3. 所有字符串值请使用双引号`;
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        'anthropic-version': '2023-06-01'
+    };
+
+    const data = {
+        model: 'claude-3-7-sonnet-20250219',
+        max_tokens: 1000,
+        messages: [
+            {
+                role: 'user',
+                content: structuredPrompt
+            }
+        ]
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+        const content = response.data.content[0].text;
+
+        try {
+            return JSON.parse(content);
+        } catch (parseError) {
+            // 尝试提取JSON部分
+            const jsonMatch = content.match(/\{.*\}/s);
+            if (jsonMatch) {
+                try {
+                    return JSON.parse(jsonMatch[0]);
+                } catch {
+                    // 继续到错误处理
+                }
+            }
+            return {
+                error: '返回的内容不是有效的JSON格式',
+                content: content
+            };
+        }
+    } catch (error) {
+        return {
+            error: `API错误: ${error.response?.status} - ${error.response?.data || error.message}`
+        };
+    }
+}
+
+// 技术文档分析示例
+async function analyzeTechDoc() {
+    const prompt = `分析以下技术需求文档：
+
+"我们需要开发一个电商网站，支持用户注册登录、商品浏览、购物车功能、订单管理和支付功能。技术栈使用React前端，Node.js后端，MySQL数据库。预计开发周期3个月，团队规模5人。"
+
+请对这个项目进行技术分析`;
+
+    const schema = `{
+  "project_type": "项目类型",
+  "main_features": ["主要功能模块"],
+  "tech_stack": {
+    "frontend": "前端技术",
+    "backend": "后端技术",
+    "database": "数据库",
+    "other": ["其他技术"]
+  },
+  "development_timeline": "开发周期",
+  "team_size": "团队规模",
+  "complexity_level": "复杂度等级(low/medium/high)",
+  "estimated_effort": "预估工作量(人月)",
+  "risk_factors": ["风险因素"],
+  "recommendations": ["建议"]
+}`;
+
+    const result = await getStructuredResponseClaude(prompt, schema);
+    return result;
+}
+
+// 邮件分类示例
+async function classifyEmail() {
+    const prompt = `对以下邮件进行分类和分析：
+
+"主题：关于下周会议的时间安排
+内容：Hi团队，下周一的项目评审会议需要调整到下周二下午2点，请大家确认是否有时间冲突。如果有问题请及时回复。谢谢！"
+
+请分析这封邮件`;
+
+    const schema = `{
+  "email_type": "邮件类型",
+  "urgency_level": "紧急程度(low/medium/high)",
+  "action_required": "是否需要回复(true/false)",
+  "deadline": "截止时间（如果有）",
+  "key_information": {
+    "event": "事件描述",
+    "time": "时间信息",
+    "participants": "参与人员"
+  },
+  "sentiment": "语气(formal/informal/friendly/urgent)",
+  "auto_reply_suggestion": "自动回复建议"
+}`;
+
+    const result = await getStructuredResponseClaude(prompt, schema);
+    return result;
+}
+
+// 使用示例
+(async () => {
+    try {
+        console.log('=== 技术文档分析 ===');
+        const techResult = await analyzeTechDoc();
+        console.log(JSON.stringify(techResult, null, 2));
+
+        console.log('\n=== 邮件分类 ===');
+        const emailResult = await classifyEmail();
+        console.log(JSON.stringify(emailResult, null, 2));
+    } catch (error) {
+        console.error('错误:', error.message);
+    }
+})();
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "regexp"
+    "strings"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type Message struct {
+    Role    string `json:"role"`
+    Content string `json:"content"`
+}
+
+type ClaudeRequest struct {
+    Model     string    `json:"model"`
+    MaxTokens int       `json:"max_tokens"`
+    Messages  []Message `json:"messages"`
+}
+
+type ContentBlock struct {
+    Text string `json:"text"`
+}
+
+type ClaudeResponse struct {
+    Content []ContentBlock `json:"content"`
+}
+
+func getStructuredResponseClaude(prompt, schemaDescription string) (map[string]interface{}, error) {
+    url := fmt.Sprintf("%s/messages", BaseURL)
+
+    // 构建包含结构化要求的提示
+    structuredPrompt := fmt.Sprintf(`%s
+
+请严格按照以下JSON格式返回结果：
+%s
+
+重要：
+1. 只返回JSON格式的数据，不要包含任何解释文字
+2. 确保JSON格式正确且完整
+3. 所有字符串值请使用双引号`, prompt, schemaDescription)
+
+    reqData := ClaudeRequest{
+        Model:     "claude-3-7-sonnet-20250219",
+        MaxTokens: 1000,
+        Messages: []Message{
+            {
+                Role:    "user",
+                Content: structuredPrompt,
+            },
+        },
+    }
+
+    jsonData, err := json.Marshal(reqData)
+    if err != nil {
+        return nil, err
+    }
+
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return nil, err
+    }
+
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    req.Header.Set("anthropic-version", "2023-06-01")
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, err
+    }
+
+    if resp.StatusCode != 200 {
+        return map[string]interface{}{
+            "error": fmt.Sprintf("API错误: %d - %s", resp.StatusCode, string(body)),
+        }, nil
+    }
+
+    var claudeResp ClaudeResponse
+    err = json.Unmarshal(body, &claudeResp)
+    if err != nil {
+        return nil, err
+    }
+
+    content := claudeResp.Content[0].Text
+
+    // 尝试解析JSON
+    var result map[string]interface{}
+    err = json.Unmarshal([]byte(content), &result)
+    if err != nil {
+        // 尝试提取JSON部分
+        re := regexp.MustCompile(`\{.*\}`)
+        jsonMatch := re.FindString(content)
+        if jsonMatch != "" {
+            err = json.Unmarshal([]byte(jsonMatch), &result)
+            if err == nil {
+                return result, nil
+            }
+        }
+        return map[string]interface{}{
+            "error":   "返回的内容不是有效的JSON格式",
+            "content": content,
+        }, nil
+    }
+
+    return result, nil
+}
+
+// 竞品分析示例
+func analyzeCompetitors() (map[string]interface{}, error) {
+    prompt := `请分析以下两个竞品：
+
+产品A：微信，腾讯公司开发的即时通讯软件，用户量超过12亿
+产品B：钉钉，阿里巴巴开发的企业通讯与协作平台，主要面向企业用户
+
+请对这两个产品进行竞品分析`
+
+    schema := `{
+  "products": [
+    {
+      "name": "产品名称",
+      "company": "开发公司",
+      "target_audience": "目标用户群",
+      "key_features": ["主要功能"],
+      "market_position": "市场定位",
+      "strengths": ["优势"],
+      "weaknesses": ["劣势"]
+    }
+  ],
+  "comparison": {
+    "similarities": ["相似点"],
+    "differences": ["差异点"],
+    "market_overlap": "市场重叠度(low/medium/high)"
+  },
+  "market_analysis": {
+    "total_market_size": "市场规模评估",
+    "growth_trend": "增长趋势",
+    "key_factors": ["关键成功因素"]
+  }
+}`
+
+    return getStructuredResponseClaude(prompt, schema)
+}
+
+func main() {
+    fmt.Println("=== 竞品分析 ===")
+    result, err := analyzeCompetitors()
+    if err != nil {
+        fmt.Printf("错误: %v\n", err)
+        return
+    }
+
+    jsonOutput, err := json.MarshalIndent(result, "", "  ")
+    if err != nil {
+        fmt.Printf("JSON序列化错误: %v\n", err)
+        return
+    }
+
+    fmt.Println(string(jsonOutput))
+}
+```
+
+</CodeGroup>
+
+## 结果示例
+```json 200
+{
+  "id": "83ffa096996a40d1b70c8611766fe3ab",
+  "content": [
+    {
+      "text": "{\n  \"company_name\": \"苹果公司 (Apple Inc.)\",\n  \"founded_year\": 1976,\n  \"founders\": [\"史蒂夫·乔布斯\", \"史蒂夫·沃兹尼亚克\", \"罗纳德·韦恩\"],\n  \"main_business\": [\"消费电子产品\", \"软件服务\", \"数字内容服务\"],\n  \"headquarters\": \"美国加利福尼亚州库比蒂诺\",\n  \"market_cap\": \"约3万亿美元(截至2024年)\",\n  \"key_products\": [\"iPhone\", \"iPad\", \"Mac\", \"Apple Watch\", \"AirPods\", \"Apple TV\"]\n}",
+      "type": "text"
+    }
+  ],
+  "model": "claude-3-7-sonnet-20250219",
+  "role": "assistant",
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 156,
+    "output_tokens": 185
+  }
+}
+```
+
+## Claude结构化输出的特点
+
+### 1. 提示工程重要性
+Claude没有内置的 `response_format` 参数，需要通过精心设计的提示来引导输出结构化内容：
+
+- **明确指令**: 在提示中明确要求JSON格式
+- **格式示例**: 提供期望的JSON结构模板
+- **约束条件**: 明确不要额外文字，只要JSON
+
+### 2. 解析策略
+由于Claude可能在JSON前后添加解释文字，建议采用以下解析策略：
+
+1. 首先尝试直接解析整个响应
+2. 如果失败，使用正则表达式提取JSON部分
+3. 提供错误处理和内容回退
+
+## 应用场景
+
+- **数据提取**: 从非结构化文档中提取关键信息
+- **内容分析**: 对文档、评论、反馈进行结构化分析
+- **业务流程**: 将自然语言需求转换为结构化数据
+- **API集成**: 为后端系统提供标准化数据格式
+- **报告生成**: 自动生成结构化的分析报告
+
+## 最佳实践
+
+### 1. 提示设计
+```
+{用户问题}
+
+请严格按照以下JSON格式返回结果：
+{JSON模板}
+
+重要：
+1. 只返回JSON格式的数据，不要包含任何解释文字
+2. 确保JSON格式正确且完整
+3. 所有字符串值请使用双引号
+```
+
+### 2. 错误处理
+- 设置JSON解析的多重fallback策略
+- 对解析失败的情况提供有意义的错误信息
+- 保留原始内容以便调试
+
+### 3. 数据验证
+- 验证必填字段是否存在
+- 检查数据类型是否符合预期
+- 验证枚举值是否在允许范围内
+
+## 注意事项
+
+1. **模型差异**: Claude的结构化输出完全依赖提示工程
+2. **成功率**: 相比OpenAI的response_format，可能需要更多调试
+3. **token消耗**: 详细的格式说明会增加输入token数量
+4. **一致性**: 建议使用较低的temperature以提高输出一致性

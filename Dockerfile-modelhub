@@ -1,0 +1,20 @@
+FROM cr.ttyuyin.com/zt/model-service-mintlify:v0.0.1
+# FROM cr.ttyuyin.com/public/node:22
+
+COPY services/mintlify /docs/
+
+# 所有文件替换域名，将https://api.tokenops.ai替换为https://model-api.skyengine.com.cn
+RUN find /docs/ -type f -exec sed -i 's|https://api.tokenops.ai|https://model-api.skyengine.com.cn|g' {} +
+# 所有文件替换域名，将https://www.tokenops.ai替换为https://model.skyengine.com.cn
+RUN find /docs/ -type f -exec sed -i 's|https://www.tokenops.ai|https://model.skyengine.com.cn|g' {} +
+# 精确替换 TokenOPS.AI 为 ModelHub
+RUN find /docs/ -type f -exec sed -i 's|TokenOPS\.AI|ModelHub|g' {} +
+# 替换logo
+RUN find /docs/ -type f -exec sed -i 's|tokenopsai.svg|modelhub.png|g' {} +
+RUN find /docs/ -type f -exec sed -i 's|tokenopsai-d.svg|modelhub-d.png|g' {} +
+
+WORKDIR /docs/
+
+# RUN npm i -g mint
+
+CMD ["mint", "dev", "--port", "8080"]

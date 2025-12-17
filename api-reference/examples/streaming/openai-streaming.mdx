@@ -1,0 +1,583 @@
+---
+title: 'OpenAI 流式对话示例'
+description: '使用OpenAI兼容接口进行流式对话的完整示例代码'
+---
+
+# OpenAI 流式对话示例
+
+以下示例展示如何使用OpenAI兼容的 `/v1/chat/completions` 接口进行流式对话，实现实时打字效果。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gpt-5-2025-08-07",
+    "messages": [
+      {
+        "role": "user",
+        "content": "请写一首关于春天的诗"
+      }
+    ],
+    "stream": true,
+    "max_tokens": 1000,
+    "temperature": 1
+  }' \
+  --no-buffer
+```
+
+```python Python
+import requests
+import json
+import sseclient
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def stream_chat_with_ai(message):
+    url = f"{BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "model": "gpt-5-2025-08-07",
+        "messages": [
+            {
+                "role": "user",
+                "content": message
+            }
+        ],
+        "stream": True,
+        "max_tokens": 1000,
+        "temperature": 1
+    }
+    
+    response = requests.post(url, headers=headers, json=data, stream=True)
+    
+    if response.status_code == 200:
+        client = sseclient.SSEClient(response)
+        full_response = ""
+        
+        for event in client.events():
+            if event.data == "[DONE]":
+                break
+                
+            try:
+                data = json.loads(event.data)
+                if "choices" in data and len(data["choices"]) > 0:
+                    delta = data["choices"][0].get("delta", {})
+                    if "content" in delta:
+                        content = delta["content"]
+                        full_response += content
+                        print(content, end="", flush=True)
+            except json.JSONDecodeError:
+                continue
+                
+        return full_response
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 使用示例
+if __name__ == "__main__":
+    message = "请写一首关于春天的诗"
+    print("AI回复: ", end="")
+    reply = stream_chat_with_ai(message)
+    print(f"\n\n完整回复: {reply}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const EventSource = require('eventsource');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function streamChatWithAI(message) {
+    const url = `${BASE_URL}/chat/completions`;
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+    
+    const data = {
+        model: 'gpt-5-2025-08-07',
+        messages: [
+            {
+                role: 'user',
+                content: message
+            }
+        ],
+        stream: true,
+        max_tokens: 1000,
+        temperature: 1
+    };
+    
+    return new Promise((resolve, reject) => {
+        let fullResponse = '';
+        
+        // 使用fetch进行流式请求
+        fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function processStream() {
+                return reader.read().then(({ done, value }) => {
+                    if (done) {
+                        resolve(fullResponse);
+                        return;
+                    }
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            
+                            if (data === '[DONE]') {
+                                resolve(fullResponse);
+                                return;
+                            }
+                            
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.choices && parsed.choices[0].delta.content) {
+                                    const content = parsed.choices[0].delta.content;
+                                    fullResponse += content;
+                                    process.stdout.write(content);
+                                }
+                            } catch (error) {
+                                // 忽略解析错误
+                            }
+                        }
+                    }
+                    
+                    return processStream();
+                });
+            }
+            
+            return processStream();
+        })
+        .catch(reject);
+    });
+}
+
+// 使用示例
+(async () => {
+    try {
+        const message = '请写一首关于春天的诗';
+        process.stdout.write('AI回复: ');
+        const reply = await streamChatWithAI(message);
+        console.log(`\n\n完整回复: ${reply}`);
+    } catch (error) {
+        console.error('错误:', error.message);
+    }
+})();
+```
+
+```go Go
+package main
+
+import (
+    "bufio"
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "strings"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type Message struct {
+    Role    string `json:"role"`
+    Content string `json:"content"`
+}
+
+type ChatRequest struct {
+    Model       string    `json:"model"`
+    Messages    []Message `json:"messages"`
+    Stream      bool      `json:"stream"`
+    MaxTokens   int       `json:"max_tokens"`
+    Temperature float64   `json:"temperature"`
+}
+
+type Delta struct {
+    Content string `json:"content"`
+}
+
+type Choice struct {
+    Delta Delta `json:"delta"`
+}
+
+type StreamResponse struct {
+    Choices []Choice `json:"choices"`
+}
+
+func streamChatWithAI(message string) (string, error) {
+    url := fmt.Sprintf("%s/chat/completions", BaseURL)
+    
+    reqData := ChatRequest{
+        Model: "gpt-5-2025-08-07",
+        Messages: []Message{
+            {
+                Role:    "user",
+                Content: message,
+            },
+        },
+        Stream:      true,
+        MaxTokens:   1000,
+        Temperature: 1,
+    }
+    
+    jsonData, err := json.Marshal(reqData)
+    if err != nil {
+        return "", err
+    }
+    
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return "", err
+    }
+    
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    
+    if resp.StatusCode != 200 {
+        body, _ := io.ReadAll(resp.Body)
+        return "", fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(body))
+    }
+    
+    scanner := bufio.NewScanner(resp.Body)
+    var fullResponse strings.Builder
+    
+    for scanner.Scan() {
+        line := scanner.Text()
+        
+        if strings.HasPrefix(line, "data: ") {
+            data := strings.TrimPrefix(line, "data: ")
+            
+            if data == "[DONE]" {
+                break
+            }
+            
+            var streamResp StreamResponse
+            if err := json.Unmarshal([]byte(data), &streamResp); err == nil {
+                if len(streamResp.Choices) > 0 {
+                    content := streamResp.Choices[0].Delta.Content
+                    if content != "" {
+                        fullResponse.WriteString(content)
+                        fmt.Print(content)
+                    }
+                }
+            }
+        }
+    }
+    
+    return fullResponse.String(), scanner.Err()
+}
+
+func main() {
+    message := "请写一首关于春天的诗"
+    fmt.Print("AI回复: ")
+    
+    reply, err := streamChatWithAI(message)
+    if err != nil {
+        fmt.Printf("\n错误: %v\n", err)
+        return
+    }
+    
+    fmt.Printf("\n\n完整回复: %s\n", reply)
+}
+```
+
+```java Java
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
+public class OpenAIStreamingChat {
+    private static final String API_KEY = "<API-KEY>";
+    private static final String BASE_URL = "https://api.tokenops.ai/v1";
+    
+    public static class Message {
+        public String role;
+        public String content;
+        
+        public Message(String role, String content) {
+            this.role = role;
+            this.content = content;
+        }
+    }
+    
+    public static class ChatRequest {
+        public String model;
+        public Message[] messages;
+        public boolean stream;
+        public int max_tokens;
+        public double temperature;
+        
+        public ChatRequest(String model, Message[] messages, boolean stream, int maxTokens, double temperature) {
+            this.model = model;
+            this.messages = messages;
+            this.stream = stream;
+            this.max_tokens = maxTokens;
+            this.temperature = temperature;
+        }
+    }
+    
+    public static String streamChatWithAI(String message) throws IOException {
+        URL url = new URL(BASE_URL + "/chat/completions");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Authorization", "Bearer " + API_KEY);
+        conn.setDoOutput(true);
+        
+        ObjectMapper mapper = new ObjectMapper();
+        ChatRequest request = new ChatRequest(
+            "gpt-5-2025-08-07",
+            new Message[]{new Message("user", message)},
+            true,
+            1000,
+            0.7
+        );
+        
+        String jsonBody = mapper.writeValueAsString(request);
+        
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(jsonBody.getBytes());
+        }
+        
+        if (conn.getResponseCode() == 200) {
+            StringBuilder fullResponse = new StringBuilder();
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("data: ")) {
+                        String data = line.substring(6);
+                        
+                        if ("[DONE]".equals(data)) {
+                            break;
+                        }
+                        
+                        try {
+                            JsonNode jsonResponse = mapper.readTree(data);
+                            JsonNode choices = jsonResponse.get("choices");
+                            if (choices != null && choices.size() > 0) {
+                                JsonNode delta = choices.get(0).get("delta");
+                                if (delta != null && delta.has("content")) {
+                                    String content = delta.get("content").asText();
+                                    fullResponse.append(content);
+                                    System.out.print(content);
+                                }
+                            }
+                        } catch (Exception e) {
+                            // 忽略解析错误
+                        }
+                    }
+                }
+            }
+            
+            return fullResponse.toString();
+        } else {
+            throw new RuntimeException("API错误: " + conn.getResponseCode());
+        }
+    }
+    
+    public static void main(String[] args) {
+        try {
+            String message = "请写一首关于春天的诗";
+            System.out.print("AI回复: ");
+            String reply = streamChatWithAI(message);
+            System.out.println("\n\n完整回复: " + reply);
+        } catch (Exception e) {
+            System.err.println("错误: " + e.getMessage());
+        }
+    }
+}
+```
+
+```php PHP
+<?php
+
+class OpenAIStreamingChat {
+    private $apiKey;
+    private $baseUrl;
+    
+    public function __construct($apiKey, $baseUrl = 'https://api.tokenops.ai/v1') {
+        $this->apiKey = $apiKey;
+        $this->baseUrl = $baseUrl;
+    }
+    
+    public function streamChatWithAI($message) {
+        $url = $this->baseUrl . '/chat/completions';
+        
+        $data = [
+            'model' => 'gpt-5-2025-08-07',
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $message
+                ]
+            ],
+            'stream' => true,
+            'max_tokens' => 1000,
+            'temperature' => 1
+        ];
+        
+        $postData = json_encode($data);
+        
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => [
+                    'Content-Type: application/json',
+                    'Authorization: Bearer ' . $this->apiKey
+                ],
+                'content' => $postData
+            ]
+        ]);
+        
+        $stream = fopen($url, 'r', false, $context);
+        
+        if (!$stream) {
+            return '无法建立连接';
+        }
+        
+        $fullResponse = '';
+        
+        while (!feof($stream)) {
+            $line = fgets($stream);
+            
+            if (strpos($line, 'data: ') === 0) {
+                $data = trim(substr($line, 6));
+                
+                if ($data === '[DONE]') {
+                    break;
+                }
+                
+                $decoded = json_decode($data, true);
+                if ($decoded && isset($decoded['choices'][0]['delta']['content'])) {
+                    $content = $decoded['choices'][0]['delta']['content'];
+                    $fullResponse .= $content;
+                    echo $content;
+                    flush();
+                }
+            }
+        }
+        
+        fclose($stream);
+        return $fullResponse;
+    }
+}
+
+// 使用示例
+$apiKey = '<API-KEY>';
+$chat = new OpenAIStreamingChat($apiKey);
+
+$message = '请写一首关于春天的诗';
+echo "AI回复: ";
+$reply = $chat->streamChatWithAI($message);
+echo "\n\n完整回复: " . $reply . "\n";
+
+?>
+```
+
+</CodeGroup>
+
+## 流式响应格式
+
+流式响应使用Server-Sent Events (SSE)格式，每个数据块的结构如下：
+
+```json
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[],"system_fingerprint":""}
+
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[{"index":0,"delta":{},"finish_reason":null,"content_filter_results":{"hate":{"filtered":false},"self_harm":{"filtered":false},"sexual":{"filtered":false},"violence":{"filtered":false},"jailbreak":{"filtered":false,"detected":false},"profanity":{"filtered":false,"detected":false}}}],"system_fingerprint":""}
+
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[{"index":0,"delta":{"content":"春"},"finish_reason":null,"content_filter_results":{"hate":{"filtered":false},"self_harm":{"filtered":false},"sexual":{"filtered":false},"violence":{"filtered":false},"jailbreak":{"filtered":false,"detected":false},"profanity":{"filtered":false,"detected":false}}}],"system_fingerprint":""}
+
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[{"index":0,"delta":{"content":"天"},"finish_reason":null,"content_filter_results":{"hate":{"filtered":false},"self_harm":{"filtered":false},"sexual":{"filtered":false},"violence":{"filtered":false},"jailbreak":{"filtered":false,"detected":false},"profanity":{"filtered":false,"detected":false}}}],"system_fingerprint":""}
+
+.
+.
+.
+
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[{"index":0,"delta":{"content":"远"},"finish_reason":null,"content_filter_results":{"hate":{"filtered":false},"self_harm":{"filtered":false},"sexual":{"filtered":false},"violence":{"filtered":false},"jailbreak":{"filtered":false,"detected":false},"profanity":{"filtered":false,"detected":false}}}],"system_fingerprint":""}
+
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[{"index":0,"delta":{"content":"。"},"finish_reason":null,"content_filter_results":{"hate":{"filtered":false},"self_harm":{"filtered":false},"sexual":{"filtered":false},"violence":{"filtered":false},"jailbreak":{"filtered":false,"detected":false},"profanity":{"filtered":false,"detected":false}}}],"system_fingerprint":""}
+
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[{"index":0,"delta":{},"finish_reason":"stop","content_filter_results":{"hate":{"filtered":false},"self_harm":{"filtered":false},"sexual":{"filtered":false},"violence":{"filtered":false},"jailbreak":{"filtered":false,"detected":false},"profanity":{"filtered":false,"detected":false}}}],"system_fingerprint":""}
+
+data: {"id":"271cd371a60c44f39ab2ed3018d8b504","object":"chat.completion.chunk","created":0,"model":"gpt-5-2025-08-07","choices":[],"system_fingerprint":"","usage":{"prompt_tokens":15,"completion_tokens":641,"total_tokens":656,"prompt_tokens_details":{"audio_tokens":0,"cached_tokens":0},"completion_tokens_details":{"audio_tokens":0,"reasoning_tokens":448,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}
+
+data: [DONE]
+
+```
+
+## 重要参数说明
+
+- **stream**: 设置为 `true` 启用流式输出
+- **delta**: 每个数据块包含的增量内容
+- **finish_reason**: 流结束时会包含结束原因（如 "stop", "length"）
+- **[DONE]**: 流结束标记
+
+## 流式输出的优势
+
+1. **实时反馈**: 用户可以立即看到AI开始生成内容
+2. **更好的用户体验**: 避免长时间等待，提供打字效果
+3. **早期中断**: 可以在生成过程中提前停止
+4. **降低延迟感知**: 分块接收减少用户等待感
+
+## 处理流式数据的注意事项
+
+1. **解析SSE格式**: 正确处理 `data:` 前缀和 `[DONE]` 标记
+2. **错误处理**: 处理网络中断和解析错误
+3. **缓冲管理**: 及时刷新输出缓冲区
+4. **连接管理**: 确保正确关闭连接
+
+## 实际应用场景
+
+- **聊天应用**: 实现类似ChatGPT的打字效果
+- **内容生成**: 长文章、代码生成的实时显示
+- **实时翻译**: 边输入边翻译的场景
+- **代码助手**: IDE中的实时代码补全 

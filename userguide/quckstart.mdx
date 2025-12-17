@@ -1,0 +1,47 @@
+---
+title: "快速上手"
+description: ""
+sidebarTitle: "快速上手"
+# icon: "book"
+# tag: "NEW"
+---
+
+### 登录平台
+访问[TokenOPS.AI](https://tokenops.ai)官网，点击左下角的“登录”按钮，输入手机号码+验证码进行登录（首次登录即注册）
+
+### 了解模型
+通过 [模型广场](https://tokenops.ai/model-square) 查找并了解当前可用的模型详情、模型价格，确定需要使用的模型，点击模型卡片，了解模型更详情信息，并可通过 立即体验 进入到模型体验页。
+
+### 创建API-Key
+进入 [API密钥页](https://tokenops.ai/keys) ，点击【创建密钥】按钮，输入密钥名称，即可完成创建。在密钥列表中，可以对密钥进行完整查看，复制，也可以对密钥进行禁用以及删除。密钥禁用或删除后，此密钥将失效，无法调用平台的模型。
+
+### 模型服务调用
+查看 [接口文档](/api-reference/endpoint/chatcompletions) 了解API接口调用详情。 
+通过OpenAI接口调用的接口：
+```python
+from openai import OpenAI
+
+client = OpenAI(
+  base_url="https://api.tokenops.ai/v1",
+  api_key="<TOKENOPS_API_KEY>",
+)
+
+completion = client.chat.completions.create(
+  extra_headers={
+    "HTTP-Referer": "<YOUR_SITE_URL>", # Optional. Site URL for rankings on tokenops.ai.
+    "X-Title": "<YOUR_SITE_NAME>", # Optional. Site title for rankings on tokenops.ai.
+  },
+  model="gemini-2.5-flash",
+  messages=[
+    {
+      "role": "user",
+      "content": "What is the meaning of life?"
+    }
+  ]
+)
+
+print(completion.choices[0].message.content)
+```
+
+### 客户端使用
+TokenOPS.AI平台的API-Key是支持在常见的AI客户端上进行使用的，具体详见 [客户端使用](./aiclient/cherrystudio)

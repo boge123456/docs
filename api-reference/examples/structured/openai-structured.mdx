@@ -1,0 +1,331 @@
+---
+title: 'OpenAI 结构化输出示例'
+description: '使用OpenAI接口获取JSON格式结构化输出的完整示例代码'
+---
+
+# OpenAI 结构化输出示例
+
+以下示例展示如何使用OpenAI兼容接口获取JSON格式的结构化输出，适用于需要机器可读格式的场景。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gpt-5-2025-08-07",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个数据分析助手，请以JSON格式返回结果。"
+      },
+      {
+        "role": "user",
+        "content": "分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务等，以JSON格式返回"
+      }
+    ],
+    "response_format": {
+      "type": "json_object"
+    },
+    "max_tokens": 8000
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def get_structured_response(prompt, schema_description=""):
+    url = f"{BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    system_prompt = f"""你是一个数据分析助手，请严格按照以下JSON格式返回结果：
+{schema_description}
+
+请确保返回的是有效的JSON格式，不要包含任何额外的文本。"""
+    
+    data = {
+        "model": "gemini-2.5-flash",
+        "messages": [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "response_format": {
+            "type": "json_object"
+        },
+        "max_tokens": 1000,
+        "temperature": 0.1
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        result = response.json()
+        content = result['choices'][0]['message']['content']
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            return {"error": "返回的内容不是有效的JSON格式", "content": content}
+    else:
+        return {"error": f"API错误: {response.status_code} - {response.text}"}
+
+# 公司信息分析示例
+def analyze_company_info():
+    prompt = "分析以下公司信息：苹果公司，成立于1976年，总部位于加利福尼亚州库比蒂诺，主要产品包括iPhone、iPad、Mac等。"
+    
+    schema = """{
+  "company_name": "公司名称",
+  "founded_year": "成立年份(数字)",
+  "headquarters": "总部位置",
+  "main_products": ["主要产品列表"],
+  "industry": "所属行业",
+  "company_type": "公司类型"
+}"""
+    
+    result = get_structured_response(prompt, schema)
+    return result
+
+# 情感分析示例
+def sentiment_analysis():
+    prompt = "分析以下评论的情感：这个产品真的很棒，质量很好，价格也合理，我会推荐给朋友们。"
+    
+    schema = """{
+  "sentiment": "情感倾向 (positive/negative/neutral)",
+  "confidence": "置信度 (0-1之间的数字)",
+  "key_phrases": ["关键词组"],
+  "overall_score": "总体评分 (1-10)",
+  "analysis": "详细分析"
+}"""
+    
+    result = get_structured_response(prompt, schema)
+    return result
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== 公司信息分析 ===")
+    company_result = analyze_company_info()
+    print(json.dumps(company_result, ensure_ascii=False, indent=2))
+    
+    print("\n=== 情感分析 ===")
+    sentiment_result = sentiment_analysis()
+    print(json.dumps(sentiment_result, ensure_ascii=False, indent=2))
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function getStructuredResponse(prompt, schemaDescription = '') {
+    const url = `${BASE_URL}/chat/completions`;
+    
+    const systemPrompt = `你是一个数据分析助手，请严格按照以下JSON格式返回结果：
+${schemaDescription}
+
+请确保返回的是有效的JSON格式，不要包含任何额外的文本。`;
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+    
+    const data = {
+        model: 'gpt-5-2025-08-07',
+        messages: [
+            {
+                role: 'system',
+                content: systemPrompt
+            },
+            {
+                role: 'user',
+                content: prompt
+            }
+        ],
+        response_format: {
+            type: 'json_object'
+        },
+        max_tokens: 1000,
+        temperature: 0.1
+    };
+    
+    try {
+        const response = await axios.post(url, data, { headers });
+        const content = response.data.choices[0].message.content;
+        
+        try {
+            return JSON.parse(content);
+        } catch (parseError) {
+            return {
+                error: '返回的内容不是有效的JSON格式',
+                content: content
+            };
+        }
+    } catch (error) {
+        return {
+            error: `API错误: ${error.response?.status} - ${error.response?.data || error.message}`
+        };
+    }
+}
+
+// 产品评价分析示例
+async function analyzeProductReview() {
+    const prompt = '分析这个产品评价：这款手机拍照效果不错，但是电池续航有点短，整体还可以。';
+    
+    const schema = `{
+  "overall_rating": "整体评分 (1-5)",
+  "pros": ["优点列表"],
+  "cons": ["缺点列表"],
+  "aspects": {
+    "camera": "拍照评价",
+    "battery": "电池评价",
+    "performance": "性能评价"
+  },
+  "recommendation": "是否推荐 (true/false)",
+  "summary": "总结"
+}`;
+    
+    const result = await getStructuredResponse(prompt, schema);
+    return result;
+}
+
+// 文本分类示例
+async function classifyText() {
+    const prompt = '分类以下文本：明天会下雨，记得带伞出门。';
+    
+    const schema = `{
+  "category": "文本类别",
+  "subcategory": "子类别",
+  "intent": "用户意图",
+  "entities": ["提取的实体"],
+  "confidence": "分类置信度 (0-1)"
+}`;
+    
+    const result = await getStructuredResponse(prompt, schema);
+    return result;
+}
+
+// 使用示例
+(async () => {
+    try {
+        console.log('=== 产品评价分析 ===');
+        const reviewResult = await analyzeProductReview();
+        console.log(JSON.stringify(reviewResult, null, 2));
+        
+        console.log('\n=== 文本分类 ===');
+        const classifyResult = await classifyText();
+        console.log(JSON.stringify(classifyResult, null, 2));
+    } catch (error) {
+        console.error('错误:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+## 结果示例
+```json 200
+{
+    "id": "4870402eb5b24106a302c2f8b96d22e1",
+    "object": "chat.completion",
+    "created": 1759140271,
+    "model": "gpt-5-2025-08-07",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "{\n  \"公司名称\": \"Apple Inc.\",\n  \"中文名称\": \"苹果公司\",\n  \"成立年份\": 1976,\n  \"成立日期\": \"1976-04-01\",\n  \"注册成立日期\": \"1977-01-03\",\n  \"创始人\": [\"史蒂夫·乔布斯\", \"史蒂夫·沃兹尼亚克\", \"罗纳德·韦恩\"],\n  \"总部\": \"美国加利福尼亚州库比蒂诺（Apple Park）\",\n  \"官网\": \"https://www.apple.com\",\n  \"股票信息\": {\n    \"交易所\": \"NASDAQ\",\n    \"股票代码\": \"AAPL\",\n    \"ISIN\": \"US0378331005\",\n    \"IPO日期\": \"1980-12-12\"\n  },\n  \"更名\": {\n    \"前身\": \"Apple Computer, Inc.\",\n    \"更名为\": \"Apple Inc.\",\n    \"更名日期\": \"2007-01-09\"\n  },\n  \"行业\": [\"消费电子\", \"软件\", \"信息技术服务\"],\n  \"主要业务\": {\n    \"硬件\": [\"iPhone\", \"iPad\", \"Mac\", \"Apple Watch\", \"AirPods\", \"Apple TV\", \"HomePod\"],\n    \"操作系统与软件\": [\"iOS\", \"iPadOS\", \"macOS\", \"watchOS\", \"tvOS\"],\n    \"服务\": [\"App Store\", \"Apple Music\", \"iCloud\", \"Apple TV+\", \"Apple Arcade\", \"Apple Pay\", \"AppleCare\", \"Apple News+\", \"Fitness+\"],\n    \"芯片与技术\": [\"Apple silicon\", \"A系列处理器\", \"M系列处理器\"]\n  },\n  \"关键产品线收入构成\": [\"iPhone\", \"服务\", \"Mac\", \"iPad\", \"可穿戴、家居与配件\"],\n  \"现任CEO\": \"蒂姆·库克\"\n}"
+            },
+            "finish_reason": "stop",
+            "content_filter_results": {
+                "hate": {
+                    "filtered": false
+                },
+                "self_harm": {
+                    "filtered": false
+                },
+                "sexual": {
+                    "filtered": false
+                },
+                "violence": {
+                    "filtered": false
+                },
+                "jailbreak": {
+                    "filtered": false,
+                    "detected": false
+                },
+                "profanity": {
+                    "filtered": false,
+                    "detected": false
+                }
+            }
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 29,
+        "completion_tokens": 1893,
+        "total_tokens": 1922,
+        "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+            "audio_tokens": 0,
+            "reasoning_tokens": 1472,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+        }
+    },
+    "system_fingerprint": ""
+}
+```
+
+## 结构化输出的优势
+
+1. **机器可读**: 返回标准JSON格式，便于程序处理
+2. **数据一致性**: 确保输出格式的一致性和可预测性
+3. **易于集成**: 可以直接集成到现有的数据处理流程中
+4. **减少解析错误**: 避免自然语言解析的歧义性
+
+## 应用场景
+
+- **数据提取**: 从非结构化文本中提取结构化信息
+- **情感分析**: 分析文本情感并返回量化结果
+- **内容分类**: 对文本进行多维度分类
+- **信息整理**: 将散乱信息整理成结构化数据
+- **API集成**: 为其他系统提供结构化的AI输出
+
+## 最佳实践
+
+1. **明确Schema**: 在系统提示中清楚定义期望的JSON结构
+2. **设置低温度**: 使用较低的temperature值(0.1-0.3)确保输出稳定
+3. **验证格式**: 始终验证返回的JSON格式是否有效
+4. **错误处理**: 妥善处理JSON解析失败的情况
+5. **示例引导**: 在提示中提供期望输出的示例
+
+## 注意事项
+
+- 并非所有模型都支持 `response_format` 参数
+- 结构化输出可能会略微增加token消耗
+- 复杂的Schema可能需要更多的上下文说明
+- 建议在系统提示中明确要求JSON格式输出 

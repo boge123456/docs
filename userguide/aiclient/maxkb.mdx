@@ -1,0 +1,77 @@
+---
+title: "在MaxKB中使用"
+description: ""
+sidebarTitle: "在MaxKB中使用"
+# icon: "book"
+# tag: "NEW"
+---
+
+[MaxKB 下载地址](https://community.fit2cloud.com/#/products/maxkb/getstarted)
+
+### 一、模型配置
+
+第1步：登录MaxKB，点击模型管理，添加模型，选择OpenAI
+![maxkb-1](/images/maxkb/maxkb-1.png)
+
+第2步：添加模型
+![maxkb-2](/images/maxkb/maxkb-2.png)
+输入模型信息，以grok-4为例：
+- 模型名称：用户自定义填写
+- 模型类型：选择对应模型能力的类型
+![maxkb-3](/images/maxkb/maxkb-3.png)
+- 基础模型：模型ID，从本站[模型广场](https://tokenops.ai/model-square)获取，点击模型卡片的复制按钮
+- API URL：`https://api.tokenops.ai/v1`
+- API KEY：填写[本站的API Key](https://www.tokenops.ai/keys)
+
+第3步：查看模型列表,看到刚才添加的模型
+![maxkb-4](/images/maxkb/maxkb-4.png)
+
+至此，配置完成。
+
+### 二、开始使用
+
+#### 场景1：创建简单应用
+第1步：点击应用，创建，选择简单应用，填写
+- 名称：用户自定义填写
+- 描述：用户自定义填写
+![maxkb-5](/images/maxkb/maxkb-5.png)
+
+第2步：在应用设置中，选择模型，开始对话调试
+
+- 注：简单应用只能添加大语言模型，并只能简单对话使用，不能上传文件。
+![maxkb-6](/images/maxkb/maxkb-6.png)
+
+第3步：保存发布，进入对话页
+![maxkb-7](/images/maxkb/maxkb-7.png)
+
+输入消息，开始聊天。
+
+#### 场景2：创建高级编排应用（多模态对话）
+第1步：点击应用，创建，选择高级编排
+![maxkb-8](/images/maxkb/maxkb-8.png)
+
+第2步：填写高级编排应用信息
+- 名称：用户自定义填写
+- 描述：用户自定义填写
+- 模板：默认空白模板，可以选择已有模板
+![maxkb-9](/images/maxkb/maxkb-9.png)
+
+第3步：在应用设置中，进入工作流编排
+- 添加AI对话卡片
+- 添加模型
+- 点击右上角调试，开始对话
+![maxkb-10](/images/maxkb/maxkb-10.png)
+
+**图片理解**
+![maxkb-11](/images/maxkb/maxkb-11.png)
+- 添加图片理解卡片
+- 基础信息卡片，文件上传打开对应开关
+![maxkb-12](/images/maxkb/maxkb-12.png)
+- 保存，开始上传图片对话调试
+![maxkb-13](/images/maxkb/maxkb-13.png)
+
+
+至此，应用配置完成。
+
+### 三、更多能力
+[MaxKB 官方文档](https://maxkb.cn/docs/v2/)

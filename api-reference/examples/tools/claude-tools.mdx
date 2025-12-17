@@ -1,0 +1,738 @@
+---
+title: 'Claude 工具调用示例'
+description: '使用Claude API进行工具调用的完整示例代码'
+---
+
+# Claude 工具调用示例
+
+以下示例展示如何使用Claude的 `/v1/messages` 接口进行工具调用（Tool Use），让Claude能够调用外部工具来获取信息或执行操作。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/messages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-3-7-sonnet-20250219",
+    "max_tokens": 1024,
+    "tools": [
+      {
+        "name": "get_weather",
+        "description": "获取指定城市的天气信息",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "城市名称"
+            },
+            "unit": {
+              "type": "string",
+              "enum": ["celsius", "fahrenheit"],
+              "description": "温度单位，默认为摄氏度"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "北京今天的天气怎么样？"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+# 定义可调用的工具函数
+def get_weather(city, unit="celsius"):
+    """获取指定城市的天气信息"""
+    weather_data = {
+        "北京": {"temperature": 15, "condition": "晴天", "humidity": 45, "wind": "微风"},
+        "上海": {"temperature": 18, "condition": "多云", "humidity": 60, "wind": "东风3级"},
+        "广州": {"temperature": 25, "condition": "小雨", "humidity": 75, "wind": "南风2级"},
+        "深圳": {"temperature": 24, "condition": "晴天", "humidity": 55, "wind": "无风"}
+    }
+
+    if city in weather_data:
+        data = weather_data[city]
+        temp = data["temperature"]
+        if unit == "fahrenheit":
+            temp = temp * 9/5 + 32
+        return {
+            "city": city,
+            "temperature": f"{temp}°{'C' if unit == 'celsius' else 'F'}",
+            "condition": data["condition"],
+            "humidity": f"{data['humidity']}%",
+            "wind": data["wind"]
+        }
+    else:
+        return {"error": f"暂时无法获取{city}的天气信息"}
+
+def calculate_math(expression):
+    """执行安全的数学计算"""
+    try:
+        # 安全检查，只允许基本的数学操作
+        allowed_chars = set('0123456789+-*/.() ')
+        if not all(c in allowed_chars for c in expression):
+            return {"error": "表达式包含不允许的字符"}
+
+        # 禁止一些危险的函数调用
+        dangerous_words = ['import', 'exec', 'eval', '__']
+        if any(word in expression.lower() for word in dangerous_words):
+            return {"error": "表达式包含不安全的内容"}
+
+        result = eval(expression)
+        return {
+            "expression": expression,
+            "result": result,
+            "formatted_result": f"{expression} = {result}"
+        }
+    except Exception as e:
+        return {"error": f"计算出错: {str(e)}"}
+
+def get_time_info(timezone="Asia/Shanghai"):
+    """获取指定时区的时间信息"""
+    from datetime import datetime
+    import pytz
+
+    try:
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        return {
+            "timezone": timezone,
+            "current_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "weekday": current_time.strftime("%A"),
+            "day_of_year": current_time.timetuple().tm_yday
+        }
+    except Exception as e:
+        return {"error": f"无法获取时区 {timezone} 的时间: {str(e)}"}
+
+# 工具函数映射
+AVAILABLE_TOOLS = {
+    "get_weather": get_weather,
+    "calculate_math": calculate_math,
+    "get_time_info": get_time_info
+}
+
+def chat_with_claude_tools(message):
+    """使用Claude进行工具调用对话"""
+    url = f"{BASE_URL}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+        "anthropic-version": "2023-06-01"
+    }
+
+    # 定义可用的工具
+    tools = [
+        {
+            "name": "get_weather",
+            "description": "获取指定城市的实时天气信息，包括温度、天气状况、湿度和风力",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "要查询天气的城市名称"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "温度单位，celsius为摄氏度，fahrenheit为华氏度"
+                    }
+                },
+                "required": ["city"]
+            }
+        },
+        {
+            "name": "calculate_math",
+            "description": "执行数学计算，支持基本的四则运算和括号",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "要计算的数学表达式，如 '2+3*4' 或 '(10+5)/3'"
+                    }
+                },
+                "required": ["expression"]
+            }
+        },
+        {
+            "name": "get_time_info",
+            "description": "获取指定时区的当前时间信息",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "timezone": {
+                        "type": "string",
+                        "description": "时区名称，如 'Asia/Shanghai', 'America/New_York', 'Europe/London'"
+                    }
+                },
+                "required": ["timezone"]
+            }
+        }
+    ]
+
+    messages = [
+        {
+            "role": "user",
+            "content": message
+        }
+    ]
+
+    data = {
+        "model": "claude-3-7-sonnet-20250219",
+        "max_tokens": 1024,
+        "tools": tools,
+        "messages": messages
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code != 200:
+            return f"API错误: {response.status_code} - {response.text}"
+
+        result = response.json()
+
+        # 处理Claude的响应
+        content_blocks = result.get('content', [])
+
+        # 检查是否有工具调用
+        tool_calls = [block for block in content_blocks if block.get('type') == 'tool_use']
+
+        if tool_calls:
+            print("检测到工具调用请求:")
+
+            # 处理工具调用
+            for tool_call in tool_calls:
+                tool_name = tool_call.get('name')
+                tool_input = tool_call.get('input', {})
+                tool_id = tool_call.get('id')
+
+                print(f"- 调用工具: {tool_name}")
+                print(f"- 参数: {tool_input}")
+
+                # 执行工具函数
+                if tool_name in AVAILABLE_TOOLS:
+                    try:
+                        tool_result = AVAILABLE_TOOLS[tool_name](**tool_input)
+                        print(f"- 结果: {tool_result}")
+
+                        # 将工具结果添加到消息中
+                        messages.append({
+                            "role": "assistant",
+                            "content": content_blocks
+                        })
+
+                        messages.append({
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_id,
+                                    "content": json.dumps(tool_result, ensure_ascii=False)
+                                }
+                            ]
+                        })
+
+                    except Exception as e:
+                        error_result = {"error": f"工具执行失败: {str(e)}"}
+                        messages.append({
+                            "role": "assistant",
+                            "content": content_blocks
+                        })
+                        messages.append({
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_id,
+                                    "content": json.dumps(error_result, ensure_ascii=False)
+                                }
+                            ]
+                        })
+                else:
+                    error_result = {"error": f"未知的工具: {tool_name}"}
+                    messages.append({
+                        "role": "assistant",
+                        "content": content_blocks
+                    })
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps(error_result, ensure_ascii=False)
+                            }
+                        ]
+                    })
+
+            # 使用工具结果重新请求Claude生成最终回复
+            data["messages"] = messages
+            final_response = requests.post(url, headers=headers, json=data)
+
+            if final_response.status_code == 200:
+                final_result = final_response.json()
+                final_content = final_result.get('content', [])
+                # 提取文本内容
+                text_content = [block.get('text', '') for block in final_content if block.get('type') == 'text']
+                return '\n'.join(text_content)
+            else:
+                return f"获取最终回复失败: {final_response.status_code} - {final_response.text}"
+        else:
+            # 没有工具调用，直接返回文本回复
+            text_content = [block.get('text', '') for block in content_blocks if block.get('type') == 'text']
+            return '\n'.join(text_content)
+
+    except Exception as e:
+        return f"请求处理出错: {str(e)}"
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== Claude工具调用示例 ===\n")
+
+    # 天气查询示例
+    print("1. 天气查询:")
+    weather_response = chat_with_claude_tools("帮我查一下北京和上海的天气情况")
+    print(f"回复: {weather_response}\n")
+
+    # 数学计算示例
+    print("2. 数学计算:")
+    calc_response = chat_with_claude_tools("帮我计算一下 (25 + 15) * 3 - 20 等于多少？")
+    print(f"回复: {calc_response}\n")
+
+    # 时间查询示例
+    print("3. 时间查询:")
+    time_response = chat_with_claude_tools("现在北京时间是几点？")
+    print(f"回复: {time_response}\n")
+
+    # 复合查询示例
+    print("4. 复合查询:")
+    complex_response = chat_with_claude_tools("帮我查一下深圳的天气，然后计算一下如果温度是25度，转换成华氏度是多少？")
+    print(f"回复: {complex_response}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+// 定义可调用的工具函数
+function getWeather(city, unit = 'celsius') {
+    const weatherData = {
+        '北京': { temperature: 15, condition: '晴天', humidity: 45, wind: '微风' },
+        '上海': { temperature: 18, condition: '多云', humidity: 60, wind: '东风3级' },
+        '广州': { temperature: 25, condition: '小雨', humidity: 75, wind: '南风2级' },
+        '深圳': { temperature: 24, condition: '晴天', humidity: 55, wind: '无风' }
+    };
+
+    if (weatherData[city]) {
+        const data = weatherData[city];
+        let temp = data.temperature;
+        if (unit === 'fahrenheit') {
+            temp = temp * 9/5 + 32;
+        }
+        return {
+            city: city,
+            temperature: `${temp}°${unit === 'celsius' ? 'C' : 'F'}`,
+            condition: data.condition,
+            humidity: `${data.humidity}%`,
+            wind: data.wind
+        };
+    } else {
+        return { error: `暂时无法获取${city}的天气信息` };
+    }
+}
+
+function calculateMath(expression) {
+    try {
+        // 安全检查
+        const allowedChars = /^[0-9+\-*/.() ]+$/;
+        if (!allowedChars.test(expression)) {
+            return { error: '表达式包含不允许的字符' };
+        }
+
+        const result = eval(expression);
+        return {
+            expression: expression,
+            result: result,
+            formatted_result: `${expression} = ${result}`
+        };
+    } catch (error) {
+        return { error: `计算出错: ${error.message}` };
+    }
+}
+
+function getTimeInfo(timezone = 'Asia/Shanghai') {
+    try {
+        const now = new Date();
+        // 简化的时区处理
+        const timeString = now.toLocaleString('zh-CN', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
+        return {
+            timezone: timezone,
+            current_time: timeString,
+            weekday: now.toLocaleDateString('zh-CN', { weekday: 'long', timeZone: timezone }),
+            timestamp: now.getTime()
+        };
+    } catch (error) {
+        return { error: `无法获取时区 ${timezone} 的时间: ${error.message}` };
+    }
+}
+
+// 工具函数映射
+const AVAILABLE_TOOLS = {
+    get_weather: getWeather,
+    calculate_math: calculateMath,
+    get_time_info: getTimeInfo
+};
+
+async function chatWithClaudeTools(message) {
+    const url = `${BASE_URL}/messages`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        'anthropic-version': '2023-06-01'
+    };
+
+    // 定义可用的工具
+    const tools = [
+        {
+            name: 'get_weather',
+            description: '获取指定城市的实时天气信息，包括温度、天气状况、湿度和风力',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    city: {
+                        type: 'string',
+                        description: '要查询天气的城市名称'
+                    },
+                    unit: {
+                        type: 'string',
+                        enum: ['celsius', 'fahrenheit'],
+                        description: '温度单位，celsius为摄氏度，fahrenheit为华氏度'
+                    }
+                },
+                required: ['city']
+            }
+        },
+        {
+            name: 'calculate_math',
+            description: '执行数学计算，支持基本的四则运算和括号',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    expression: {
+                        type: 'string',
+                        description: "要计算的数学表达式，如 '2+3*4' 或 '(10+5)/3'"
+                    }
+                },
+                required: ['expression']
+            }
+        },
+        {
+            name: 'get_time_info',
+            description: '获取指定时区的当前时间信息',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    timezone: {
+                        type: 'string',
+                        description: "时区名称，如 'Asia/Shanghai', 'America/New_York', 'Europe/London'"
+                    }
+                },
+                required: ['timezone']
+            }
+        }
+    ];
+
+    let messages = [
+        {
+            role: 'user',
+            content: message
+        }
+    ];
+
+    const data = {
+        model: 'claude-3-7-sonnet-20250219',
+        max_tokens: 1024,
+        tools: tools,
+        messages: messages
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+        const result = response.data;
+
+        // 处理Claude的响应
+        const contentBlocks = result.content || [];
+
+        // 检查是否有工具调用
+        const toolCalls = contentBlocks.filter(block => block.type === 'tool_use');
+
+        if (toolCalls.length > 0) {
+            console.log('检测到工具调用请求:');
+
+            // 处理工具调用
+            for (const toolCall of toolCalls) {
+                const toolName = toolCall.name;
+                const toolInput = toolCall.input || {};
+                const toolId = toolCall.id;
+
+                console.log(`- 调用工具: ${toolName}`);
+                console.log(`- 参数:`, toolInput);
+
+                // 执行工具函数
+                let toolResult;
+                if (AVAILABLE_TOOLS[toolName]) {
+                    try {
+                        const args = Object.values(toolInput);
+                        toolResult = AVAILABLE_TOOLS[toolName](...args);
+                        console.log(`- 结果:`, toolResult);
+                    } catch (error) {
+                        toolResult = { error: `工具执行失败: ${error.message}` };
+                    }
+                } else {
+                    toolResult = { error: `未知的工具: ${toolName}` };
+                }
+
+                // 将工具结果添加到消息中
+                messages.push({
+                    role: 'assistant',
+                    content: contentBlocks
+                });
+
+                messages.push({
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'tool_result',
+                            tool_use_id: toolId,
+                            content: JSON.stringify(toolResult)
+                        }
+                    ]
+                });
+            }
+
+            // 使用工具结果重新请求Claude生成最终回复
+            data.messages = messages;
+            const finalResponse = await axios.post(url, data, { headers });
+
+            const finalContent = finalResponse.data.content || [];
+            const textContent = finalContent
+                .filter(block => block.type === 'text')
+                .map(block => block.text)
+                .join('\n');
+
+            return textContent;
+        } else {
+            // 没有工具调用，直接返回文本回复
+            const textContent = contentBlocks
+                .filter(block => block.type === 'text')
+                .map(block => block.text)
+                .join('\n');
+
+            return textContent;
+        }
+
+    } catch (error) {
+        return `请求处理出错: ${error.response?.status} - ${error.response?.data || error.message}`;
+    }
+}
+
+// 使用示例
+(async () => {
+    try {
+        console.log('=== Claude工具调用示例 ===\n');
+
+        // 天气查询示例
+        console.log('1. 天气查询:');
+        const weatherResponse = await chatWithClaudeTools('帮我查一下北京和上海的天气情况');
+        console.log(`回复: ${weatherResponse}\n`);
+
+        // 数学计算示例
+        console.log('2. 数学计算:');
+        const calcResponse = await chatWithClaudeTools('帮我计算一下 (25 + 15) * 3 - 20 等于多少？');
+        console.log(`回复: ${calcResponse}\n`);
+
+        // 时间查询示例
+        console.log('3. 时间查询:');
+        const timeResponse = await chatWithClaudeTools('现在北京时间是几点？');
+        console.log(`回复: ${timeResponse}\n`);
+    } catch (error) {
+        console.error('程序执行出错:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+## Claude工具调用的特点
+
+### 1. 工具定义格式
+Claude使用不同于OpenAI的工具定义格式：
+
+```json
+{
+  "name": "tool_name",
+  "description": "工具描述",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "param": {
+        "type": "string",
+        "description": "参数描述"
+      }
+    },
+    "required": ["param"]
+  }
+}
+```
+
+### 2. 响应结构
+Claude的工具调用响应包含多种内容块：
+
+- **text**: 普通文本回复
+- **tool_use**: 工具调用请求
+- **tool_result**: 工具执行结果（用户返回）
+
+### 3. 工作流程
+1. 用户发送带有工具定义的消息
+2. Claude分析是否需要使用工具
+3. Claude返回包含`tool_use`类型的内容块
+4. 客户端执行对应的工具函数
+5. 客户端将结果作为`tool_result`发送回Claude
+6. Claude基于工具结果生成最终回复
+
+## 结果示例
+```json 200
+{
+  "id": "msg_01234567890",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "我来帮您查询北京的天气情况。"
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01234567890",
+      "name": "get_weather",
+      "input": {
+        "city": "北京",
+        "unit": "celsius"
+      }
+    }
+  ],
+  "model": "claude-3-7-sonnet-20250219",
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 300,
+    "output_tokens": 150
+  }
+}
+```
+
+## 高级特性
+
+### 1. 工具链调用
+Claude可以在一个回复中调用多个工具：
+
+```python
+# Claude可能会同时调用多个工具
+tools_calls = [
+    {"name": "get_weather", "input": {"city": "北京"}},
+    {"name": "get_weather", "input": {"city": "上海"}},
+    {"name": "calculate_math", "input": {"expression": "25*9/5+32"}}
+]
+```
+
+### 2. 条件性工具使用
+Claude会智能判断是否需要使用工具：
+
+```python
+# 不需要工具的查询
+user_message = "你好，请介绍一下自己"
+# Claude会直接回复，不调用任何工具
+
+# 需要工具的查询
+user_message = "北京今天几度？"
+# Claude会调用get_weather工具
+```
+
+### 3. 工具结果验证
+Claude会验证工具返回的结果并进行合理性检查：
+
+```python
+def get_weather(city):
+    if city == "火星":
+        return {"error": "无法获取火星天气信息"}
+    # Claude会理解这个错误并相应地回复用户
+```
+
+## 应用场景
+
+- **实时信息查询**: 天气、股价、新闻等
+- **计算服务**: 数学计算、单位转换、统计分析
+- **数据操作**: 数据库查询、文件操作
+- **外部API集成**: 调用第三方服务
+- **业务流程自动化**: 执行复杂的业务逻辑
+
+## 最佳实践
+
+### 1. 工具设计原则
+- **单一职责**: 每个工具只负责一个明确的功能
+- **清晰描述**: 提供详细的工具和参数描述
+- **错误处理**: 妥善处理各种异常情况
+- **参数验证**: 验证输入参数的有效性
+
+### 2. 安全考虑
+- **输入验证**: 严格验证所有输入参数
+- **权限控制**: 限制工具的执行权限
+- **审计日志**: 记录工具调用的详细信息
+- **资源限制**: 防止资源耗尽攻击
+
+### 3. 性能优化
+- **缓存机制**: 对频繁调用的结果进行缓存
+- **异步处理**: 对耗时操作使用异步执行
+- **超时控制**: 设置合理的超时时间
+- **并发限制**: 控制并发工具调用数量
+
+## 注意事项
+
+1. **API调用成本**: 工具调用需要多次API请求，会增加成本
+2. **响应时间**: 工具执行会增加整体响应时间
+3. **工具可靠性**: 确保工具函数的稳定性和可靠性
+4. **错误传播**: 工具错误会影响整个对话流程
+5. **调试复杂性**: 工具调用链的调试比较复杂

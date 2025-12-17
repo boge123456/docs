@@ -1,0 +1,753 @@
+---
+title: 'Gemini 思考模式示例'
+description: '使用Gemini展示AI逐步分析和推理过程的完整示例代码'
+---
+
+# Gemini 思考模式示例
+
+以下示例展示如何通过精心设计的提示词让Gemini展示其思考过程，进行逐步分析和推理，帮助用户理解AI的分析思路和解题步骤。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "请展示你的完整思考过程来解决这个数学问题：\n\n问题：一个正方形的面积是64平方厘米，求它的周长。\n\n请按照以下步骤思考：\n1. 【问题理解】- 明确问题要求\n2. 【已知信息】- 列出已知条件\n3. 【解题思路】- 确定解题方法\n4. 【计算过程】- 逐步计算\n5. 【验证结果】- 检查答案合理性\n6. 【最终答案】- 给出明确答案\n\n请详细展示每个步骤的思考过程。"
+          }
+        ]
+      }
+    ],
+    "generationConfig": {
+      "maxOutputTokens": 1500,
+      "temperature": 0.3
+    }
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1beta"
+
+def gemini_thinking_mode(problem, thinking_framework=None, temperature=0.3, max_tokens=1500):
+    """
+    使用Gemini进行思考模式分析
+
+    Args:
+        problem: 要解决的问题
+        thinking_framework: 思考框架模板
+        temperature: 生成温度 (建议使用较低值保证逻辑性)
+        max_tokens: 最大输出token数
+    """
+    url = f"{BASE_URL}/models/gemini-2.5-flash:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    if thinking_framework is None:
+        thinking_framework = """请展示你的完整思考过程来解决这个问题。
+
+请按照以下步骤思考：
+1. 【问题理解】- 明确问题要求和背景
+2. 【信息分析】- 分析已知信息和约束条件
+3. 【思路规划】- 确定解决方案和步骤
+4. 【详细推理】- 逐步分析和计算
+5. 【结果验证】- 检查答案的合理性和正确性
+6. 【总结回答】- 给出明确的最终答案
+
+请详细展示每个步骤的思考过程，包括你的推理逻辑。"""
+
+    prompt = f"{thinking_framework}\n\n问题：{problem}"
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": temperature
+        }
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            if 'candidates' in result and len(result['candidates']) > 0:
+                content = result['candidates'][0]['content']
+                if 'parts' in content and len(content['parts']) > 0:
+                    return content['parts'][0]['text']
+                else:
+                    return "没有返回内容"
+            else:
+                return "没有生成候选回答"
+        else:
+            return f"错误: {response.status_code} - {response.text}"
+
+    except Exception as e:
+        return f"请求失败: {e}"
+
+def solve_math_problem():
+    """数学问题求解示例"""
+    problem = """
+    一个圆的面积是78.54平方厘米，求这个圆的周长。
+    (π ≈ 3.14159)
+    """
+
+    thinking_framework = """请展示你完整的数学解题思维过程：
+
+🔍 **问题分析阶段**
+- 理解题目要求
+- 识别已知条件
+- 确定未知量
+
+📐 **数学建模阶段**
+- 选择合适的公式
+- 建立方程关系
+- 确定求解策略
+
+💡 **求解计算阶段**
+- 逐步代入计算
+- 展示每一步骤
+- 注意计算精度
+
+✅ **验证检查阶段**
+- 验证结果合理性
+- 检查单位是否正确
+- 确认答案的准确性
+
+📝 **总结答案阶段**
+- 明确最终答案
+- 说明解题关键点
+
+请详细展示你的数学思维过程。"""
+
+    print("=== 数学问题求解 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = gemini_thinking_mode(problem, thinking_framework)
+    print(result)
+    return result
+
+def logical_reasoning():
+    """逻辑推理示例"""
+    problem = """
+    逻辑推理题：
+    在一个小镇上，有三个理发师：张师傅、李师傅、王师傅。
+    已知：
+    1. 张师傅只给不自己理发的人理发
+    2. 李师傅给所有人理发，包括自己
+    3. 王师傅只给自己理发
+    4. 镇上的人要么给张师傅理发，要么给李师傅理发，要么给王师傅理发
+
+    问题：谁给张师傅理发？
+    """
+
+    thinking_framework = """请展示你的逻辑推理过程：
+
+🎯 **问题理解阶段**
+- 明确题目设定的场景
+- 理解每个条件的含义
+- 确定要回答的问题
+
+🔍 **条件分析阶段**
+- 逐一分析每个已知条件
+- 识别条件间的逻辑关系
+- 发现可能的矛盾或约束
+
+🧩 **推理建构阶段**
+- 尝试不同的假设
+- 运用逻辑规则进行推演
+- 排除不可能的情况
+
+💭 **深度思考阶段**
+- 考虑边界条件和特殊情况
+- 验证推理的一致性
+- 检查是否遗漏重要信息
+
+✨ **结论形成阶段**
+- 整合推理结果
+- 给出明确答案
+- 解释推理依据
+
+请展示你的完整逻辑推理过程。"""
+
+    print("=== 逻辑推理示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = gemini_thinking_mode(problem, thinking_framework)
+    print(result)
+    return result
+
+def strategic_analysis():
+    """战略分析示例"""
+    problem = """
+    商业战略分析：
+    一家初创公司开发了一款AI写作助手应用，现在面临以下选择：
+
+    方案A：专注B2C市场，直接向个人用户收费
+    - 优势：市场规模大，用户付费意愿逐渐提升
+    - 劣势：获客成本高，竞争激烈
+
+    方案B：专注B2B市场，向企业提供服务
+    - 优势：客户粘性强，单客价值高
+    - 劣势：销售周期长，需要定制化开发
+
+    方案C：采用免费+增值模式
+    - 优势：快速获取用户，建立市场地位
+    - 劣势：短期内难以盈利，烧钱压力大
+
+    问题：应该选择哪种策略？请给出详细的分析和建议。
+    """
+
+    thinking_framework = """请展示你的商业分析思维过程：
+
+📊 **市场环境分析**
+- 分析行业现状和趋势
+- 评估竞争格局
+- 识别市场机会和威胁
+
+🎯 **战略选项评估**
+- 逐一分析每个方案的优劣
+- 评估实施的可行性
+- 考虑资源和能力要求
+
+⚖️ **多维度对比**
+- 风险收益分析
+- 短期vs长期效益
+- 资源投入与回报比
+
+🔮 **情景模拟分析**
+- 考虑最好、最坏、最可能的情况
+- 分析外部环境变化的影响
+- 评估战略的适应性和灵活性
+
+💡 **决策建议形成**
+- 综合各方面因素
+- 提出具体的实施建议
+- 制定风险缓解措施
+
+请展示你的完整商业分析思维。"""
+
+    print("=== 战略分析示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = gemini_thinking_mode(problem, thinking_framework, temperature=0.4)
+    print(result)
+    return result
+
+def creative_problem_solving():
+    """创意问题解决示例"""
+    problem = """
+    创意挑战：
+    设计一个智能城市交通系统，解决以下问题：
+    1. 交通拥堵
+    2. 环境污染
+    3. 出行效率低
+    4. 停车难
+    5. 公共交通覆盖不足
+
+    要求：
+    - 充分利用现有技术（AI、IoT、5G等）
+    - 考虑成本效益
+    - 确保系统的可扩展性
+    - 注重用户体验
+    """
+
+    thinking_framework = """请展示你的创意设计思维过程：
+
+🌟 **创意激发阶段**
+- 发散思维，收集所有可能的想法
+- 不限制创意的可行性
+- 从多个角度思考问题
+
+🎯 **问题细化阶段**
+- 深入理解每个具体问题
+- 分析问题的根本原因
+- 识别问题间的关联性
+
+💡 **解决方案构思**
+- 针对每个问题提出多种解决思路
+- 考虑技术实现的可能性
+- 评估方案的创新性和实用性
+
+🔗 **系统集成设计**
+- 将各个解决方案整合为统一系统
+- 确保各部分协调工作
+- 优化整体架构和流程
+
+🚀 **实施路径规划**
+- 制定分阶段实施计划
+- 考虑技术和资源约束
+- 设计评估和迭代机制
+
+请展示你的完整创意设计过程。"""
+
+    print("=== 创意问题解决示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = gemini_thinking_mode(problem, thinking_framework, temperature=0.6)
+    print(result)
+    return result
+
+def scientific_analysis():
+    """科学问题分析示例"""
+    problem = """
+    科学问题：
+    为什么海洋深处的水温即使在热带地区也很低？请从物理学角度解释这一现象，
+    并分析相关的因素和机制。
+
+    提示可考虑的因素：
+    - 太阳辐射
+    - 海水密度
+    - 洋流系统
+    - 热传导
+    - 水的比热容
+    """
+
+    thinking_framework = """请展示你的科学分析思维过程：
+
+🔬 **现象观察阶段**
+- 准确描述观察到的现象
+- 识别需要解释的关键特征
+- 提出初步的疑问
+
+📚 **理论基础回顾**
+- 回顾相关的物理学原理
+- 识别适用的科学定律
+- 建立理论框架
+
+🧪 **机制分析阶段**
+- 分析各个影响因素的作用
+- 解释各种机制的相互作用
+- 建立因果关系链条
+
+🌊 **系统性思考**
+- 考虑系统的整体行为
+- 分析不同尺度的效应
+- 识别主要和次要因素
+
+🎯 **综合解释形成**
+- 整合各个分析结果
+- 形成完整的科学解释
+- 验证解释的合理性
+
+请展示你的完整科学分析过程。"""
+
+    print("=== 科学问题分析示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = gemini_thinking_mode(problem, thinking_framework, temperature=0.2)
+    print(result)
+    return result
+
+def algorithm_design():
+    """算法设计思维示例"""
+    problem = """
+    算法设计问题：
+    设计一个高效的算法来解决以下问题：
+
+    给定一个整数数组，找出其中两个数，使得它们的和等于一个特定的目标值。
+    返回这两个数的索引。
+
+    要求：
+    - 时间复杂度尽可能低
+    - 空间复杂度要考虑
+    - 处理边界情况
+    - 假设每种输入只会对应一个答案
+
+    示例：
+    输入: nums = [2, 7, 11, 15], target = 9
+    输出: [0, 1] (因为 nums[0] + nums[1] = 2 + 7 = 9)
+    """
+
+    thinking_framework = """请展示你的算法设计思维过程：
+
+🎯 **问题理解阶段**
+- 准确理解问题要求
+- 分析输入输出格式
+- 识别约束条件
+
+💭 **思路探索阶段**
+- 考虑多种可能的解决方案
+- 分析每种方案的优劣
+- 评估时间和空间复杂度
+
+⚡ **算法优化阶段**
+- 选择最优的算法策略
+- 考虑具体的实现细节
+- 优化性能瓶颈
+
+🐛 **边界处理阶段**
+- 识别可能的边界情况
+- 设计相应的处理逻辑
+- 确保算法的鲁棒性
+
+📝 **代码实现规划**
+- 设计清晰的算法步骤
+- 考虑代码的可读性
+- 准备测试用例
+
+请展示你的完整算法设计思维。"""
+
+    print("=== 算法设计思维示例 ===")
+    print(f"问题：{problem.strip()}")
+    print("\n" + "="*50)
+
+    result = gemini_thinking_mode(problem, thinking_framework, temperature=0.2)
+    print(result)
+    return result
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== Gemini思考模式示例 ===\n")
+
+    try:
+        # 示例1: 数学问题求解
+        solve_math_problem()
+        print("\n" + "="*70 + "\n")
+
+        # 示例2: 逻辑推理
+        logical_reasoning()
+        print("\n" + "="*70 + "\n")
+
+        # 示例3: 战略分析
+        strategic_analysis()
+        print("\n" + "="*70 + "\n")
+
+        # 示例4: 创意问题解决
+        creative_problem_solving()
+        print("\n" + "="*70 + "\n")
+
+        # 示例5: 科学问题分析
+        scientific_analysis()
+        print("\n" + "="*70 + "\n")
+
+        # 示例6: 算法设计
+        algorithm_design()
+
+    except Exception as e:
+        print(f"程序执行出错: {e}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1beta';
+
+async function geminiThinkingMode(problem, thinkingFramework = null, temperature = 0.3, maxTokens = 1500) {
+    const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+
+    const defaultFramework = `请展示你的完整思考过程来解决这个问题。
+
+请按照以下步骤思考：
+1. 【问题理解】- 明确问题要求和背景
+2. 【信息分析】- 分析已知信息和约束条件
+3. 【思路规划】- 确定解决方案和步骤
+4. 【详细推理】- 逐步分析和计算
+5. 【结果验证】- 检查答案的合理性和正确性
+6. 【总结回答】- 给出明确的最终答案
+
+请详细展示每个步骤的思考过程，包括你的推理逻辑。`;
+
+    const framework = thinkingFramework || defaultFramework;
+    const prompt = `${framework}\n\n问题：${problem}`;
+
+    const data = {
+        contents: [
+            {
+                parts: [
+                    {
+                        text: prompt
+                    }
+                ]
+            }
+        ],
+        generationConfig: {
+            maxOutputTokens: maxTokens,
+            temperature: temperature
+        }
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.candidates && result.candidates.length > 0) {
+                const content = result.candidates[0].content;
+                if (content.parts && content.parts.length > 0) {
+                    return content.parts[0].text;
+                } else {
+                    return '没有返回内容';
+                }
+            } else {
+                return '没有生成候选回答';
+            }
+        } else {
+            return `错误: ${response.status} - ${response.statusText}`;
+        }
+
+    } catch (error) {
+        return `请求失败: ${error.response?.status} - ${error.response?.data || error.message}`;
+    }
+}
+
+async function solveProgrammingProblem() {
+    const problem = `
+    编程思维题：
+    设计一个函数来验证一个字符串是否是有效的括号序列。
+
+    有效括号序列的规则：
+    1. 左括号必须用相同类型的右括号闭合
+    2. 左括号必须以正确的顺序闭合
+    3. 支持三种括号：() [] {}
+
+    示例：
+    输入: "()[]{}" → 输出: true
+    输入: "([)]" → 输出: false
+    输入: "{[]}" → 输出: true
+
+    请设计算法并分析时间复杂度。
+    `;
+
+    const thinkingFramework = `请展示你的编程思维过程：
+
+🎯 **问题分解阶段**
+- 理解括号匹配的本质
+- 识别关键的验证规则
+- 分析输入输出要求
+
+💡 **算法策略思考**
+- 考虑多种可能的解决方案
+- 分析每种方案的适用性
+- 选择最优的数据结构
+
+⚙️ **算法实现设计**
+- 详细设计算法步骤
+- 考虑实现的关键细节
+- 处理各种边界情况
+
+📊 **复杂度分析**
+- 分析时间复杂度
+- 分析空间复杂度
+- 评估算法效率
+
+✅ **测试验证思考**
+- 设计测试用例
+- 验证算法正确性
+- 考虑极端情况
+
+请展示你的完整编程分析过程。`;
+
+    console.log('=== 编程思维示例 ===');
+    console.log(`问题：${problem.trim()}`);
+    console.log('\n' + '='.repeat(50));
+
+    const result = await geminiThinkingMode(problem, thinkingFramework, 0.2);
+    console.log(result);
+    return result;
+}
+
+async function designThinking() {
+    const problem = `
+    设计思维挑战：
+    为老年人设计一款智能手机APP的用户界面，要求：
+
+    用户特点：
+    - 年龄60-80岁
+    - 技术接受能力有限
+    - 视力和手部灵活性下降
+    - 重视与家人的联系
+
+    功能需求：
+    - 通话和视频聊天
+    - 简单的消息发送
+    - 紧急联系功能
+    - 健康提醒
+    - 新闻阅读
+
+    设计约束：
+    - 界面必须简洁易懂
+    - 字体和图标要足够大
+    - 操作步骤要尽可能少
+    - 要有明确的视觉反馈
+
+    请设计这个APP的主要界面和交互方案。
+    `;
+
+    const thinkingFramework = `请展示你的设计思维过程：
+
+👥 **用户研究阶段**
+- 深入分析目标用户群体
+- 理解用户的真实需求和痛点
+- 考虑用户的使用场景
+
+🎨 **设计理念建立**
+- 确定核心设计原则
+- 建立设计语言和风格
+- 平衡功能性和易用性
+
+🖼️ **界面架构设计**
+- 设计信息架构
+- 规划用户操作流程
+- 优化界面布局结构
+
+🔄 **交互设计思考**
+- 设计直观的交互方式
+- 考虑反馈和提示机制
+- 优化操作路径
+
+♿ **无障碍设计考虑**
+- 考虑视觉、听觉、操作上的无障碍需求
+- 设计包容性的用户体验
+- 提供多种交互方式
+
+请展示你的完整设计思维过程。`;
+
+    console.log('=== 设计思维示例 ===');
+    console.log(`问题：${problem.trim()}`);
+    console.log('\n' + '='.repeat(50));
+
+    const result = await geminiThinkingMode(problem, thinkingFramework, 0.5);
+    console.log(result);
+    return result;
+}
+
+async function criticalThinking() {
+    const problem = `
+    批判性思维练习：
+    分析以下论断的合理性：
+
+    "人工智能将在10年内完全取代程序员的工作，因为AI已经能够自动生成代码，而且效率比人类更高。学习编程已经没有意义了，年轻人应该转向其他职业。"
+
+    请从多个角度分析这个观点，既要考虑支持的论据，也要考虑反对的理由。
+    `;
+
+    const thinkingFramework = `请展示你的批判性思维过程：
+
+🔍 **论断解析阶段**
+- 拆解论断的核心观点
+- 识别隐含的假设
+- 理解论证的逻辑结构
+
+⚖️ **支持论据分析**
+- 收集支持该观点的证据
+- 分析论据的强度和可信度
+- 识别论证的合理部分
+
+🛡️ **反对论据探索**
+- 寻找反驳的证据和理由
+- 分析论断的逻辑漏洞
+- 考虑被忽视的重要因素
+
+🌐 **多角度视角**
+- 从技术发展角度分析
+- 从经济社会角度考虑
+- 从人文伦理角度思考
+
+💡 **综合判断形成**
+- 权衡各方面的论据
+- 形成平衡的观点
+- 提出更准确的结论
+
+请展示你的完整批判性思维过程。`;
+
+    console.log('=== 批判性思维示例 ===');
+    console.log(`问题：${problem.trim()}`);
+    console.log('\n' + '='.repeat(50));
+
+    const result = await geminiThinkingMode(problem, thinkingFramework, 0.4);
+    console.log(result);
+    return result;
+}
+
+// 使用示例
+(async () => {
+    try {
+        console.log('=== Gemini思考模式示例 ===\n');
+
+        // 示例1: 编程思维
+        await solveProgrammingProblem();
+        console.log('\n' + '='.repeat(70) + '\n');
+
+        // 示例2: 设计思维
+        await designThinking();
+        console.log('\n' + '='.repeat(70) + '\n');
+
+        // 示例3: 批判性思维
+        await criticalThinking();
+
+    } catch (error) {
+        console.error('程序执行出错:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+## Gemini 3 中的新 API 功能
+
+Gemini 3 引入了新的参数，旨在让开发者更好地控制延迟时间、费用和多模态保真度。
+
+### 思考等级
+
+`thinkingLevel` 参数用于控制模型在生成回答之前进行内部推理过程的最大深度。Gemini 3 将这些级别视为相对的思考许可，而不是严格的令牌保证。如果未指定 `thinkingLevel`，Gemini 3 Pro 将默认为 `HIGH`。
+
+**可用的思考等级：**
+
+- **LOW**：尽可能缩短延迟时间并降低费用。最适合简单的指令遵循、聊天或高吞吐量应用
+- **HIGH**（默认）：最大限度地提高推理深度。模型可能需要更长时间才能生成第一个 token，但输出结果会经过更仔细的推理
+
+<Warning>
+**参数兼容性警告**
+
+您不能在同一请求中同时使用 `thinkingLevel` 和旧版 `thinkingBudget` 参数。这样做会返回 400 错误。
+</Warning>
+
+### 使用示例
+
+```json
+{
+  "contents": [...],
+  "generationConfig": {
+    "thinkingConfig": {
+      "thinkingLevel": "HIGH"
+    },
+    "maxOutputTokens": 1500,
+    "temperature": 0.3
+  }
+}
+```

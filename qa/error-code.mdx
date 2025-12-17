@@ -1,0 +1,26 @@
+---
+title: "错误码"
+description: ""
+sidebarTitle: "错误码"
+icon: "book"
+# tag: "NEW"
+---
+
+### 错误码
+
+|HTTP错误码|错误类型|错误码|错误信息|含义|
+|:---|:---|:---|:---|:---|
+|400|BadRequest|2001|具体的错误信息|LLM宽泛的错误，未具体分类的错误|
+|424|FailedDependency|2002|具体的错误信息|下游模型不可用 5xx|
+|424|FailedDependency|2003|具体的错误信息|下游模型超时|
+|400|BadRequest|2004|具体的错误信息|模型参数错误|
+|400|BadRequest|2005|具体的错误信息|请求参数解析失败|
+|424|FailedDependency|2006|具体的错误信息|响应解析失败|
+|429|TooManyRequests|2007|具体的错误信息|模型RPM限制达到|
+|429|TooManyRequests|2008|具体的错误信息|模型TPM限制达到|
+|401|Unauthorized|2101|The API key in the request is missing or invalid|请求携带的 API Key 校验未通过|
+|403|Forbidden|2102|you do not have access to the requested model|没有权限访问模型|
+|403|Forbidden|2103|your account has an overdue balance|当前账号欠费|
+|400|BadRequest|2104|specified model is not found|模型不存在|
+|500|InternalServerError|2105|internal server error|内部错误，联系tokenops|
+|499|ClientClosedRequest|2106|client closed request|客户端取消|

@@ -1,0 +1,1048 @@
+---
+title: 'Gemini 结构化输出示例'
+description: '使用Gemini API获取JSON格式结构化输出的完整示例代码'
+---
+
+# Gemini 结构化输出示例
+
+以下示例展示如何使用Gemini API的结构化输出功能，通过 `response_schema` 参数确保输出符合指定的JSON Schema格式。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务等"
+          }
+        ]
+      }
+    ],
+    "generationConfig": {
+      "maxOutputTokens": 1000,
+      "temperature": 0.1,
+      "responseMimeType": "application/json",
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "description": "公司名称"
+          },
+          "founded_year": {
+            "type": "integer",
+            "description": "成立年份"
+          },
+          "founders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "创始人列表"
+          },
+          "main_business": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "主要业务领域"
+          },
+          "headquarters": {
+            "type": "string",
+            "description": "总部位置"
+          }
+        },
+        "required": ["company_name", "founded_year", "founders", "main_business", "headquarters"]
+      }
+    }
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1beta"
+
+def gemini_structured_output(prompt, schema, temperature=0.1, max_tokens=1000):
+    """
+    使用Gemini的结构化输出功能
+
+    Args:
+        prompt: 输入提示词
+        schema: JSON Schema定义
+        temperature: 生成温度 (建议使用低温度确保结构稳定)
+        max_tokens: 最大输出token数
+    """
+    url = f"{BASE_URL}/models/gemini-2.5-flash:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": temperature,
+            "responseMimeType": "application/json",
+            "responseSchema": schema
+        }
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            if 'candidates' in result and len(result['candidates']) > 0:
+                content = result['candidates'][0]['content']
+                if 'parts' in content and len(content['parts']) > 0:
+                    # 解析JSON内容
+                    json_text = content['parts'][0]['text']
+                    return json.loads(json_text)
+                else:
+                    return {"error": "没有返回内容"}
+            else:
+                return {"error": "没有生成候选回答"}
+        else:
+            return {"error": f"API错误: {response.status_code} - {response.text}"}
+
+    except json.JSONDecodeError as e:
+        return {"error": f"JSON解析失败: {e}"}
+    except Exception as e:
+        return {"error": f"请求失败: {e}"}
+
+def analyze_company_info():
+    """公司信息分析示例"""
+    prompt = "分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务等"
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "company_name": {
+                "type": "string",
+                "description": "公司名称"
+            },
+            "founded_year": {
+                "type": "integer",
+                "description": "成立年份"
+            },
+            "founders": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "创始人列表"
+            },
+            "main_business": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "主要业务领域"
+            },
+            "headquarters": {
+                "type": "string",
+                "description": "总部位置"
+            },
+            "market_cap_estimate": {
+                "type": "string",
+                "description": "市值估计"
+            },
+            "key_products": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "主要产品"
+            }
+        },
+        "required": ["company_name", "founded_year", "founders", "main_business", "headquarters"]
+    }
+
+    return gemini_structured_output(prompt, schema)
+
+def analyze_movie_review():
+    """电影评论分析示例"""
+    prompt = """分析以下电影评论：
+
+"这部电影的视觉效果令人震撼，特效制作精良，但剧情略显薄弱，人物发展不够深入。演员表现中规中矩，配乐很棒。总的来说是一部值得一看的视觉盛宴，但别期待太深刻的内容。"
+
+请提供详细的结构化分析。"""
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "overall_rating": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "总体评分(1-10分)"
+            },
+            "aspect_ratings": {
+                "type": "object",
+                "properties": {
+                    "visual_effects": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "description": "视觉效果评分"
+                    },
+                    "plot": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "description": "剧情评分"
+                    },
+                    "acting": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "description": "演技评分"
+                    },
+                    "music": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "description": "配乐评分"
+                    }
+                },
+                "required": ["visual_effects", "plot", "acting", "music"]
+            },
+            "positive_aspects": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "积极方面"
+            },
+            "negative_aspects": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "消极方面"
+            },
+            "target_audience": {
+                "type": "string",
+                "description": "目标受众"
+            },
+            "recommendation": {
+                "type": "boolean",
+                "description": "是否推荐观看"
+            },
+            "genre_classification": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["动作", "科幻", "剧情", "喜剧", "爱情", "惊悚", "恐怖", "动画", "纪录片", "其他"]
+                },
+                "description": "电影类型分类"
+            }
+        },
+        "required": ["overall_rating", "aspect_ratings", "positive_aspects", "negative_aspects", "recommendation"]
+    }
+
+    return gemini_structured_output(prompt, schema)
+
+def extract_structured_data():
+    """从文本中提取结构化数据"""
+    prompt = """从以下文本中提取结构化信息：
+
+"张三是一名软件工程师，今年28岁，毕业于清华大学计算机科学与技术专业。他在北京的一家互联网公司工作，年薪35万元。他的联系电话是138-0000-1234，邮箱是zhangsan@example.com。他喜欢编程、阅读和跑步。"
+
+请提取所有相关信息。"""
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "personal_info": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "姓名"
+                    },
+                    "age": {
+                        "type": "integer",
+                        "description": "年龄"
+                    },
+                    "profession": {
+                        "type": "string",
+                        "description": "职业"
+                    }
+                },
+                "required": ["name", "age", "profession"]
+            },
+            "education": {
+                "type": "object",
+                "properties": {
+                    "university": {
+                        "type": "string",
+                        "description": "毕业院校"
+                    },
+                    "major": {
+                        "type": "string",
+                        "description": "专业"
+                    }
+                },
+                "required": ["university", "major"]
+            },
+            "work_info": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "工作地点"
+                    },
+                    "company_type": {
+                        "type": "string",
+                        "description": "公司类型"
+                    },
+                    "salary": {
+                        "type": "string",
+                        "description": "年薪"
+                    }
+                },
+                "required": ["location", "company_type", "salary"]
+            },
+            "contact_info": {
+                "type": "object",
+                "properties": {
+                    "phone": {
+                        "type": "string",
+                        "description": "电话号码"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "邮箱地址"
+                    }
+                },
+                "required": ["phone", "email"]
+            },
+            "hobbies": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "爱好列表"
+            }
+        },
+        "required": ["personal_info", "education", "work_info", "contact_info", "hobbies"]
+    }
+
+    return gemini_structured_output(prompt, schema)
+
+def financial_analysis():
+    """财务数据分析示例"""
+    prompt = """分析以下财务数据：
+
+某公司2023年财务概况：
+- 总收入：1000万元，同比增长15%
+- 总支出：800万元，其中人力成本占40%，运营成本占35%，其他成本占25%
+- 净利润：200万元
+- 员工总数：100人
+- 主要收入来源：产品销售70%，服务收入30%
+
+请提供结构化的财务分析。"""
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "revenue_analysis": {
+                "type": "object",
+                "properties": {
+                    "total_revenue": {
+                        "type": "number",
+                        "description": "总收入(万元)"
+                    },
+                    "growth_rate": {
+                        "type": "number",
+                        "description": "增长率(%)"
+                    },
+                    "revenue_sources": {
+                        "type": "object",
+                        "properties": {
+                            "product_sales": {
+                                "type": "number",
+                                "description": "产品销售占比(%)"
+                            },
+                            "service_revenue": {
+                                "type": "number",
+                                "description": "服务收入占比(%)"
+                            }
+                        },
+                        "required": ["product_sales", "service_revenue"]
+                    }
+                },
+                "required": ["total_revenue", "growth_rate", "revenue_sources"]
+            },
+            "cost_analysis": {
+                "type": "object",
+                "properties": {
+                    "total_expenses": {
+                        "type": "number",
+                        "description": "总支出(万元)"
+                    },
+                    "cost_breakdown": {
+                        "type": "object",
+                        "properties": {
+                            "human_resources": {
+                                "type": "number",
+                                "description": "人力成本占比(%)"
+                            },
+                            "operations": {
+                                "type": "number",
+                                "description": "运营成本占比(%)"
+                            },
+                            "others": {
+                                "type": "number",
+                                "description": "其他成本占比(%)"
+                            }
+                        },
+                        "required": ["human_resources", "operations", "others"]
+                    }
+                },
+                "required": ["total_expenses", "cost_breakdown"]
+            },
+            "profitability": {
+                "type": "object",
+                "properties": {
+                    "net_profit": {
+                        "type": "number",
+                        "description": "净利润(万元)"
+                    },
+                    "profit_margin": {
+                        "type": "number",
+                        "description": "利润率(%)"
+                    },
+                    "profit_per_employee": {
+                        "type": "number",
+                        "description": "人均利润(万元)"
+                    }
+                },
+                "required": ["net_profit", "profit_margin", "profit_per_employee"]
+            },
+            "employee_metrics": {
+                "type": "object",
+                "properties": {
+                    "total_employees": {
+                        "type": "integer",
+                        "description": "员工总数"
+                    },
+                    "revenue_per_employee": {
+                        "type": "number",
+                        "description": "人均收入(万元)"
+                    }
+                },
+                "required": ["total_employees", "revenue_per_employee"]
+            },
+            "financial_health": {
+                "type": "object",
+                "properties": {
+                    "assessment": {
+                        "type": "string",
+                        "enum": ["优秀", "良好", "一般", "需要改进", "较差"],
+                        "description": "财务健康度评估"
+                    },
+                    "key_strengths": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "主要优势"
+                    },
+                    "areas_for_improvement": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "改进建议"
+                    }
+                },
+                "required": ["assessment", "key_strengths", "areas_for_improvement"]
+            }
+        },
+        "required": ["revenue_analysis", "cost_analysis", "profitability", "employee_metrics", "financial_health"]
+    }
+
+    return gemini_structured_output(prompt, schema)
+
+# 使用示例
+if __name__ == "__main__":
+    print("=== Gemini结构化输出示例 ===\n")
+
+    try:
+        # 示例1: 公司信息分析
+        print("1. 公司信息分析:")
+        company_result = analyze_company_info()
+        print(json.dumps(company_result, ensure_ascii=False, indent=2))
+        print("\n" + "="*50 + "\n")
+
+        # 示例2: 电影评论分析
+        print("2. 电影评论分析:")
+        movie_result = analyze_movie_review()
+        print(json.dumps(movie_result, ensure_ascii=False, indent=2))
+        print("\n" + "="*50 + "\n")
+
+        # 示例3: 结构化数据提取
+        print("3. 结构化数据提取:")
+        data_result = extract_structured_data()
+        print(json.dumps(data_result, ensure_ascii=False, indent=2))
+        print("\n" + "="*50 + "\n")
+
+        # 示例4: 财务数据分析
+        print("4. 财务数据分析:")
+        financial_result = financial_analysis()
+        print(json.dumps(financial_result, ensure_ascii=False, indent=2))
+
+    except Exception as e:
+        print(f"程序执行出错: {e}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1beta';
+
+async function geminiStructuredOutput(prompt, schema, temperature = 0.1, maxTokens = 1000) {
+    const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+
+    const data = {
+        contents: [
+            {
+                parts: [
+                    {
+                        text: prompt
+                    }
+                ]
+            }
+        ],
+        generationConfig: {
+            maxOutputTokens: maxTokens,
+            temperature: temperature,
+            responseMimeType: 'application/json',
+            responseSchema: schema
+        }
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.candidates && result.candidates.length > 0) {
+                const content = result.candidates[0].content;
+                if (content.parts && content.parts.length > 0) {
+                    // 解析JSON内容
+                    const jsonText = content.parts[0].text;
+                    return JSON.parse(jsonText);
+                } else {
+                    return { error: '没有返回内容' };
+                }
+            } else {
+                return { error: '没有生成候选回答' };
+            }
+        } else {
+            return { error: `API错误: ${response.status} - ${response.statusText}` };
+        }
+
+    } catch (error) {
+        if (error instanceof SyntaxError) {
+            return { error: `JSON解析失败: ${error.message}` };
+        }
+        return { error: `请求失败: ${error.response?.status} - ${error.response?.data || error.message}` };
+    }
+}
+
+async function analyzeProductReview() {
+    const prompt = `分析这个产品评价：
+
+"这款手机外观设计很时尚，屏幕显示效果不错，拍照功能比较满意。但是电池续航能力一般，充电速度也不够快。系统运行比较流畅，但偶尔会卡顿。总体来说性价比还可以，值得购买。"
+
+请提供详细的结构化分析。`;
+
+    const schema = {
+        type: 'object',
+        properties: {
+            overall_satisfaction: {
+                type: 'number',
+                minimum: 1,
+                maximum: 10,
+                description: '总体满意度(1-10分)'
+            },
+            feature_ratings: {
+                type: 'object',
+                properties: {
+                    design: {
+                        type: 'number',
+                        minimum: 1,
+                        maximum: 10,
+                        description: '外观设计评分'
+                    },
+                    screen: {
+                        type: 'number',
+                        minimum: 1,
+                        maximum: 10,
+                        description: '屏幕显示评分'
+                    },
+                    camera: {
+                        type: 'number',
+                        minimum: 1,
+                        maximum: 10,
+                        description: '拍照功能评分'
+                    },
+                    battery: {
+                        type: 'number',
+                        minimum: 1,
+                        maximum: 10,
+                        description: '电池续航评分'
+                    },
+                    performance: {
+                        type: 'number',
+                        minimum: 1,
+                        maximum: 10,
+                        description: '系统性能评分'
+                    }
+                },
+                required: ['design', 'screen', 'camera', 'battery', 'performance']
+            },
+            sentiment_analysis: {
+                type: 'object',
+                properties: {
+                    positive_mentions: {
+                        type: 'array',
+                        items: {
+                            type: 'string'
+                        },
+                        description: '积极评价点'
+                    },
+                    negative_mentions: {
+                        type: 'array',
+                        items: {
+                            type: 'string'
+                        },
+                        description: '消极评价点'
+                    },
+                    neutral_mentions: {
+                        type: 'array',
+                        items: {
+                            type: 'string'
+                        },
+                        description: '中性评价点'
+                    }
+                },
+                required: ['positive_mentions', 'negative_mentions']
+            },
+            purchase_decision: {
+                type: 'object',
+                properties: {
+                    recommended: {
+                        type: 'boolean',
+                        description: '是否推荐购买'
+                    },
+                    target_users: {
+                        type: 'array',
+                        items: {
+                            type: 'string'
+                        },
+                        description: '适合的用户群体'
+                    },
+                    value_assessment: {
+                        type: 'string',
+                        enum: ['超值', '合理', '偏贵', '不值'],
+                        description: '性价比评估'
+                    }
+                },
+                required: ['recommended', 'target_users', 'value_assessment']
+            }
+        },
+        required: ['overall_satisfaction', 'feature_ratings', 'sentiment_analysis', 'purchase_decision']
+    };
+
+    return await geminiStructuredOutput(prompt, schema);
+}
+
+async function extractEventInfo() {
+    const prompt = `从以下文本中提取活动信息：
+
+"TokenOPS.AI技术分享会将于2024年10月15日下午2点在北京朝阳区望京SOHO T3座16层举行。本次活动主题是'AI时代的开发者机遇'，将邀请来自腾讯、字节跳动、百度等公司的技术专家分享经验。活动免费参加，但需要提前报名，报名截止时间为10月12日。联系人：李小明，电话：010-12345678，邮箱：contact@tokenops.ai"
+
+请提取所有相关信息。`;
+
+    const schema = {
+        type: 'object',
+        properties: {
+            event_basic_info: {
+                type: 'object',
+                properties: {
+                    name: {
+                        type: 'string',
+                        description: '活动名称'
+                    },
+                    theme: {
+                        type: 'string',
+                        description: '活动主题'
+                    },
+                    type: {
+                        type: 'string',
+                        description: '活动类型'
+                    }
+                },
+                required: ['name', 'theme', 'type']
+            },
+            schedule: {
+                type: 'object',
+                properties: {
+                    date: {
+                        type: 'string',
+                        description: '活动日期'
+                    },
+                    time: {
+                        type: 'string',
+                        description: '活动时间'
+                    },
+                    registration_deadline: {
+                        type: 'string',
+                        description: '报名截止时间'
+                    }
+                },
+                required: ['date', 'time', 'registration_deadline']
+            },
+            location: {
+                type: 'object',
+                properties: {
+                    city: {
+                        type: 'string',
+                        description: '城市'
+                    },
+                    district: {
+                        type: 'string',
+                        description: '区域'
+                    },
+                    venue: {
+                        type: 'string',
+                        description: '具体地点'
+                    },
+                    floor: {
+                        type: 'string',
+                        description: '楼层'
+                    }
+                },
+                required: ['city', 'district', 'venue']
+            },
+            speakers: {
+                type: 'object',
+                properties: {
+                    companies: {
+                        type: 'array',
+                        items: {
+                            type: 'string'
+                        },
+                        description: '演讲者所在公司'
+                    },
+                    expertise: {
+                        type: 'string',
+                        description: '专业领域'
+                    }
+                },
+                required: ['companies']
+            },
+            registration: {
+                type: 'object',
+                properties: {
+                    is_free: {
+                        type: 'boolean',
+                        description: '是否免费'
+                    },
+                    requires_registration: {
+                        type: 'boolean',
+                        description: '是否需要报名'
+                    }
+                },
+                required: ['is_free', 'requires_registration']
+            },
+            contact_info: {
+                type: 'object',
+                properties: {
+                    contact_person: {
+                        type: 'string',
+                        description: '联系人'
+                    },
+                    phone: {
+                        type: 'string',
+                        description: '联系电话'
+                    },
+                    email: {
+                        type: 'string',
+                        description: '联系邮箱'
+                    }
+                },
+                required: ['contact_person', 'phone', 'email']
+            }
+        },
+        required: ['event_basic_info', 'schedule', 'location', 'speakers', 'registration', 'contact_info']
+    };
+
+    return await geminiStructuredOutput(prompt, schema);
+}
+
+// 使用示例
+(async () => {
+    try {
+        console.log('=== Gemini结构化输出示例 ===\n');
+
+        // 示例1: 产品评价分析
+        console.log('1. 产品评价分析:');
+        const reviewResult = await analyzeProductReview();
+        console.log(JSON.stringify(reviewResult, null, 2));
+        console.log('\n' + '='.repeat(50) + '\n');
+
+        // 示例2: 活动信息提取
+        console.log('2. 活动信息提取:');
+        const eventResult = await extractEventInfo();
+        console.log(JSON.stringify(eventResult, null, 2));
+
+    } catch (error) {
+        console.error('程序执行出错:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+## Gemini结构化输出的特点
+
+### 1. 原生支持JSON Schema
+Gemini通过 `responseSchema` 参数原生支持JSON Schema验证：
+- **严格遵循**: 输出严格遵循指定的schema结构
+- **类型验证**: 自动验证数据类型和格式
+- **必填字段**: 确保required字段不会缺失
+
+### 2. 配置参数
+```json
+{
+  "generationConfig": {
+    "responseMimeType": "application/json",
+    "responseSchema": {
+      "type": "object",
+      "properties": { ... },
+      "required": [ ... ]
+    },
+    "temperature": 0.1
+  }
+}
+```
+
+### 3. Schema支持的特性
+- **基本类型**: string, number, integer, boolean, array, object
+- **约束条件**: minimum, maximum, enum, items等
+- **嵌套结构**: 支持复杂的嵌套对象和数组
+- **必填验证**: required字段自动验证
+
+## 结果示例
+```json 200
+{
+  "sdkHttpResponse": {
+    "headers": {
+      "Alt-Svc": [
+        "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000"
+      ],
+      "Content-Type": [
+        "application/json; charset=UTF-8"
+      ],
+      "Date": [
+        "Sun, 26 Oct 2025 12:39:00 GMT"
+      ],
+      "Server": [
+        "scaffolding on HTTPServer2"
+      ],
+      "Vary": [
+        "Origin",
+        "X-Origin",
+        "Referer"
+      ],
+      "X-Content-Type-Options": [
+        "nosniff"
+      ],
+      "X-Frame-Options": [
+        "SAMEORIGIN"
+      ],
+      "X-Xss-Protection": [
+        "0"
+      ]
+    }
+  },
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"company_name\":\"Apple Inc.\",\"founded_year\":1976,\"founders\":[\"Steve Jobs\",\"Steve Wozniak\",\"Ronald Wayne\"],\"main_business\":[\"Consumer Electronics\",\"Software\",\"Online Services\"],\"headquarters\":\"Cupertino, California, United States\"}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "avgLogprobs": -0.12912105662482126
+    }
+  ],
+  "createTime": "2025-10-26T12:38:59.637958Z",
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "fe4a5ffaf1524b37876a84f8686830ad",
+  "usageMetadata": {
+    "candidatesTokenCount": 56,
+    "candidatesTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 56
+      }
+    ],
+    "promptTokenCount": 61,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 61
+      }
+    ],
+    "thoughtsTokenCount": 108,
+    "totalTokenCount": 225,
+    "trafficType": "ON_DEMAND"
+  }
+}
+```
+
+## 高级Schema示例
+
+### 1. 复杂嵌套结构
+```json
+{
+  "type": "object",
+  "properties": {
+    "user_profile": {
+      "type": "object",
+      "properties": {
+        "personal_info": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "age": { "type": "integer", "minimum": 0, "maximum": 120 },
+            "location": {
+              "type": "object",
+              "properties": {
+                "country": { "type": "string" },
+                "city": { "type": "string" }
+              }
+            }
+          }
+        },
+        "preferences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "category": { "type": "string" },
+              "rating": { "type": "number", "minimum": 1, "maximum": 5 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### 2. 枚举值约束
+```json
+{
+  "type": "object",
+  "properties": {
+    "sentiment": {
+      "type": "string",
+      "enum": ["positive", "negative", "neutral"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["technology", "business", "science", "entertainment"]
+      }
+    }
+  }
+}
+```
+
+## 应用场景
+
+### 数据提取和整理
+- **文档解析**: 从非结构化文档中提取结构化信息
+- **表单填充**: 自动填充复杂的结构化表单
+- **数据标准化**: 将不同格式的数据统一为标准结构
+
+### 分析和评估
+- **情感分析**: 提供量化的情感分析结果
+- **产品评价**: 结构化分析用户反馈和评价
+- **市场调研**: 从调研数据中提取结构化洞察
+
+### 业务应用
+- **CRM系统**: 从客户沟通中提取关键信息
+- **报告生成**: 自动生成结构化的业务报告
+- **质量控制**: 确保AI输出符合业务规范
+
+## 最佳实践
+
+### 1. Schema设计原则
+- **简洁明确**: 避免过于复杂的嵌套结构
+- **类型明确**: 为每个字段指定准确的类型
+- **约束合理**: 设置合理的取值范围和枚举值
+- **描述清晰**: 为每个字段提供清晰的描述
+
+### 2. 性能优化
+- **低温度**: 使用较低的temperature (0.1-0.3) 确保结构稳定
+- **合理长度**: 避免过长的输出，合理设置maxOutputTokens
+- **字段验证**: 在客户端验证返回的JSON结构
+
+### 3. 错误处理
+- **JSON解析**: 妥善处理JSON解析异常
+- **Schema验证**: 验证返回数据是否符合预期schema
+- **降级处理**: 提供schema验证失败时的降级策略
+
+## 注意事项
+
+1. **Schema复杂度**: 过于复杂的schema可能影响生成质量
+2. **必填字段**: required字段过多可能导致生成困难
+3. **数据类型**: 确保schema中的类型定义准确
+4. **约束条件**: 约束条件要合理，避免无法满足的限制
+5. **温度设置**: 建议使用低温度以确保结构化输出的稳定性
+6. **Token限制**: 复杂结构可能需要更多token，注意设置合理的限制

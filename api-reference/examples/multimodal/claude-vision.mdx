@@ -1,0 +1,637 @@
+---
+title: 'Claude 多模态对话示例'
+description: '使用Claude进行图片理解和多模态对话的完整示例代码'
+---
+
+# Claude 多模态对话示例
+
+以下示例展示如何使用Claude的多模态功能，让AI理解和分析图片内容，进行图文结合的智能对话。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/messages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-3-7-sonnet-20250219",
+    "max_tokens": 1024,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "这张图片里有什么？请详细描述一下。"
+          },
+          {
+            "type": "image",
+            "source": {
+              "type": "base64",
+              "media_type": "image/jpeg",
+              "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            }
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+import base64
+import json
+from PIL import Image
+import io
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def encode_image_to_base64(image_path):
+    """将本地图片编码为base64格式"""
+    try:
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+    except Exception as e:
+        raise Exception(f"图片编码失败: {e}")
+
+def get_image_media_type(image_path):
+    """获取图片的MIME类型"""
+    extension = image_path.lower().split('.')[-1]
+    media_types = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'webp': 'image/webp'
+    }
+    return media_types.get(extension, 'image/jpeg')
+
+def claude_vision_chat(text_prompt, image_path=None, image_base64=None, media_type=None):
+    """
+    与Claude进行多模态对话
+
+    Args:
+        text_prompt: 文本提示
+        image_path: 本地图片路径
+        image_base64: base64编码的图片数据
+        media_type: 图片MIME类型
+    """
+    url = f"{BASE_URL}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+        "anthropic-version": "2023-06-01"
+    }
+
+    # 构建消息内容
+    content = [
+        {
+            "type": "text",
+            "text": text_prompt
+        }
+    ]
+
+    # 添加图片内容
+    if image_path:
+        image_base64 = encode_image_to_base64(image_path)
+        media_type = get_image_media_type(image_path)
+
+    if image_base64:
+        if not media_type:
+            media_type = "image/jpeg"
+
+        content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": image_base64
+            }
+        })
+
+    data = {
+        "model": "claude-3-7-sonnet-20250219",
+        "max_tokens": 1024,
+        "messages": [
+            {
+                "role": "user",
+                "content": content
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            return result['content'][0]['text']
+        else:
+            return f"错误: {response.status_code} - {response.text}"
+
+    except Exception as e:
+        return f"请求失败: {e}"
+
+def analyze_image_content(image_path):
+    """分析图片内容的详细信息"""
+    prompt = """请详细分析这张图片，包括：
+
+1. **主要内容**: 图片中的主要对象和场景
+2. **视觉元素**: 颜色、构图、光影等
+3. **背景环境**: 场景设置和环境特点
+4. **人物/对象**: 如果有人物或特殊对象，请描述其特征
+5. **情感氛围**: 图片传达的情感或氛围
+6. **技术特点**: 拍摄角度、风格等
+
+请用中文回答，内容要详细且有条理。"""
+
+    return claude_vision_chat(prompt, image_path=image_path)
+
+def extract_text_from_image(image_path):
+    """从图片中提取文字内容 (OCR)"""
+    prompt = """请仔细观察这张图片，提取其中的所有文字内容。
+
+要求：
+1. 按从上到下、从左到右的顺序提取文字
+2. 保持原有的格式和结构
+3. 如果是表格，请用表格格式整理
+4. 如果有多种语言，请分别标注语言类型
+5. 如果文字不清晰，请标注"模糊"或"不清晰"
+
+请直接输出提取到的文字内容。"""
+
+    return claude_vision_chat(prompt, image_path=image_path)
+
+def compare_images(image1_path, image2_path):
+    """比较两张图片的异同"""
+    # 读取两张图片
+    image1_base64 = encode_image_to_base64(image1_path)
+    image2_base64 = encode_image_to_base64(image2_path)
+
+    url = f"{BASE_URL}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+        "anthropic-version": "2023-06-01"
+    }
+
+    content = [
+        {
+            "type": "text",
+            "text": """请比较这两张图片，分析它们的相似点和不同点：
+
+**比较维度：**
+1. **内容对比**: 主要对象和场景的异同
+2. **构图对比**: 布局、角度、比例的差异
+3. **色彩对比**: 颜色搭配、明暗对比的区别
+4. **风格对比**: 拍摄风格、处理效果的不同
+5. **质量对比**: 清晰度、分辨率等技术指标
+6. **用途建议**: 分别适合什么场合使用
+
+请详细分析并给出结论。"""
+        },
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": get_image_media_type(image1_path),
+                "data": image1_base64
+            }
+        },
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": get_image_media_type(image2_path),
+                "data": image2_base64
+            }
+        }
+    ]
+
+    data = {
+        "model": "claude-3-7-sonnet-20250219",
+        "max_tokens": 1024,
+        "messages": [
+            {
+                "role": "user",
+                "content": content
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            return result['content'][0]['text']
+        else:
+            return f"错误: {response.status_code} - {response.text}"
+
+    except Exception as e:
+        return f"请求失败: {e}"
+
+def generate_image_caption(image_path, style="detailed"):
+    """为图片生成标题或描述"""
+    style_prompts = {
+        "simple": "请为这张图片生成一个简洁的标题（不超过10个字）。",
+        "detailed": "请为这张图片生成一个详细的描述性标题（20-30字），要生动形象。",
+        "poetic": "请为这张图片创作一句诗意的描述，要有美感和意境。",
+        "technical": "请从摄影技术角度为这张图片写一段专业的描述。"
+    }
+
+    prompt = style_prompts.get(style, style_prompts["detailed"])
+    return claude_vision_chat(prompt, image_path=image_path)
+
+def ask_about_image(image_path, question):
+    """针对图片内容回答特定问题"""
+    prompt = f"关于这张图片，我想问：{question}\n\n请基于图片内容详细回答这个问题。"
+    return claude_vision_chat(prompt, image_path=image_path)
+
+# 使用示例
+if __name__ == "__main__":
+    # 替换为你的图片路径
+    sample_image = "sample_photo.jpg"
+
+    print("=== Claude多模态对话示例 ===\n")
+
+    try:
+        # 示例1: 基础图片分析
+        print("1. 图片内容分析:")
+        analysis = analyze_image_content(sample_image)
+        print(analysis)
+        print("\n" + "="*50 + "\n")
+
+        # 示例2: 文字提取
+        print("2. 文字提取 (OCR):")
+        text_content = extract_text_from_image(sample_image)
+        print(text_content)
+        print("\n" + "="*50 + "\n")
+
+        # 示例3: 生成标题
+        print("3. 生成图片标题:")
+        caption = generate_image_caption(sample_image, style="detailed")
+        print(f"详细标题: {caption}")
+
+        simple_caption = generate_image_caption(sample_image, style="simple")
+        print(f"简洁标题: {simple_caption}")
+        print("\n" + "="*50 + "\n")
+
+        # 示例4: 问答交互
+        print("4. 图片问答:")
+        questions = [
+            "这张图片的主色调是什么？",
+            "图片中有几个人？",
+            "这是在什么地方拍摄的？",
+            "图片的情感氛围如何？"
+        ]
+
+        for question in questions:
+            answer = ask_about_image(sample_image, question)
+            print(f"问: {question}")
+            print(f"答: {answer}\n")
+
+        # 示例5: 图片比较（如果有第二张图片）
+        second_image = "sample_photo2.jpg"
+        try:
+            print("5. 图片比较:")
+            comparison = compare_images(sample_image, second_image)
+            print(comparison)
+        except:
+            print("5. 图片比较: 需要第二张图片才能进行比较")
+
+    except FileNotFoundError:
+        print(f"请确保图片文件 '{sample_image}' 存在")
+        print("\n支持的图片格式: JPEG, PNG, GIF, WebP")
+        print("推荐图片大小: 小于20MB")
+
+    except Exception as e:
+        print(f"程序执行出错: {e}")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+function encodeImageToBase64(imagePath) {
+    try {
+        const imageBuffer = fs.readFileSync(imagePath);
+        return imageBuffer.toString('base64');
+    } catch (error) {
+        throw new Error(`图片编码失败: ${error.message}`);
+    }
+}
+
+function getImageMediaType(imagePath) {
+    const extension = path.extname(imagePath).toLowerCase();
+    const mediaTypes = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp'
+    };
+    return mediaTypes[extension] || 'image/jpeg';
+}
+
+async function claudeVisionChat(textPrompt, imagePath = null, imageBase64 = null, mediaType = null) {
+    const url = `${BASE_URL}/messages`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        'anthropic-version': '2023-06-01'
+    };
+
+    // 构建消息内容
+    const content = [
+        {
+            type: 'text',
+            text: textPrompt
+        }
+    ];
+
+    // 添加图片内容
+    if (imagePath) {
+        imageBase64 = encodeImageToBase64(imagePath);
+        mediaType = getImageMediaType(imagePath);
+    }
+
+    if (imageBase64) {
+        if (!mediaType) {
+            mediaType = 'image/jpeg';
+        }
+
+        content.push({
+            type: 'image',
+            source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: imageBase64
+            }
+        });
+    }
+
+    const data = {
+        model: 'claude-3-7-sonnet-20250219',
+        max_tokens: 1024,
+        messages: [
+            {
+                role: 'user',
+                content: content
+            }
+        ]
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+
+        if (response.status === 200) {
+            return response.data.content[0].text;
+        } else {
+            return `错误: ${response.status} - ${response.statusText}`;
+        }
+
+    } catch (error) {
+        return `请求失败: ${error.response?.status} - ${error.response?.data || error.message}`;
+    }
+}
+
+async function analyzeImageContent(imagePath) {
+    const prompt = `请详细分析这张图片，包括：
+
+1. **主要内容**: 图片中的主要对象和场景
+2. **视觉元素**: 颜色、构图、光影等
+3. **背景环境**: 场景设置和环境特点
+4. **人物/对象**: 如果有人物或特殊对象，请描述其特征
+5. **情感氛围**: 图片传达的情感或氛围
+6. **技术特点**: 拍摄角度、风格等
+
+请用中文回答，内容要详细且有条理。`;
+
+    return await claudeVisionChat(prompt, imagePath);
+}
+
+async function extractTextFromImage(imagePath) {
+    const prompt = `请仔细观察这张图片，提取其中的所有文字内容。
+
+要求：
+1. 按从上到下、从左到右的顺序提取文字
+2. 保持原有的格式和结构
+3. 如果是表格，请用表格格式整理
+4. 如果有多种语言，请分别标注语言类型
+5. 如果文字不清晰，请标注"模糊"或"不清晰"
+
+请直接输出提取到的文字内容。`;
+
+    return await claudeVisionChat(prompt, imagePath);
+}
+
+async function generateImageCaption(imagePath, style = 'detailed') {
+    const stylePrompts = {
+        simple: '请为这张图片生成一个简洁的标题（不超过10个字）。',
+        detailed: '请为这张图片生成一个详细的描述性标题（20-30字），要生动形象。',
+        poetic: '请为这张图片创作一句诗意的描述，要有美感和意境。',
+        technical: '请从摄影技术角度为这张图片写一段专业的描述。'
+    };
+
+    const prompt = stylePrompts[style] || stylePrompts.detailed;
+    return await claudeVisionChat(prompt, imagePath);
+}
+
+async function askAboutImage(imagePath, question) {
+    const prompt = `关于这张图片，我想问：${question}\n\n请基于图片内容详细回答这个问题。`;
+    return await claudeVisionChat(prompt, imagePath);
+}
+
+// 使用示例
+(async () => {
+    try {
+        const sampleImage = 'sample_photo.jpg';
+
+        console.log('=== Claude多模态对话示例 ===\n');
+
+        // 检查图片文件是否存在
+        if (!fs.existsSync(sampleImage)) {
+            console.log(`请确保图片文件 '${sampleImage}' 存在`);
+            console.log('\n支持的图片格式: JPEG, PNG, GIF, WebP');
+            console.log('推荐图片大小: 小于20MB');
+            return;
+        }
+
+        // 示例1: 基础图片分析
+        console.log('1. 图片内容分析:');
+        const analysis = await analyzeImageContent(sampleImage);
+        console.log(analysis);
+        console.log('\n' + '='.repeat(50) + '\n');
+
+        // 示例2: 文字提取
+        console.log('2. 文字提取 (OCR):');
+        const textContent = await extractTextFromImage(sampleImage);
+        console.log(textContent);
+        console.log('\n' + '='.repeat(50) + '\n');
+
+        // 示例3: 生成标题
+        console.log('3. 生成图片标题:');
+        const caption = await generateImageCaption(sampleImage, 'detailed');
+        console.log(`详细标题: ${caption}`);
+
+        const simpleCaption = await generateImageCaption(sampleImage, 'simple');
+        console.log(`简洁标题: ${simpleCaption}`);
+        console.log('\n' + '='.repeat(50) + '\n');
+
+        // 示例4: 问答交互
+        console.log('4. 图片问答:');
+        const questions = [
+            '这张图片的主色调是什么？',
+            '图片中有几个人？',
+            '这是在什么地方拍摄的？',
+            '图片的情感氛围如何？'
+        ];
+
+        for (const question of questions) {
+            const answer = await askAboutImage(sampleImage, question);
+            console.log(`问: ${question}`);
+            console.log(`答: ${answer}\n`);
+        }
+
+    } catch (error) {
+        console.error('程序执行出错:', error.message);
+    }
+})();
+```
+
+</CodeGroup>
+
+## Claude多模态功能特点
+
+### 1. 支持的图片格式
+- **JPEG/JPG**: 最常用的图片格式
+- **PNG**: 支持透明背景
+- **GIF**: 静态GIF图片
+- **WebP**: 现代图片格式，文件更小
+
+### 2. 图片大小限制
+- **最大文件大小**: 20MB
+- **推荐大小**: 5MB以下以获得更好的处理速度
+- **分辨率**: 支持高分辨率图片，但会自动调整以优化处理
+
+### 3. 分析能力
+- **对象识别**: 识别图片中的人、动物、物体等
+- **场景理解**: 理解图片的环境和背景
+- **文字识别**: 提取图片中的文字内容 (OCR)
+- **情感分析**: 分析图片传达的情感和氛围
+- **技术分析**: 评估构图、光影、色彩等技术要素
+
+## 消息格式说明
+
+### 文本和图片组合
+```json
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "text",
+      "text": "请分析这张图片"
+    },
+    {
+      "type": "image",
+      "source": {
+        "type": "base64",
+        "media_type": "image/jpeg",
+        "data": "base64编码的图片数据"
+      }
+    }
+  ]
+}
+```
+
+### 多张图片对比
+```json
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "text",
+      "text": "请比较这两张图片"
+    },
+    {
+      "type": "image",
+      "source": {
+        "type": "base64",
+        "media_type": "image/jpeg",
+        "data": "第一张图片的base64数据"
+      }
+    },
+    {
+      "type": "image",
+      "source": {
+        "type": "base64",
+        "media_type": "image/png",
+        "data": "第二张图片的base64数据"
+      }
+    }
+  ]
+}
+```
+
+## 应用场景
+
+### 内容创作
+- **图片描述**: 为图片生成标题和描述
+- **社交媒体**: 创建有吸引力的文案
+- **博客写作**: 根据图片内容创作文章
+
+### 商业应用
+- **产品分析**: 分析产品图片的特点
+- **品牌监控**: 识别品牌元素和标识
+- **市场调研**: 分析竞品图片内容
+
+### 教育培训
+- **学习辅助**: 解释图表、公式、示意图
+- **作业检查**: 分析学生提交的图片作业
+- **知识问答**: 基于图片内容回答问题
+
+### 技术应用
+- **文档数字化**: 提取纸质文档的文字内容
+- **数据录入**: 从图片中提取结构化信息
+- **质量检测**: 分析产品图片的质量问题
+
+## 最佳实践
+
+### 1. 图片质量优化
+- **清晰度**: 确保图片清晰，避免模糊
+- **光线**: 保持良好的光线条件
+- **角度**: 选择合适的拍摄角度
+- **背景**: 避免复杂的背景干扰
+
+### 2. 提示词设计
+- **具体明确**: 提出具体的问题和要求
+- **结构化**: 使用编号或标题组织问题
+- **上下文**: 提供必要的背景信息
+- **格式要求**: 明确指定输出格式
+
+### 3. 性能优化
+- **图片压缩**: 适当压缩图片以提高传输速度
+- **批量处理**: 合理安排批量图片分析的时间
+- **缓存结果**: 对重复分析的图片进行结果缓存
+
+## 注意事项
+
+1. **隐私保护**: 不要上传包含个人隐私信息的图片
+2. **内容合规**: 确保图片内容符合使用政策
+3. **网络稳定**: 大文件上传需要稳定的网络连接
+4. **费用控制**: 多模态功能的费用通常高于纯文本
+5. **准确性**: AI分析结果可能存在误差，重要信息需人工验证

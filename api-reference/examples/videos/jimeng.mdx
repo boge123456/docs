@@ -1,0 +1,975 @@
+---
+title: '即梦视频生成示例'
+description: '调用即梦视频生成模型的完整示例代码'
+---
+
+# 即梦视频生成示例
+
+以下示例展示如何使用即梦（Jimeng）视频生成模型通过 OpenAI 兼容接口生成高质量的视频内容。
+
+即梦视频生成分为三个步骤：
+1. **创建视频生成任务** - 提交生成请求，获得任务ID
+2. **查询任务状态** - 定期检查任务进度
+3. **下载生成的视频** - 任务完成后下载视频文件
+
+## 步骤1：创建视频生成任务
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "jimeng-video-3.0-pro",
+    "prompt": "千军万马奔腾在草原上，阳光明媚，高清画质",
+    "req_key": "jimeng_ti2v_v30_pro",
+    "seed": -1,
+    "frames": 121,
+    "aspect_ratio": "16:9"
+  }'
+```
+
+```python Python
+import requests
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def create_jimeng_video(prompt, model="jimeng_ti2v_v30_pro", **kwargs):
+    """
+    创建即梦视频生成任务
+    
+    Args:
+        prompt: 视频描述文本
+        model: 使用的模型名称
+        **kwargs: 其他参数（seed, frames, aspect_ratio, image_urls）
+    
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # 构建请求数据
+    data = {
+        "model": model,
+        "prompt": prompt
+    }
+    
+    # 添加即梦特有参数
+    for key in ["req_key", "seed", "frames", "aspect_ratio", "image_urls"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+    
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"即梦视频生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 示例：创建任务
+result = create_jimeng_video(
+    prompt="千军万马奔腾在草原上，阳光明媚，高清画质",
+    req_key="jimeng_ti2v_v30_pro",
+    seed=-1,
+    frames=121,
+    aspect_ratio="16:9"
+)
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function createJimengVideo(prompt, model = 'jimeng_ti2v_v30_pro', options = {}) {
+    const url = `${BASE_URL}/videos`;
+    
+    const data = {
+        model: model,
+        prompt: prompt,
+        ...options
+    };
+    
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('即梦视频生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+        
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 示例：创建任务
+const result = await createJimengVideo(
+    '千军万马奔腾在草原上，阳光明媚，高清画质',
+    'jimeng_ti2v_v30_pro',
+    {
+        req_key: 'jimeng_ti2v_v30_pro',
+        seed: -1,
+        frames: 121,
+        aspect_ratio: '16:9'
+    }
+);
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type JimengVideoRequest struct {
+    Model       string   `json:"model"`
+    Prompt      string   `json:"prompt"`
+    ReqKey      string   `json:"req_key,omitempty"`
+    Seed        int      `json:"seed,omitempty"`
+    Frames      int      `json:"frames,omitempty"`
+    AspectRatio string   `json:"aspect_ratio,omitempty"`
+    ImageUrls   []string `json:"image_urls,omitempty"`
+}
+
+type JimengVideoResponse struct {
+    ID        string `json:"id"`
+    Object    string `json:"object"`
+    CreatedAt int64  `json:"created_at"`
+    Status    string `json:"status"`
+}
+
+func createJimengVideo(prompt string, options JimengVideoRequest) (*JimengVideoResponse, error) {
+    url := fmt.Sprintf("%s/videos", BaseURL)
+    
+    options.Prompt = prompt
+    if options.Model == "" {
+        options.Model = "jimeng_ti2v_v30_pro"
+    }
+    
+    jsonData, err := json.Marshal(options)
+    if err != nil {
+        return nil, fmt.Errorf("JSON序列化失败: %v", err)
+    }
+    
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return nil, fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    req.Header.Set("Content-Type", "application/json")
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    responseBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("读取响应失败: %v", err)
+    }
+    
+    if resp.StatusCode != 200 {
+        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+    }
+    
+    var result JimengVideoResponse
+    if err := json.Unmarshal(responseBody, &result); err != nil {
+        return nil, fmt.Errorf("解析响应失败: %v", err)
+    }
+    
+    fmt.Printf("即梦视频生成任务已创建\n")
+    fmt.Printf("任务ID: %s\n", result.ID)
+    fmt.Printf("状态: %s\n", result.Status)
+    
+    return &result, nil
+}
+
+// 示例：创建任务
+func main() {
+    result, err := createJimengVideo("千军万马奔腾在草原上，阳光明媚，高清画质", JimengVideoRequest{
+        ReqKey:      "jimeng_ti2v_v30_pro",
+        Seed:        -1,
+        Frames:      121,
+        AspectRatio: "16:9",
+    })
+    if err != nil {
+        fmt.Printf("任务创建失败: %v\n", err)
+        return
+    }
+    fmt.Printf("任务创建成功: %+v\n", result)
+}
+```
+
+</CodeGroup>
+
+### 响应示例
+
+```json
+{
+  "id": "10762451179911711518",
+  "object": "video", 
+  "created_at": 1762776961,
+  "status": "in_queue"
+}
+```
+
+## 步骤2：查询任务状态
+
+<CodeGroup>
+
+```bash cURL
+# 查询任务状态
+curl -X GET "https://api.tokenops.ai/v1/videos/10762451179911711518" \
+  --header 'Authorization: Bearer <API-KEY>'
+```
+
+```python Python
+def check_video_status(video_id):
+    """
+    检查视频生成状态
+    
+    Args:
+        video_id: 视频任务ID
+        
+    Returns:
+        任务状态信息
+    """
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"任务状态: {result.get('status')}")
+            return result
+        else:
+            print(f"查询失败: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 示例：查询状态
+video_id = "10762451179911711518"
+status_info = check_video_status(video_id)
+```
+
+```javascript JavaScript/Node.js
+async function checkVideoStatus(videoId) {
+    const url = `${BASE_URL}/videos/${videoId}`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            }
+        });
+        
+        console.log(`任务状态: ${response.data.status}`);
+        return response.data;
+    } catch (error) {
+        console.error('状态查询失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 示例：查询状态
+const videoId = '10762451179911711518';
+const statusInfo = await checkVideoStatus(videoId);
+```
+
+```go Go
+func checkVideoStatus(videoID string) (*JimengVideoResponse, error) {
+    url := fmt.Sprintf("%s/videos/%s", BaseURL, videoID)
+    
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return nil, fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    responseBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("读取响应失败: %v", err)
+    }
+    
+    if resp.StatusCode != 200 {
+        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
+    }
+    
+    var result JimengVideoResponse
+    if err := json.Unmarshal(responseBody, &result); err != nil {
+        return nil, fmt.Errorf("解析响应失败: %v", err)
+    }
+    
+    fmt.Printf("任务状态: %s\n", result.Status)
+    return &result, nil
+}
+
+// 示例：查询状态
+videoID := "10762451179911711518"
+statusInfo, err := checkVideoStatus(videoID)
+```
+
+</CodeGroup>
+
+### 状态响应示例
+
+**排队中:**
+```json
+{
+  "id": "10762451179911711518",
+  "object": "video",
+  "status": "in_queue"
+}
+```
+
+**已完成:**
+```json
+{
+  "id": "10762451179911711518", 
+  "object": "video",
+  "status": "completed"
+}
+```
+
+## 步骤3：下载生成的视频
+
+<CodeGroup>
+
+```bash cURL
+# 下载视频文件
+curl -X GET "https://api.tokenops.ai/v1/videos/10762451179911711518/content" \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --output video.mp4
+```
+
+```python Python
+def download_video(video_id, output_path="jimeng_video.mp4"):
+    """
+    下载生成的视频
+    
+    Args:
+        video_id: 视频任务ID
+        output_path: 输出文件路径
+        
+    Returns:
+        是否下载成功
+    """
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+            print(f"视频已保存: {output_path}")
+            return True
+        else:
+            print(f"下载失败: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"下载失败: {e}")
+        return False
+
+# 示例：下载视频
+video_id = "10762451179911711518"
+success = download_video(video_id, "jimeng_video.mp4")
+```
+
+```javascript JavaScript/Node.js
+const fs = require('fs');
+
+async function downloadVideo(videoId, outputPath = 'jimeng_video.mp4') {
+    const url = `${BASE_URL}/videos/${videoId}/content`;
+    
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            responseType: 'stream'
+        });
+        
+        const writer = fs.createWriteStream(outputPath);
+        response.data.pipe(writer);
+        
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => {
+                console.log(`视频已保存: ${outputPath}`);
+                resolve(true);
+            });
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        console.error('视频下载失败:', error.response?.data || error.message);
+        return false;
+    }
+}
+
+// 示例：下载视频
+const videoId = '10762451179911711518';
+const success = await downloadVideo(videoId, 'jimeng_video.mp4');
+```
+
+```go Go
+import "os"
+
+func downloadVideo(videoID, outputPath string) error {
+    url := fmt.Sprintf("%s/videos/%s/content", BaseURL, videoID)
+    
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return fmt.Errorf("创建请求失败: %v", err)
+    }
+    
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return fmt.Errorf("请求失败: %v", err)
+    }
+    defer resp.Body.Close()
+    
+    if resp.StatusCode != 200 {
+        return fmt.Errorf("下载失败: %d", resp.StatusCode)
+    }
+    
+    file, err := os.Create(outputPath)
+    if err != nil {
+        return fmt.Errorf("创建文件失败: %v", err)
+    }
+    defer file.Close()
+    
+    _, err = io.Copy(file, resp.Body)
+    if err != nil {
+        return fmt.Errorf("写入文件失败: %v", err)
+    }
+    
+    fmt.Printf("视频已保存: %s\n", outputPath)
+    return nil
+}
+
+// 示例：下载视频
+videoID := "10762451179911711518"
+err := downloadVideo(videoID, "jimeng_video.mp4")
+if err != nil {
+    fmt.Printf("下载失败: %v\n", err)
+}
+```
+
+</CodeGroup>
+
+## 完整流程示例
+
+<CodeGroup>
+
+```python Python
+import requests
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def complete_jimeng_video_generation(prompt, **kwargs):
+    """
+    完整的即梦视频生成流程
+    """
+    # 步骤1: 创建任务
+    print("步骤1: 创建视频生成任务...")
+    create_result = create_jimeng_video(prompt, **kwargs)
+    if not create_result:
+        return False
+    
+    video_id = create_result['id'] 
+    print(f"任务ID: {video_id}")
+    
+    # 步骤2: 等待任务完成
+    print("步骤2: 等待任务完成...")
+    max_wait_time = 600  # 10分钟
+    start_time = time.time()
+    
+    while time.time() - start_time < max_wait_time:
+        status_info = check_video_status(video_id)
+        if not status_info:
+            break
+            
+        status = status_info.get('status')
+        print(f"当前状态: {status}")
+        
+        if status == 'completed':
+            print("视频生成完成！")
+            break
+        elif status == 'failed':
+            print("视频生成失败")
+            return False
+        
+        time.sleep(15)  # 每15秒检查一次
+    else:
+        print("等待超时")
+        return False
+    
+    # 步骤3: 下载视频
+    print("步骤3: 下载视频...")
+    output_path = f"jimeng_video_{video_id}.mp4"
+    if download_video(video_id, output_path):
+        print(f"视频生成完成: {output_path}")
+        return True
+    
+    return False
+
+# 使用示例
+if __name__ == "__main__":
+    success = complete_jimeng_video_generation(
+        prompt="千军万马奔腾在草原上，阳光明媚，高清画质",
+        req_key="jimeng_ti2v_v30_pro",
+        seed=-1,
+        frames=121,
+        aspect_ratio="16:9"
+    )
+    
+    if success:
+        print("✅ 视频生成成功！")
+    else:
+        print("❌ 视频生成失败！")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const fs = require('fs');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function completeJimengVideoGeneration(prompt, options = {}) {
+    try {
+        // 步骤1: 创建任务
+        console.log('步骤1: 创建视频生成任务...');
+        const createResult = await createJimengVideo(prompt, 'jimeng_ti2v_v30_pro', options);
+        if (!createResult) {
+            return false;
+        }
+        
+        const videoId = createResult.id;
+        console.log(`任务ID: ${videoId}`);
+        
+        // 步骤2: 等待任务完成
+        console.log('步骤2: 等待任务完成...');
+        const maxWaitTime = 10 * 60 * 1000; // 10分钟
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWaitTime) {
+            const statusInfo = await checkVideoStatus(videoId);
+            if (!statusInfo) {
+                break;
+            }
+            
+            const status = statusInfo.status;
+            console.log(`当前状态: ${status}`);
+            
+            if (status === 'completed') {
+                console.log('视频生成完成！');
+                break;
+            } else if (status === 'failed') {
+                console.log('视频生成失败');
+                return false;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 15000)); // 等待15秒
+        }
+        
+        // 步骤3: 下载视频
+        console.log('步骤3: 下载视频...');
+        const outputPath = `jimeng_video_${videoId}.mp4`;
+        const success = await downloadVideo(videoId, outputPath);
+        
+        if (success) {
+            console.log(`视频生成完成: ${outputPath}`);
+            return true;
+        }
+        
+        return false;
+        
+    } catch (error) {
+        console.error('完整流程执行失败:', error);
+        return false;
+    }
+}
+
+// 使用示例
+(async () => {
+    const success = await completeJimengVideoGeneration(
+        '千军万马奔腾在草原上，阳光明媚，高清画质',
+        {
+            req_key: 'jimeng_ti2v_v30_pro',
+            seed: -1,
+            frames: 121,
+            aspect_ratio: '16:9'
+        }
+    );
+    
+    if (success) {
+        console.log('✅ 视频生成成功！');
+    } else {
+        console.log('❌ 视频生成失败！');
+    }
+})();
+```
+
+```go Go
+package main
+
+import (
+    "fmt"
+    "time"
+)
+
+func completeJimengVideoGeneration(prompt string, options JimengVideoRequest) error {
+    // 步骤1: 创建任务
+    fmt.Println("步骤1: 创建视频生成任务...")
+    createResult, err := createJimengVideo(prompt, options)
+    if err != nil {
+        return fmt.Errorf("创建任务失败: %v", err)
+    }
+    
+    videoID := createResult.ID
+    fmt.Printf("任务ID: %s\n", videoID)
+    
+    // 步骤2: 等待任务完成
+    fmt.Println("步骤2: 等待任务完成...")
+    maxWaitTime := 10 * time.Minute
+    startTime := time.Now()
+    
+    for time.Since(startTime) < maxWaitTime {
+        statusInfo, err := checkVideoStatus(videoID)
+        if err != nil {
+            return fmt.Errorf("查询状态失败: %v", err)
+        }
+        
+        status := statusInfo.Status
+        fmt.Printf("当前状态: %s\n", status)
+        
+        if status == "completed" {
+            fmt.Println("视频生成完成！")
+            break
+        } else if status == "failed" {
+            return fmt.Errorf("视频生成失败")
+        }
+        
+        time.Sleep(15 * time.Second) // 等待15秒
+    }
+    
+    // 步骤3: 下载视频
+    fmt.Println("步骤3: 下载视频...")
+    outputPath := fmt.Sprintf("jimeng_video_%s.mp4", videoID)
+    if err := downloadVideo(videoID, outputPath); err != nil {
+        return fmt.Errorf("下载视频失败: %v", err)
+    }
+    
+    fmt.Printf("视频生成完成: %s\n", outputPath)
+    return nil
+}
+
+// 使用示例
+func main() {
+    err := completeJimengVideoGeneration(
+        "千军万马奔腾在草原上，阳光明媚，高清画质",
+        JimengVideoRequest{
+            ReqKey:      "jimeng_ti2v_v30_pro",
+            Seed:        -1,
+            Frames:      121,
+            AspectRatio: "16:9",
+        },
+    )
+    
+    if err != nil {
+        fmt.Printf("❌ 视频生成失败: %v\n", err)
+    } else {
+        fmt.Println("✅ 视频生成成功！")
+    }
+}
+```
+
+</CodeGroup>
+
+## 支持的参数
+
+- **model**: 使用的模型名称 （jimeng-video-3.0-pro、 jimeng-video-3.0-720P、 jimeng-video-3.0-1080P）
+- **prompt**: 视频描述文本（必需，建议400字以内）
+- **req_key**: 用于指定具体的即梦模型版本（必选）
+  - jimeng-video-3.0-pro: `jimeng_ti2v_v30_pro`
+  - jimeng-video-3.0-720P:  `jimeng_t2v_v30 （文生图）`, `jimeng_i2v_first_v30（首帧）`, `jimeng_i2v_first_tail_v30（首尾帧）`, `jimeng_i2v_recamera_v30（运镜）`
+  - jimeng-video-3.0-1080P: `jimeng_t2v_v30_1080p（文生图）`, `jimeng_i2v_first_v30_1080（首帧）`, `jimeng_i2v_first_tail_v30_1080（首尾帧）`
+- **seed**: 随机种子，默认-1（随机），可指定固定值获得一致结果
+- **frames**: 生成的总帧数，可选值[121, 241]，默认121
+- **aspect_ratio**: 生成视频的长宽比，默认"16:9"，支持常见比例
+- **image_urls**: 参考图片URL数组
+
+## 图生视频示例
+
+除了文本到视频生成，即梦也支持从图片生成视频。以下示例展示如何使用参考图片生成视频：
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://api.tokenops.ai/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "jimeng-video-3.0-pro",
+    "prompt": "根据图片内容生成一段动态视频，保持画面风格一致",
+    "req_key": "jimeng_ti2v_v30_pro",
+    "image_urls": ["https://example.com/reference_image.jpg"],
+    "seed": -1,
+    "frames": 241,
+    "aspect_ratio": "16:9"
+  }'
+```
+
+```python Python
+# 图生视频示例
+def create_image_to_video(prompt, image_url, **kwargs):
+    """
+    图片到视频生成
+    
+    Args:
+        prompt: 视频描述文本
+        image_url: 参考图片URL
+        **kwargs: 其他参数
+    
+    Returns:
+        任务创建响应
+    """
+    return create_jimeng_video(
+        prompt=prompt,
+        image_urls=[image_url],
+        **kwargs
+    )
+
+# 使用示例
+image_url = "https://example.com/beautiful_landscape.jpg"
+result = create_image_to_video(
+    prompt="根据这张风景图生成一段视频，展现微风轻抚、云朵缓缓移动的动态效果",
+    image_url=image_url,
+    req_key="jimeng_ti2v_v30_pro",
+    seed=12345,  # 固定种子获得一致结果
+    frames=241,  # 更长的视频
+    aspect_ratio="16:9"
+)
+
+if result:
+    print(f"图生视频任务已创建: {result['id']}")
+```
+
+```javascript JavaScript/Node.js
+// 图生视频示例
+async function createImageToVideo(prompt, imageUrl, options = {}) {
+    return await createJimengVideo(prompt, 'jimeng_ti2v_v30_pro', {
+        image_urls: [imageUrl],
+        ...options
+    });
+}
+
+// 使用示例
+const imageUrl = 'https://example.com/beautiful_landscape.jpg';
+const result = await createImageToVideo(
+    '根据这张风景图生成一段视频，展现微风轻抚、云朵缓缓移动的动态效果',
+    imageUrl,
+    {
+        req_key: 'jimeng_ti2v_v30_pro',
+        seed: 12345,
+        frames: 241,
+        aspect_ratio: '16:9'
+    }
+);
+
+if (result) {
+    console.log(`图生视频任务已创建: ${result.id}`);
+}
+```
+
+```go Go
+// 图生视频示例
+func createImageToVideo(prompt, imageUrl string, options JimengVideoRequest) (*JimengVideoResponse, error) {
+    options.ImageUrls = []string{imageUrl}
+    return createJimengVideo(prompt, options)
+}
+
+// 使用示例
+func main() {
+    imageUrl := "https://example.com/beautiful_landscape.jpg"
+    result, err := createImageToVideo(
+        "根据这张风景图生成一段视频，展现微风轻抚、云朵缓缓移动的动态效果",
+        imageUrl,
+        JimengVideoRequest{
+            ReqKey:      "jimeng_ti2v_v30_pro",
+            Seed:        12345,
+            Frames:      241,
+            AspectRatio: "16:9",
+        },
+    )
+    
+    if err != nil {
+        fmt.Printf("图生视频任务创建失败: %v\n", err)
+        return
+    }
+    
+    fmt.Printf("图生视频任务已创建: %s\n", result.ID)
+}
+```
+
+</CodeGroup>
+
+### 图生视频最佳实践
+
+1. **图片要求**
+   - 支持 JPG、PNG 等常见格式
+   - 建议分辨率不低于 512x512
+   - 文件大小控制在 10MB 以内
+   - 图片清晰度直接影响生成效果
+
+2. **提示词建议**
+   - 描述希望在图片基础上产生的动态效果
+   - 可以指定镜头运动、物体动作等
+   - 保持与图片内容的一致性
+
+3. **参数组合**
+   - **短视频**: 121帧 + 固定种子 + 合适宽高比
+   - **长视频**: 241帧 + 更详细的提示词
+   - **风格保持**: 使用与图片匹配的aspect_ratio
+
+### 图生视频示例场景
+
+```text
+风景图片 + "微风轻抚树叶，云朵缓缓移动，阳光变化"
+人物图片 + "人物眨眼微笑，头发轻微摆动"
+建筑图片 + "灯光闪烁，窗户透出温暖光芒"
+动物图片 + "小动物轻微摆动，眼睛转动"
+```
+
+## 任务状态说明
+
+- **in_queue**: 任务已提交，正在排队等待处理
+- **processing**: 任务正在处理中
+- **completed**: 任务已完成，可以下载视频
+- **failed**: 任务失败
+
+## 即梦模型特点
+
+### 技术优势
+- **高质量生成**: 即梦Ti2V v3.0 Pro版本，专业级视频生成质量
+- **中文优化**: 对中文提示词有优秀的理解和表现能力
+- **灵活参数**: 支持自定义帧数、宽高比、随机种子等参数
+- **图片引导**: 支持参考图片生成，保持风格一致性
+
+### 生成规格
+- **帧数选择**: 121帧（约5秒）或241帧（约10秒）
+- **分辨率**: 支持多种分辨率，自动优化
+- **宽高比**: 16:9, 9:16, 1:1等多种比例
+- **文件格式**: MP4格式输出
+
+## 最佳实践
+
+### 1. 提示词优化
+```text
+推荐的提示词格式：
+"[主体描述] + [动作描述] + [场景环境] + [风格要求] + [画质要求]"
+
+优秀示例：
+"一只白色的小猫在绿色草地上慢慢走动，阳光透过树叶洒下，温馨治愈风格，高清画质"
+```
+
+### 2. 参数调整建议
+- **seed**: -1获得随机效果，固定值获得一致结果
+- **frames**: 121帧适合短片段，241帧适合完整场景
+- **aspect_ratio**: 根据发布平台选择合适比例 
+
+### 3. 参考图片使用
+- 支持 JPG、PNG 等常见图片格式
+- 文件大小控制在 10MB 以内
+- 图片清晰度影响生成质量
+
+### 4. 图片裁剪规则
+参考：https://www.volcengine.com/docs/85621/1777001#eozh1inS
+
+## 注意事项
+
+1. **生成时间**: 即梦视频生成通常需要3-5分钟，请耐心等待
+2. **内容审核**: 提示词需符合内容安全规范
+3. **并发限制**: 同时生成任务数量有限制
+4. **中文优化**: 中文提示词效果通常优于英文
+
+## 错误处理
+
+常见错误码和处理方法：
+
+- **400**: 请求参数错误，检查模型名称和参数格式
+- **401**: API密钥无效或过期
+- **413**: 上传文件过大，压缩后重试
+- **429**: 请求频率超限，稍后重试
+- **500**: 服务器错误，联系技术支持
+
+### 任务失败原因
+- 提示词包含敏感内容
+- 参考图片格式不支持
+- 系统资源不足
+- 网络传输中断

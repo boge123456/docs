@@ -1,0 +1,122 @@
+---
+title: 'Gemini 流式对话示例'
+description: '使用Gemini API进行流式文本生成的完整示例代码'
+---
+
+# Gemini 流式对话示例
+
+以下示例展示如何使用Gemini的 `/v1beta/models/{model}:streamGenerateContent` 接口进行流式文本生成。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:streamGenerateContent" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "讲个300个字的故事"
+          }
+        ]
+      }
+    ],
+    "generationConfig": {
+      "maxOutputTokens": 3000,
+      "temperature": 0.7
+    }
+  }' \
+  --no-buffer
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1beta"
+
+def stream_chat_with_gemini(message, model="gemini-2.5-flash"):
+    url = f"{BASE_URL}/models/{model}:streamGenerateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": message
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "maxOutputTokens": 3000,
+            "temperature": 0.7
+        }
+    }
+    
+    response = requests.post(url, headers=headers, json=data, stream=True)
+    
+    if response.status_code == 200:
+        full_response = ""
+        
+        for line in response.iter_lines(decode_unicode=True):
+            if line.strip():
+                try:
+                    data = json.loads(line)
+                    if 'candidates' in data and len(data['candidates']) > 0:
+                        candidate = data['candidates'][0]
+                        if 'content' in candidate and 'parts' in candidate['content']:
+                            for part in candidate['content']['parts']:
+                                if 'text' in part:
+                                    content = part['text']
+                                    full_response += content
+                                    print(content, end="", flush=True)
+                except json.JSONDecodeError:
+                    continue
+                    
+        return full_response
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 使用示例
+if __name__ == "__main__":
+    message = "讲个300个字的故事"
+    print("Gemini回复: ", end="")
+    reply = stream_chat_with_gemini(message)
+    print(f"\n\n完整回复: {reply}")
+```
+
+</CodeGroup>
+
+## Gemini流式响应格式
+
+```json
+data: {"sdkHttpResponse":{"headers":{"Alt-Svc":["h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000"],"Content-Disposition":["attachment"],"Content-Type":["text/event-stream"],"Date":["Tue, 23 Sep 2025 10:26:07 GMT"],"Server":["scaffolding on HTTPServer2"],"Vary":["Origin","X-Origin","Referer"],"X-Content-Type-Options":["nosniff"],"X-Frame-Options":["SAMEORIGIN"],"X-Xss-Protection":["0"]}},"candidates":[{"content":{"parts":[{"text":"小丽独自一人在后院荡秋千，阳光暖洋洋地洒在她身上，却驱不散她心头一丝淡淡的无聊。她踢着脚下的泥土，突然，一抹异样的光亮吸引了她的目光。\n\n她好奇地跳下秋千，拨开"}],"role":"model"}}],"createTime":"2025-09-23T10:25:59.125309Z","modelVersion":"gemini-2.5-flash","responseId":"446d21a1adfb4964ad98073db9eade14","usageMetadata":{"trafficType":"ON_DEMAND"}}
+
+.
+.
+.
+
+data: {"sdkHttpResponse":{"headers":{"Alt-Svc":["h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000"],"Content-Disposition":["attachment"],"Content-Type":["text/event-stream"],"Date":["Tue, 23 Sep 2025 10:26:07 GMT"],"Server":["scaffolding on HTTPServer2"],"Vary":["Origin","X-Origin","Referer"],"X-Content-Type-Options":["nosniff"],"X-Frame-Options":["SAMEORIGIN"],"X-Xss-Protection":["0"]}},"candidates":[{"content":{"parts":[{"text":"\n\n小丽决定把这颗发光的石头藏起来，成为她最珍贵的秘密。每当夜幕降临，她都会偷偷拿出它，感受那份独一无二的温暖与慰藉。她知道，这不仅仅是一块普通的石头，更是她童年中最璀璨的奇迹。"}],"role":"model"}}],"createTime":"2025-09-23T10:25:59.125309Z","modelVersion":"gemini-2.5-flash","responseId":"446d21a1adfb4964ad98073db9eade14","usageMetadata":{"trafficType":"ON_DEMAND"}}
+
+data: {"sdkHttpResponse":{"headers":{"Alt-Svc":["h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000"],"Content-Disposition":["attachment"],"Content-Type":["text/event-stream"],"Date":["Tue, 23 Sep 2025 10:26:07 GMT"],"Server":["scaffolding on HTTPServer2"],"Vary":["Origin","X-Origin","Referer"],"X-Content-Type-Options":["nosniff"],"X-Frame-Options":["SAMEORIGIN"],"X-Xss-Protection":["0"]}},"candidates":[{"content":{"parts":[{}],"role":"model"},"finishReason":"STOP"}],"createTime":"2025-09-23T10:25:59.125309Z","modelVersion":"gemini-2.5-flash","responseId":"446d21a1adfb4964ad98073db9eade14","usageMetadata":{"candidatesTokenCount":247,"candidatesTokensDetails":[{"modality":"TEXT","tokenCount":247}],"promptTokenCount":8,"promptTokensDetails":[{"modality":"TEXT","tokenCount":8}],"thoughtsTokenCount":1324,"totalTokenCount":1579,"trafficType":"ON_DEMAND"}}
+```
+
+## 重要参数说明
+
+- **streamGenerateContent**: 使用专门的流式端点
+- **candidates**: 包含生成的候选内容
+- **parts**: 每个部分包含文本片段
+- **finishReason**: 生成结束的原因 

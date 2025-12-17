@@ -1,0 +1,736 @@
+---
+title: 'Responses API 结构化输出'
+description: '使用Responses API获取JSON格式的结构化输出示例'
+---
+
+# Responses API 结构化输出
+
+结构化输出确保模型返回符合指定JSON Schema的有效JSON，为您提供可预测、易解析的响应格式。这对于函数调用、数据提取和API集成等场景特别有用。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/responses" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gpt-5-2025-08-07",
+    "input": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": "分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务等"
+          }
+        ]
+      }
+    ],
+    "text": {
+      "format": {
+        "type": "json_schema",
+        "name": "company_analysis",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "company_name": {
+              "type": "string",
+              "description": "公司名称"
+            },
+            "founded_year": {
+              "type": "integer",
+              "description": "成立年份"
+            },
+            "founders": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "创始人列表"
+            },
+            "main_business": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "主要业务领域"
+            },
+            "headquarters": {
+              "type": "string",
+              "description": "总部位置"
+            },
+            "ceo": {
+              "type": "string",
+              "description": "现任CEO"
+            }
+          },
+          "required": ["company_name", "founded_year", "founders", "main_business", "headquarters", "ceo"],
+          "additionalProperties": false
+        },
+        "strict": true,
+        "description": "公司基本信息分析的结构化输出格式"
+      }
+    }
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def create_structured_response():
+    """使用结构化输出分析公司信息"""
+    url = f"{BASE_URL}/responses"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    # 定义JSON Schema
+    schema = {
+        "type": "object",
+        "properties": {
+            "company_name": {
+                "type": "string",
+                "description": "公司名称"
+            },
+            "founded_year": {
+                "type": "integer",
+                "description": "成立年份"
+            },
+            "founders": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "创始人列表"
+            },
+            "main_business": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "主要业务领域"
+            },
+            "headquarters": {
+                "type": "string",
+                "description": "总部位置"
+            },
+            "ceo": {
+                "type": "string",
+                "description": "现任CEO"
+            },
+            "market_cap_billion": {
+                "type": "number",
+                "description": "市值（十亿美元）"
+            },
+            "employee_count": {
+                "type": "integer",
+                "description": "员工数量"
+            }
+        },
+        "required": ["company_name", "founded_year", "founders", "main_business", "headquarters", "ceo"],
+        "additionalProperties": false
+    }
+
+    payload = {
+        "model": "gpt-5-2025-08-07",
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务、总部位置、现任CEO、市值和员工数量等"
+                    }
+                ]
+            }
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "company_analysis",
+                "schema": schema,
+                "strict": True,
+                "description": "公司基本信息分析的结构化输出格式"
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code == 200:
+        result = response.json()
+
+        # 解析结构化输出 - 从实际响应结构中获取
+        if result.get("status") == "completed" and result.get("output"):
+            # 从output数组中找到message类型的输出
+            message_output = None
+            for output_item in result["output"]:
+                if output_item.get("type") == "message":
+                    message_output = output_item
+                    break
+            
+            if message_output and message_output.get("content"):
+                # 从content数组中获取output_text
+                for content_item in message_output["content"]:
+                    if content_item.get("type") == "output_text":
+                        structured_content = content_item.get("text")
+                        break
+            else:
+                structured_content = result.get("output_text")  # 兼容旧格式
+        else:
+            structured_content = result.get("output_text")  # 兼容旧格式
+
+        # 结构化输出已经是有效的JSON对象
+        if isinstance(structured_content, str):
+            try:
+                company_data = json.loads(structured_content)
+            except json.JSONDecodeError:
+                print("返回的不是有效的JSON格式")
+                return None
+        else:
+            company_data = structured_content
+
+        print("=== 结构化输出结果 ===")
+        print(json.dumps(company_data, indent=2, ensure_ascii=False))
+
+        # 显示使用统计
+        usage = result.get("usage", {})
+        print(f"\nToken使用: {usage.get('total_tokens', 0)} (输入: {usage.get('input_tokens', 0)}, 输出: {usage.get('output_tokens', 0)})")
+
+        return company_data
+    else:
+        print(f"HTTP错误: {response.status_code}")
+        print(response.text)
+        return None
+
+
+# 使用示例
+if __name__ == "__main__":
+    print("结构化输出示例")
+    result = create_structured_response()
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function createStructuredResponse() {
+    const url = `${BASE_URL}/responses`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+
+    // 定义JSON Schema
+    const schema = {
+        type: 'object',
+        properties: {
+            company_name: {
+                type: 'string',
+                description: '公司名称'
+            },
+            founded_year: {
+                type: 'integer',
+                description: '成立年份'
+            },
+            founders: {
+                type: 'array',
+                items: {
+                    type: 'string'
+                },
+                description: '创始人列表'
+            },
+            main_business: {
+                type: 'array',
+                items: {
+                    type: 'string'
+                },
+                description: '主要业务领域'
+            },
+            headquarters: {
+                type: 'string',
+                description: '总部位置'
+            },
+            ceo: {
+                type: 'string',
+                description: '现任CEO'
+            },
+            market_cap_billion: {
+                type: 'number',
+                description: '市值（十亿美元）'
+            },
+            employee_count: {
+                type: 'integer',
+                description: '员工数量'
+            }
+        },
+        required: ['company_name', 'founded_year', 'founders', 'main_business', 'headquarters', 'ceo'],
+        additionalProperties: false
+    };
+
+    const payload = {
+        model: 'gpt-5-2025-08-07',
+        input: [
+            {
+                role: 'user',
+                content: [
+                    {
+                        type: 'input_text',
+                        text: '分析苹果公司的基本信息，包括公司名称、成立年份、创始人、主要业务、总部位置、现任CEO、市值和员工数量等'
+                    }
+                ]
+            }
+        ],
+        text: {
+            format: {
+                type: 'json_schema',
+                name: 'company_analysis',
+                schema: schema,
+                strict: true,
+                description: '公司基本信息分析的结构化输出格式'
+            }
+        }
+    };
+
+    try {
+        const response = await axios.post(url, payload, { headers });
+
+        // 解析结构化输出 - 从实际响应结构中获取
+        let structuredContent;
+        if (response.data.status === "completed" && response.data.output) {
+            // 从output数组中找到message类型的输出
+            const messageOutput = response.data.output.find(item => item.type === "message");
+            
+            if (messageOutput && messageOutput.content) {
+                // 从content数组中获取output_text
+                const textContent = messageOutput.content.find(item => item.type === "output_text");
+                structuredContent = textContent ? textContent.text : response.data.output_text;
+            } else {
+                structuredContent = response.data.output_text; // 兼容旧格式
+            }
+        } else {
+            structuredContent = response.data.output_text; // 兼容旧格式
+        }
+
+        let companyData;
+        if (typeof structuredContent === 'string') {
+            try {
+                companyData = JSON.parse(structuredContent);
+            } catch (error) {
+                console.log('返回的不是有效的JSON格式');
+                return null;
+            }
+        } else {
+            companyData = structuredContent;
+        }
+
+        console.log('=== 结构化输出结果 ===');
+        console.log(JSON.stringify(companyData, null, 2));
+
+        const usage = response.data.usage || {};
+        console.log(`\\nToken使用: ${usage.total_tokens || 0} (输入: ${usage.input_tokens || 0}, 输出: ${usage.output_tokens || 0})`);
+
+        return companyData;
+    } catch (error) {
+        console.error('请求出错:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+
+// 使用示例
+async function main() {
+    try {
+        console.log('结构化输出示例');
+        await createStructuredResponse();
+    } catch (error) {
+        console.error('执行出错:', error);
+    }
+}
+
+main();
+```
+
+</CodeGroup>
+
+## 结构化输出特性
+
+结构化输出通过严格模式确保输出完全符合提供的JSON Schema：
+
+### JSON Schema 支持
+
+- **严格模式**: 通过 `"strict": true` 启用，确保100%遵循schema
+- **完整类型支持**: 支持object、array、string、number、integer、boolean等
+- **验证约束**: 支持required字段、additionalProperties、enum等
+- **嵌套结构**: 支持复杂的嵌套对象和数组结构
+
+### 格式要求
+
+```json
+{
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "name": "schema_name",
+      "schema": {
+        // 您的JSON Schema定义
+      },
+      "strict": true,
+      "description": "响应格式的描述"
+    }
+  }
+}
+```
+
+### 支持的格式类型
+
+1. **text** (默认) - 纯文本响应
+```json
+{
+  "text": {
+    "format": {
+      "type": "text"
+    }
+  }
+}
+```
+
+2. **json_schema** (推荐) - 结构化JSON输出
+```json
+{
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "name": "response_format_name",
+      "schema": { /* JSON Schema */ },
+      "strict": true
+    }
+  }
+}
+```
+
+3. **json_object** (不推荐) - 旧版JSON模式
+```json
+{
+  "text": {
+    "format": {
+      "type": "json_object"
+    }
+  }
+}
+```
+
+## 响应结果示例
+
+### 基础结构化输出
+
+```json
+{
+  "id": "resp_0b936bb51393b0a40068fdff19cff08196b576fb5d1c702853",
+  "object": "response",
+  "created_at": 1761476377,
+  "status": "completed",
+  "background": false,
+  "content_filters": null,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": 13107,
+  "max_tool_calls": null,
+  "model": "gpt-5-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0b936bb51393b0a40068fdff1a58208196acf61a723a03a5b1",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "msg_0b936bb51393b0a40068fdff23433881968fa2d9ee66df75d2",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "{\"ceo\":\"蒂姆·库克（Tim Cook）\",\"company_name\":\"苹果公司（Apple Inc.）\",\"founded_year\":1976,\"founders\":[\"史蒂夫·乔布斯（Steve Jobs）\",\"史蒂夫·沃兹尼亚克（Steve Wozniak）\",\"罗纳德·韦恩（Ronald Wayne）\"],\"headquarters\":\"美国加利福尼亚州库比蒂诺（Apple Park）\",\"main_business\":[\"智能手机：iPhone 的设计、研发与销售\",\"个人电脑：Mac 系列硬件与配套外设\",\"平板电脑：iPad 系列\",\"可穿戴与配件：Apple Watch、AirPods、Beats 等\",\"操作系统与软件平台：iOS、iPadOS、macOS、watchOS、tvOS 及自家应用\",\"数字内容与订阅服务：App Store、Apple Music、Apple TV+、Apple Arcade、Apple News+、iCloud、Apple Fitness+、AppleCare、广告与支付（Apple Pay/Wallet）\",\"自研芯片与硬件技术：Apple Silicon（A 系列、M 系列）及相关技术生态\"]}"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "description": "公司基本信息分析的结构化输出格式",
+      "name": "company_analysis",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "ceo": {
+            "description": "现任CEO",
+            "type": "string"
+          },
+          "company_name": {
+            "description": "公司名称",
+            "type": "string"
+          },
+          "founded_year": {
+            "description": "成立年份",
+            "type": "integer"
+          },
+          "founders": {
+            "description": "创始人列表",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "headquarters": {
+            "description": "总部位置",
+            "type": "string"
+          },
+          "main_business": {
+            "description": "主要业务领域",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "company_name",
+          "founded_year",
+          "founders",
+          "main_business",
+          "headquarters",
+          "ceo"
+        ],
+        "type": "object"
+      },
+      "strict": true
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 230,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 1220,
+    "output_tokens_details": {
+      "reasoning_tokens": 960
+    },
+    "total_tokens": 1450
+  },
+  "user": null,
+  "metadata": {}
+}
+```
+
+
+## JSON Schema 定义指南
+
+### 基础类型
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "string_field": {
+      "type": "string",
+      "description": "字符串字段"
+    },
+    "integer_field": {
+      "type": "integer", 
+      "description": "整数字段"
+    },
+    "number_field": {
+      "type": "number",
+      "description": "数字字段（包含小数）"
+    },
+    "boolean_field": {
+      "type": "boolean",
+      "description": "布尔字段"
+    },
+    "array_field": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "字符串数组"
+    }
+  },
+  "required": ["string_field", "integer_field"],
+  "additionalProperties": false
+}
+```
+
+### 高级约束和验证
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "电子邮件地址"
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 150,
+      "description": "年龄范围0-150"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "inactive", "pending"],
+      "description": "状态枚举值"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 10,
+      "description": "标签数组，1-10个元素"
+    }
+  },
+  "required": ["email", "age"],
+  "additionalProperties": false
+}
+```
+
+### 嵌套对象结构
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "person": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "address": {
+          "type": "object", 
+          "properties": {
+            "street": {"type": "string"},
+            "city": {"type": "string"},
+            "zipcode": {"type": "string"}
+          },
+          "required": ["city"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["person"],
+  "additionalProperties": false
+}
+```
+
+## 应用场景
+
+1. **数据提取** - 从文本中提取结构化信息并格式化为特定JSON格式
+2. **API集成** - 生成符合下游系统要求的标准化响应格式
+3. **表单处理** - 将自然语言输入转换为结构化表单数据
+4. **报告生成** - 创建格式一致的分析报告和统计数据
+5. **配置生成** - 基于需求描述生成应用程序配置文件
+6. **数据转换** - 将非结构化数据转换为数据库友好的格式
+
+## 最佳实践
+
+### 1. Schema 设计原则
+- **明确性**: 为每个字段提供清晰的描述
+- **完整性**: 正确标记必需字段和可选字段
+- **约束性**: 使用 `additionalProperties: false` 严格控制输出
+- **验证**: 添加适当的类型约束和范围限制
+
+### 2. 提示优化策略
+- **具体性**: 提供明确的数据要求和示例
+- **上下文**: 给出足够的背景信息帮助模型理解
+- **格式说明**: 明确指出期望的输出格式
+
+### 3. 错误处理机制
+- **验证**: 始终验证返回的JSON是否符合期望的schema
+- **容错**: 为无效输出提供合理的fallback机制
+- **日志**: 记录结构化输出的成功率和失败原因
+
+### 4. 性能优化
+- **Schema简化**: 避免过度复杂的嵌套结构
+- **批处理**: 对于大量数据，考虑分批处理
+- **缓存**: 对重复的schema定义进行缓存
+
+## 注意事项
+
+### 兼容性
+- **模型支持**: 结构化输出需要支持该功能的模型（如gpt-4o、gpt-4o-mini等）
+- **API版本**: 确保使用最新的API版本以获得最佳兼容性
+
+### 性能影响
+- **Token消耗**: 结构化输出可能比普通文本输出消耗更多tokens
+- **响应时间**: 复杂的schema验证可能增加处理时间
+- **成本考量**: 更高的token使用量会影响API调用成本
+
+### 技术限制
+- **Schema复杂度**: 过度复杂的schema可能影响生成质量和成功率
+- **严格模式**: `strict: true` 确保100%符合schema，但可能增加失败概率
+- **数据一致性**: 某些复杂的约束条件可能难以完全满足
+
+### 开发建议
+- **渐进式设计**: 从简单的schema开始，逐步增加复杂性
+- **充分测试**: 在生产环境使用前进行充分的测试验证
+- **监控指标**: 监控结构化输出的成功率和错误模式
+- **备用方案**: 为关键业务场景准备非结构化输出的备用方案
+
+## 常见问题解答
+
+**Q: 如何确保输出严格符合Schema？**  
+A: 使用 `"strict": true` 参数，配合明确的schema定义和适当的提示词。
+
+**Q: 哪些模型支持结构化输出？**  
+A: 支持的模型包括 gpt-4o、gpt-4o-mini、gpt-4-turbo 等。具体支持情况请查看模型文档。
+
+**Q: 如何处理大型复杂结构？**  
+A: 建议分解为多个简单的子结构，或使用分步骤的多次请求来构建复杂数据。
+
+**Q: 结构化输出的成本如何？**  
+A: 通常比普通对话消耗更多token，但能保证输出质量和格式一致性，减少后处理成本。
+
+**Q: 如何调试Schema定义问题？**  
+A: 从最简单的schema开始测试，逐步增加字段和约束，观察每个变更的影响。
+
+**Q: 支持哪些JSON Schema版本？**  
+A: 支持 JSON Schema 的核心功能，具体版本兼容性以官方文档为准。

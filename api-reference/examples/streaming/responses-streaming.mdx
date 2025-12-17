@@ -1,0 +1,718 @@
+---
+title: 'Responses API 流式请求示例'
+description: '使用Response API进行流式响应的完整示例代码'
+---
+
+# Responses API 流式请求示例
+
+以下示例展示如何使用Response API的 `/v1/responses` 接口进行流式响应，实现实时内容生成效果。
+
+## 快速开始
+
+只需要替换 `<API-KEY>` 为你的实际API密钥即可运行。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.tokenops.ai/v1/responses" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gpt-5-2025-08-07",
+    "input": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": "请写一首关于春天的诗"
+          }
+        ]
+      }
+    ],
+    "stream": true,
+    "max_output_tokens": 1000
+  }' \
+  --no-buffer
+```
+
+```python Python
+import requests
+import json
+
+# 配置API密钥和基础URL
+API_KEY = "<API-KEY>"
+BASE_URL = "https://api.tokenops.ai/v1"
+
+def stream_responses_api(user_input):
+    url = f"{BASE_URL}/responses"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
+    data = {
+        "model": "gpt-5-2025-08-07",
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": user_input
+                    }
+                ]
+            }
+        ],
+        "stream": True,
+        "max_output_tokens": 1000
+    }
+    
+    response = requests.post(url, headers=headers, json=data, stream=True)
+    
+    if response.status_code == 200:
+        full_response = ""
+        current_event = None
+        
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+                
+            if line.startswith('event: '):
+                current_event = line[7:]  # 去掉 'event: ' 前缀
+                
+            elif line.startswith('data: '):
+                try:
+                    data = json.loads(line[6:])  # 去掉 'data: ' 前缀
+                    
+                    # 处理不同类型的流式事件
+                    if current_event == "response.created":
+                        print("响应已创建，开始生成内容...")
+                        
+                    elif current_event == "response.output_text.delta":
+                        # 这是最重要的事件，包含实际的文本增量
+                        if "delta" in data:
+                            text_delta = data["delta"]
+                            full_response += text_delta
+                            print(text_delta, end="", flush=True)
+                    
+                    elif current_event == "response.completed":
+                        print("\n响应生成完成")
+                        break
+                        
+                except json.JSONDecodeError:
+                    continue
+                    
+        return full_response
+    else:
+        return f"错误: {response.status_code} - {response.text}"
+
+# 使用示例
+if __name__ == "__main__":
+    message = "请写一首关于春天的诗"
+    print("用户输入:", message)
+    print("AI回复: ", end="")
+    reply = stream_responses_api(message)
+    print(f"\n\n完整回复: {reply}")
+```
+
+```javascript JavaScript/Node.js
+const fetch = require('node-fetch');
+
+// 配置API密钥和基础URL
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://api.tokenops.ai/v1';
+
+async function streamResponsesAPI(userInput) {
+    const url = `${BASE_URL}/responses`;
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+    };
+    
+    const data = {
+        model: 'gpt-5-2025-08-07',
+        input: [
+            {
+                role: 'user',
+                content: [
+                    {
+                        type: 'input_text',
+                        text: userInput
+                    }
+                ]
+            }
+        ],
+        stream: true,
+        max_output_tokens: 1000
+    };
+    
+    return new Promise((resolve, reject) => {
+        let fullResponse = '';
+        let currentEvent = null;
+        
+        fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function processStream() {
+                return reader.read().then(({ done, value }) => {
+                    if (done) {
+                        resolve(fullResponse);
+                        return;
+                    }
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('event: ')) {
+                            currentEvent = line.slice(7);
+                            
+                        } else if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                if (currentEvent === 'response.created') {
+                                    console.log('响应已创建，开始生成内容...');
+                                    
+                                } else if (currentEvent === 'response.output_text.delta') {
+                                    if (data.delta) {
+                                        fullResponse += data.delta;
+                                        process.stdout.write(data.delta);
+                                    }
+                                    
+                                } else if (currentEvent === 'response.completed') {
+                                    console.log('\n响应生成完成');
+                                    resolve(fullResponse);
+                                    return;
+                                }
+                            } catch (error) {
+                                // 忽略解析错误
+                            }
+                        }
+                    }
+                    
+                    return processStream();
+                });
+            }
+            
+            return processStream();
+        })
+        .catch(reject);
+    });
+}
+
+// 使用示例
+(async () => {
+    try {
+        const message = '请写一首关于春天的诗';
+        console.log('用户输入:', message);
+        process.stdout.write('AI回复: ');
+        const reply = await streamResponsesAPI(message);
+        console.log(`\n\n完整回复: ${reply}`);
+    } catch (error) {
+        console.error('错误:', error.message);
+    }
+})();
+```
+
+```go Go
+package main
+
+import (
+    "bufio"
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "strings"
+)
+
+const (
+    APIKey  = "<API-KEY>"
+    BaseURL = "https://api.tokenops.ai/v1"
+)
+
+type InputContent struct {
+    Type string `json:"type"`
+    Text string `json:"text"`
+}
+
+type InputMessage struct {
+    Role    string         `json:"role"`
+    Content []InputContent `json:"content"`
+}
+
+type ResponsesRequest struct {
+    Model           string         `json:"model"`
+    Input           []InputMessage `json:"input"`
+    Stream          bool           `json:"stream"`
+    MaxOutputTokens int            `json:"max_output_tokens"`
+}
+
+type DeltaEvent struct {
+    Delta string `json:"delta"`
+}
+
+func streamResponsesAPI(userInput string) (string, error) {
+    url := fmt.Sprintf("%s/responses", BaseURL)
+    
+    reqData := ResponsesRequest{
+        Model: "gpt-5-2025-08-07",
+        Input: []InputMessage{
+            {
+                Role: "user",
+                Content: []InputContent{
+                    {
+                        Type: "input_text",
+                        Text: userInput,
+                    },
+                },
+            },
+        },
+        Stream:          true,
+        MaxOutputTokens: 1000,
+    }
+    
+    jsonData, err := json.Marshal(reqData)
+    if err != nil {
+        return "", err
+    }
+    
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return "", err
+    }
+    
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
+    
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    
+    if resp.StatusCode != 200 {
+        body, _ := io.ReadAll(resp.Body)
+        return "", fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(body))
+    }
+    
+    scanner := bufio.NewScanner(resp.Body)
+    var fullResponse strings.Builder
+    var currentEvent string
+    
+    for scanner.Scan() {
+        line := scanner.Text()
+        
+        if strings.HasPrefix(line, "event: ") {
+            currentEvent = strings.TrimPrefix(line, "event: ")
+            
+        } else if strings.HasPrefix(line, "data: ") {
+            dataStr := strings.TrimPrefix(line, "data: ")
+            
+            if currentEvent == "response.created" {
+                fmt.Println("响应已创建，开始生成内容...")
+                
+            } else if currentEvent == "response.output_text.delta" {
+                var deltaEvent DeltaEvent
+                if err := json.Unmarshal([]byte(dataStr), &deltaEvent); err == nil {
+                    if deltaEvent.Delta != "" {
+                        fullResponse.WriteString(deltaEvent.Delta)
+                        fmt.Print(deltaEvent.Delta)
+                    }
+                }
+                
+            } else if currentEvent == "response.completed" {
+                fmt.Println("\n响应生成完成")
+                break
+            }
+        }
+    }
+    
+    return fullResponse.String(), scanner.Err()
+}
+
+func main() {
+    message := "请写一首关于春天的诗"
+    fmt.Println("用户输入:", message)
+    fmt.Print("AI回复: ")
+    
+    reply, err := streamResponsesAPI(message)
+    if err != nil {
+        fmt.Printf("\n错误: %v\n", err)
+        return
+    }
+    
+    fmt.Printf("\n\n完整回复: %s\n", reply)
+}
+```
+
+```java Java
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
+public class ResponsesStreamingAPI {
+    private static final String API_KEY = "<API-KEY>";
+    private static final String BASE_URL = "https://api.tokenops.ai/v1";
+    
+    public static class InputContent {
+        public String type;
+        public String text;
+        
+        public InputContent(String type, String text) {
+            this.type = type;
+            this.text = text;
+        }
+    }
+    
+    public static class InputMessage {
+        public String role;
+        public InputContent[] content;
+        
+        public InputMessage(String role, InputContent[] content) {
+            this.role = role;
+            this.content = content;
+        }
+    }
+    
+    public static class ResponsesRequest {
+        public String model;
+        public InputMessage[] input;
+        public boolean stream;
+        public int max_output_tokens;
+        
+        public ResponsesRequest(String model, InputMessage[] input, boolean stream, int maxOutputTokens) {
+            this.model = model;
+            this.input = input;
+            this.stream = stream;
+            this.max_output_tokens = maxOutputTokens;
+        }
+    }
+    
+    public static String streamResponsesAPI(String userInput) throws IOException {
+        URL url = new URL(BASE_URL + "/responses");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Authorization", "Bearer " + API_KEY);
+        conn.setDoOutput(true);
+        
+        ObjectMapper mapper = new ObjectMapper();
+        ResponsesRequest request = new ResponsesRequest(
+            "gpt-5-2025-08-07",
+            new InputMessage[]{
+                new InputMessage("user", new InputContent[]{
+                    new InputContent("input_text", userInput)
+                })
+            },
+            true,
+            1000
+        );
+        
+        String jsonBody = mapper.writeValueAsString(request);
+        
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(jsonBody.getBytes());
+        }
+        
+        if (conn.getResponseCode() == 200) {
+            StringBuilder fullResponse = new StringBuilder();
+            String currentEvent = null;
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("event: ")) {
+                        currentEvent = line.substring(7);
+                        
+                    } else if (line.startsWith("data: ")) {
+                        String data = line.substring(6);
+                        
+                        try {
+                            JsonNode event = mapper.readTree(data);
+                            
+                            if ("response.created".equals(currentEvent)) {
+                                System.out.println("响应已创建，开始生成内容...");
+                                
+                            } else if ("response.output_text.delta".equals(currentEvent)) {
+                                if (event.has("delta")) {
+                                    String delta = event.get("delta").asText();
+                                    fullResponse.append(delta);
+                                    System.out.print(delta);
+                                }
+                                
+                            } else if ("response.completed".equals(currentEvent)) {
+                                System.out.println("\n响应生成完成");
+                                break;
+                            }
+                        } catch (Exception e) {
+                            // 忽略解析错误
+                        }
+                    }
+                }
+            }
+            
+            return fullResponse.toString();
+        } else {
+            throw new RuntimeException("API错误: " + conn.getResponseCode());
+        }
+    }
+    
+    public static void main(String[] args) {
+        try {
+            String message = "请写一首关于春天的诗";
+            System.out.println("用户输入: " + message);
+            System.out.print("AI回复: ");
+            String reply = streamResponsesAPI(message);
+            System.out.println("\n\n完整回复: " + reply);
+        } catch (Exception e) {
+            System.err.println("错误: " + e.getMessage());
+        }
+    }
+}
+```
+
+```php PHP
+<?php
+
+class ResponsesStreamingAPI {
+    private $apiKey;
+    private $baseUrl;
+    
+    public function __construct($apiKey, $baseUrl = 'https://api.tokenops.ai/v1') {
+        $this->apiKey = $apiKey;
+        $this->baseUrl = $baseUrl;
+    }
+    
+    public function streamResponsesAPI($userInput) {
+        $url = $this->baseUrl . '/responses';
+        
+        $data = [
+            'model' => 'gpt-5-2025-08-07',
+            'input' => [
+                [
+                    'role' => 'user',
+                    'content' => [
+                        [
+                            'type' => 'input_text',
+                            'text' => $userInput
+                        ]
+                    ]
+                ]
+            ],
+            'stream' => true,
+            'max_output_tokens' => 1000
+        ];
+        
+        $postData = json_encode($data);
+        
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => [
+                    'Content-Type: application/json',
+                    'Authorization: Bearer ' . $this->apiKey
+                ],
+                'content' => $postData
+            ]
+        ]);
+        
+        $stream = fopen($url, 'r', false, $context);
+        
+        if (!$stream) {
+            return '无法建立连接';
+        }
+        
+        $fullResponse = '';
+        $currentEvent = null;
+        
+        while (!feof($stream)) {
+            $line = trim(fgets($stream));
+            
+            if (strpos($line, 'event: ') === 0) {
+                $currentEvent = substr($line, 7);
+                
+            } elseif (strpos($line, 'data: ') === 0) {
+                $data = substr($line, 6);
+                $event = json_decode($data, true);
+                
+                if ($event) {
+                    if ($currentEvent === 'response.created') {
+                        echo "响应已创建，开始生成内容...\n";
+                        
+                    } elseif ($currentEvent === 'response.output_text.delta') {
+                        if (isset($event['delta'])) {
+                            $delta = $event['delta'];
+                            $fullResponse .= $delta;
+                            echo $delta;
+                            flush();
+                        }
+                        
+                    } elseif ($currentEvent === 'response.completed') {
+                        echo "\n响应生成完成\n";
+                        break;
+                    }
+                }
+            }
+        }
+        
+        fclose($stream);
+        return $fullResponse;
+    }
+}
+
+// 使用示例
+$apiKey = '<API-KEY>';
+$api = new ResponsesStreamingAPI($apiKey);
+
+$message = '请写一首关于春天的诗';
+echo "用户输入: " . $message . "\n";
+echo "AI回复: ";
+$reply = $api->streamResponsesAPI($message);
+echo "\n\n完整回复: " . $reply . "\n";
+
+?>
+```
+
+</CodeGroup>
+
+## 流式响应格式
+
+Response API的流式响应使用Server-Sent Events (SSE)格式，每个事件包含两行：`event:` 和 `data:`
+
+### 主要事件类型
+
+#### 1. 响应创建事件
+```
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_04a2a34a8231e6130068fa23caaaa081939b2e2ce1e99a4492","object":"response","created_at":1761223626,"status":"in_progress"...}}
+```
+
+#### 2. 输出项添加事件
+```
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":4,"output_index":1,"item":{"id":"msg_04a2a34a8231e6130068fa23eab57c8193ad2d031223a1220a","type":"message","status":"in_progress","content":[],"role":"assistant"}}
+```
+
+#### 3. 文本增量事件（核心事件）
+```
+event: response.output_text.delta
+data: {"content_index":0,"delta":"春","item_id":"msg_04a2a34a8231e6130068fa23eab57c8193ad2d031223a1220a","logprobs":[],"output_index":1,"sequence_number":6,"type":"response.output_text.delta"}
+
+event: response.output_text.delta
+data: {"content_index":0,"delta":"天","item_id":"msg_04a2a34a8231e6130068fa23eab57c8193ad2d031223a1220a","logprobs":[],"output_index":1,"sequence_number":7,"type":"response.output_text.delta"}
+```
+
+#### 4. 文本输出完成事件
+```
+event: response.output_text.done
+data: {"content_index":0,"item_id":"msg_04a2a34a8231e6130068fa23eab57c8193ad2d031223a1220a","logprobs":[],"output_index":1,"sequence_number":39,"text":"完整的生成文本","type":"response.output_text.done"}
+```
+
+#### 5. 响应完成事件
+```
+event: response.completed
+data: {"type":"response.completed","sequence_number":42,"response":{"id":"resp_04a2a34a8231e6130068fa23caaaa081939b2e2ce1e99a4492","object":"response","status":"completed","usage":{"input_tokens":67,"output_tokens":1767,"total_tokens":1834}...}}
+```
+
+## 重要参数说明
+
+### 请求参数
+- **model**: 使用的模型名称，如 "gpt-5-2025-08-07"
+- **input**: 输入消息数组，每个消息包含角色和内容
+- **stream**: 设置为 `true` 启用流式输出
+- **max_output_tokens**: 限制输出的最大token数量
+
+### 关键事件字段
+- **sequence_number**: 事件序列号，按时间顺序递增
+- **delta**: 文本增量内容（在`response.output_text.delta`事件中）
+- **item_id**: 输出项唯一标识符
+- **output_index**: 输出项在响应中的索引位置
+
+### SSE格式特点
+- **无[DONE]标记**: Response API不使用`[DONE]`标记，而是通过`response.completed`事件表示结束
+- **event + data格式**: 每个事件都有明确的事件类型和对应的数据
+- **sequence_number**: 所有事件都有序列号，确保正确的处理顺序
+
+## 流式输出的优势
+
+1. **实时反馈**: 通过`response.output_text.delta`事件实时获取文本增量
+2. **更好的用户体验**: 避免长时间等待，提供打字效果
+3. **详细状态**: 可以跟踪响应的完整生命周期
+4. **结构化信息**: 每个事件包含丰富的元数据信息
+
+## 处理流式数据的注意事项
+
+1. **正确解析SSE格式**: 需要同时处理`event:`和`data:`行
+2. **事件类型识别**: 根据不同的事件类型执行相应的处理逻辑
+3. **序列号处理**: 可以使用`sequence_number`确保事件顺序
+4. **文本累积**: 通过`response.output_text.delta`事件的`delta`字段累积完整文本
+5. **完成检测**: 通过`response.completed`事件确认响应结束
+
+## 实际应用场景
+
+- **智能对话**: 实现类似ChatGPT的实时对话效果
+- **内容创作**: 实时显示文章、诗歌、代码生成过程
+- **思维过程展示**: 如果启用reasoning模式，可以实时查看AI的思考过程
+- **多步骤任务**: 跟踪复杂任务的执行状态和进度
+
+## 最佳实践示例
+
+```python
+def robust_stream_handler(response):
+    """健壮的流式响应处理器"""
+    full_response = ""
+    current_event = None
+    
+    for line in response.iter_lines(decode_unicode=True):
+        if not line.strip():
+            continue
+            
+        if line.startswith('event: '):
+            current_event = line[7:]
+            
+        elif line.startswith('data: ') and current_event:
+            try:
+                data = json.loads(line[6:])
+                
+                # 只处理文本增量事件
+                if current_event == "response.output_text.delta":
+                    if "delta" in data:
+                        delta = data["delta"]
+                        full_response += delta
+                        print(delta, end='', flush=True)
+                        
+                # 检测完成
+                elif current_event == "response.completed":
+                    print("\n响应完成")
+                    break
+                    
+            except json.JSONDecodeError:
+                # 跳过无效JSON
+                continue
+                
+    return full_response
+```
+
+通过Response API的流式功能，您可以构建更加交互性和实时性的AI应用，为用户提供卓越的体验。
