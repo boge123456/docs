@@ -14,7 +14,7 @@ description: '使用Gemini API获取JSON格式结构化输出的完整示例代�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:generateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -28,7 +28,7 @@ curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateCon
       }
     ],
     "generationConfig": {
-      "maxOutputTokens": 1000,
+      "maxOutputTokens": 3000,
       "temperature": 0.1,
       "responseMimeType": "application/json",
       "responseSchema": {
@@ -73,7 +73,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
 def gemini_structured_output(prompt, schema, temperature=0.1, max_tokens=1000):
     """
@@ -525,7 +525,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1beta';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1beta';
 
 async function geminiStructuredOutput(prompt, schema, temperature = 0.1, maxTokens = 1000) {
     const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent`;
@@ -692,7 +692,7 @@ async function analyzeProductReview() {
 async function extractEventInfo() {
     const prompt = `从以下文本中提取活动信息：
 
-"TokenOPS.AI技术分享会将于2024年10月15日下午2点在北京朝阳区望京SOHO T3座16层举行。本次活动主题是'AI时代的开发者机遇'，将邀请来自腾讯、字节跳动、百度等公司的技术专家分享经验。活动免费参加，但需要提前报名，报名截止时间为10月12日。联系人：李小明，电话：010-12345678，邮箱：contact@tokenops.ai"
+"ModelHub技术分享会将于2024年10月15日下午2点在北京朝阳区望京SOHO T3座16层举行。本次活动主题是'AI时代的开发者机遇'，将邀请来自腾讯、字节跳动、百度等公司的技术专家分享经验。活动免费参加，但需要提前报名，报名截止时间为10月12日。联系人：李小明，电话：010-12345678，邮箱：contact@tokenops.ai"
 
 请提取所有相关信息。`;
 

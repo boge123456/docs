@@ -12,7 +12,7 @@ description: '使用OpenAI GPT-4V进行图片理解和分析的完整示例代�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -44,7 +44,7 @@ import json
 import base64
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def encode_image(image_path):
     """将本地图片编码为base64"""

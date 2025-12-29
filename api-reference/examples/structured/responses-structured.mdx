@@ -14,7 +14,7 @@ description: '使用Responses API获取JSON格式的结构化输出示例'
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/responses" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/responses" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -84,7 +84,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def create_structured_response():
     """使用结构化输出分析公司信息"""
@@ -225,7 +225,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function createStructuredResponse() {
     const url = `${BASE_URL}/responses`;

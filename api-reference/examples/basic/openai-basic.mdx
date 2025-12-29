@@ -14,11 +14,11 @@ description: '使用OpenAI兼容接口进行基础文本对话的完整示例代
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/chat/completions" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
-    "model": "gemini-2.5-flash",
+    "model": "gpt-5-2025-08-07",
     "messages": [
       {
         "role": "user",
@@ -36,7 +36,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def chat_with_ai(message):
     url = f"{BASE_URL}/chat/completions"
@@ -77,7 +77,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function chatWithAI(message) {
     const url = `${BASE_URL}/chat/completions`;
@@ -128,7 +128,7 @@ import (
 
 const (
     APIKey  = "<API-KEY>"
-    BaseURL = "https://api.tokenops.ai/v1"
+    BaseURL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type Message struct {
@@ -227,7 +227,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 public class OpenAIBasicChat {
     private static final String API_KEY = "<API-KEY>";
-    private static final String BASE_URL = "https://api.tokenops.ai/v1";
+    private static final String BASE_URL = "https://model-api.skyengine.com.cn/v1";
     
     public static class Message {
         public String role;
@@ -302,7 +302,7 @@ class OpenAIBasicChat {
     private $apiKey;
     private $baseUrl;
     
-    public function __construct($apiKey, $baseUrl = 'https://api.tokenops.ai/v1') {
+    public function __construct($apiKey, $baseUrl = 'https://model-api.skyengine.com.cn/v1') {
         $this->apiKey = $apiKey;
         $this->baseUrl = $baseUrl;
     }
@@ -428,37 +428,3 @@ echo "AI回复: " . $reply . "\n";
 - **messages**: 对话消息数组，包含角色（role）和内容（content）
 - **max_tokens**: 最大生成token数量，控制回复长度
 - **temperature**: 控制回复的随机性，注意：`gpt-5-2025-08-07` 模型仅支持默认值 1
-
-## 支持的模型
-
-- gpt-5-chat-2025-08-07
-- gpt-5-nano-2025-08-07
-- gpt-5-mini-2025-08-07
-- gpt-5-2025-08-07
-- o4-mini-2025-04-16
-- o3-mini-2025-01-31
-- o1-2024-12-17
-- gpt-4o-2024-08-06
-- gpt-4.1-mini-2025-04-14
-- gpt-4o-2024-11-20
-- gpt-4.1-2025-04-14
-- gpt-4.1-nano-2025-04-14
-- gemini-2.5-pro
-- gemini-2.5-flash
-- gemini-2.5-flash-lite
-- gemini-2.0-flash-lite-001
-- gemini-2.0-flash-001
-- claude-sonnet-4-20250514
-- claude-opus-4-250514
-- claude-3-7-sonnet-20250219
-- claude-3-5-sonnet-20241022
-
-## 错误处理
-
-请确保处理以下常见错误：
-
-- **401 Unauthorized**: API密钥无效或缺失
-- **429 Too Many Requests**: 请求频率过高
-- **500 Internal Server Error**: 服务器内部错误
-
-建议在生产环境中添加重试逻辑和适当的错误处理机制。 

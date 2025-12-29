@@ -12,7 +12,7 @@ description: '使用 OpenAI Sora-2 API 进行视频生成的完整示例代码'
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/videos" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/videos" \
   -H "Authorization: Bearer <API-KEY>" \
   -H "Content-Type: multipart/form-data" \
   -F "prompt=有一个飞机在缓缓飞过" \
@@ -26,7 +26,7 @@ import requests
 import time
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_video(prompt, model="sora-2-2025-10-06", size="1280x720", seconds="8"):
     """
@@ -165,7 +165,7 @@ import (
 
 const (
 	APIKey  = "<API-KEY>"
-	BaseURL = "https://api.tokenops.ai/v1"
+	BaseURL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type VideoResponse struct {
@@ -360,7 +360,7 @@ func main() {
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: multipart/form-data' \
   --form model=sora-2-2025-10-06 \
@@ -375,7 +375,7 @@ import json
 from pathlib import Path
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_video(prompt, model="sora-2-2025-10-06", reference_file=None):
     """
@@ -572,7 +572,7 @@ const fs = require('fs');
 const path = require('path');
 
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function generateVideo(prompt, model = 'sora-2-2025-10-06', referenceFile = null) {
     const url = `${BASE_URL}/videos`;
@@ -727,7 +727,7 @@ import (
 
 const (
     APIKey  = "<API-KEY>"
-    BaseURL = "https://api.tokenops.ai/v1"
+    BaseURL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type VideoResponse struct {
@@ -974,6 +974,145 @@ func main() {
 }
 ```
 
+## 查询视频生成状态
+
+视频生成是异步任务，提交请求后需要轮询查询状态直到完成。
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/{video_id}" \
+  -H "Authorization: Bearer <API-KEY>"
+```
+
+```python Python
+import requests
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def check_video_status(video_id):
+    """
+    查询视频生成状态
+    """
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"查询失败: {response.status_code} - {response.text}")
+        return None
+
+def wait_for_video_completion(video_id, max_wait_time=300, poll_interval=10):
+    """
+    等待视频生成完成
+
+    Args:
+        video_id: 视频任务ID
+        max_wait_time: 最大等待时间（秒）
+        poll_interval: 轮询间隔（秒）
+
+    Returns:
+        完成时的状态信息，或 None（如果超时或失败）
+    """
+    print(f"等待视频生成完成，任务ID: {video_id}")
+    start_time = time.time()
+
+    while time.time() - start_time < max_wait_time:
+        status_info = check_video_status(video_id)
+        if not status_info:
+            break
+
+        status = status_info.get('status')
+        progress = status_info.get('progress', 0)
+        print(f"当前状态: {status}, 进度: {progress}%")
+
+        if status == 'completed':
+            print("视频生成完成！")
+            return status_info
+        elif status == 'failed':
+            error = status_info.get('error', {})
+            print(f"视频生成失败: {error.get('message', '未知错误')}")
+            return None
+
+        time.sleep(poll_interval)
+
+    print("视频生成超时")
+    return None
+
+# 示例
+video_id = "video_68fe5e3df4508190899b2b7999569a71"
+status_info = wait_for_video_completion(video_id)
+if status_info:
+    print(f"视频已完成，分辨率: {status_info.get('size')}, 时长: {status_info.get('seconds')}秒")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
+
+async function checkVideoStatus(videoId) {
+    const url = `${BASE_URL}/videos/${videoId}`;
+
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('查询失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+async function waitForVideoCompletion(videoId, maxWaitTime = 300000, pollInterval = 10000) {
+    console.log(`等待视频生成完成，任务ID: ${videoId}`);
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitTime) {
+        const statusInfo = await checkVideoStatus(videoId);
+        if (!statusInfo) break;
+
+        const status = statusInfo.status;
+        const progress = statusInfo.progress || 0;
+        console.log(`当前状态: ${status}, 进度: ${progress}%`);
+
+        if (status === 'completed') {
+            console.log('视频生成完成！');
+            return statusInfo;
+        } else if (status === 'failed') {
+            console.error(`视频生成失败: ${statusInfo.error?.message || '未知错误'}`);
+            return null;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    console.log('视频生成超时');
+    return null;
+}
+
+// 示例
+const videoId = 'video_68fe5e3df4508190899b2b7999569a71';
+waitForVideoCompletion(videoId).then(statusInfo => {
+    if (statusInfo) {
+        console.log(`视频已完成，分辨率: ${statusInfo.size}, 时长: ${statusInfo.seconds}秒`);
+    }
+});
+```
+
+</CodeGroup>
+
 ### 状态查询响应
 ```json
 {
@@ -989,3 +1128,559 @@ func main() {
 }
 ```
 
+### 状态说明
+
+| 状态 | 说明 |
+|------|------|
+| **queued** | 任务已提交，等待处理 |
+| **processing** | 视频正在生成中 |
+| **completed** | 视频生成完成，可以下载 |
+| **failed** | 视频生成失败，查看 error 字段获取详情 |
+
+## 下载生成的视频
+
+视频生成完成后，可以通过 `/videos/{video_id}/content` 接口下载视频文件。
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/{video_id}/content" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -o "generated_video.mp4"
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def download_video(video_id, output_path="generated_video.mp4"):
+    """
+    下载生成的视频
+
+    Args:
+        video_id: 视频任务ID
+        output_path: 保存路径
+
+    Returns:
+        是否下载成功
+    """
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    print(f"正在下载视频: {video_id}")
+    response = requests.get(url, headers=headers, stream=True)
+
+    if response.status_code == 200:
+        with open(output_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"视频已保存: {output_path}")
+        return True
+    else:
+        print(f"下载失败: {response.status_code} - {response.text}")
+        return False
+
+# 示例
+video_id = "video_68fe5e3df4508190899b2b7999569a71"
+download_video(video_id, f"sora2_video_{video_id}.mp4")
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const fs = require('fs');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
+
+async function downloadVideo(videoId, outputPath = 'generated_video.mp4') {
+    const url = `${BASE_URL}/videos/${videoId}/content`;
+
+    console.log(`正在下载视频: ${videoId}`);
+
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            responseType: 'stream'
+        });
+
+        const writer = fs.createWriteStream(outputPath);
+        response.data.pipe(writer);
+
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => {
+                console.log(`视频已保存: ${outputPath}`);
+                resolve(true);
+            });
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        console.error('下载失败:', error.response?.data || error.message);
+        return false;
+    }
+}
+
+// 示例
+const videoId = 'video_68fe5e3df4508190899b2b7999569a71';
+downloadVideo(videoId, `sora2_video_${videoId}.mp4`);
+```
+
+</CodeGroup>
+
+## 完整示例：生成并下载视频
+
+以下是一个完整的示例，展示从提交生成请求到下载视频的完整流程。
+
+<CodeGroup>
+
+```python Python
+import requests
+import base64
+import time
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def generate_video(prompt, model="sora-2-2025-10-06", size="1280x720", seconds="8"):
+    """提交视频生成请求"""
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": model,
+        "size": size,
+        "seconds": seconds,
+        "content": [{"type": "text", "text": prompt}]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"生成请求失败: {response.status_code} - {response.text}")
+        return None
+
+def check_status(video_id):
+    """查询视频状态"""
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    response = requests.get(url, headers=headers)
+    return response.json() if response.status_code == 200 else None
+
+def download_video(video_id, output_path):
+    """下载视频"""
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    response = requests.get(url, headers=headers, stream=True)
+
+    if response.status_code == 200:
+        with open(output_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return True
+    return False
+
+def generate_video_complete(prompt, max_wait_time=300):
+    """完整流程：生成 -> 等待 -> 下载"""
+    print("1. 提交视频生成请求...")
+    result = generate_video(prompt)
+    if not result:
+        return None
+
+    video_id = result.get('id')
+    print(f"   任务ID: {video_id}")
+
+    print("2. 等待视频生成完成...")
+    start_time = time.time()
+    while time.time() - start_time < max_wait_time:
+        status_info = check_status(video_id)
+        if not status_info:
+            break
+
+        status = status_info.get('status')
+        progress = status_info.get('progress', 0)
+        print(f"   状态: {status}, 进度: {progress}%")
+
+        if status == 'completed':
+            break
+        elif status == 'failed':
+            print(f"   失败: {status_info.get('error', {}).get('message')}")
+            return None
+
+        time.sleep(10)
+    else:
+        print("   超时")
+        return None
+
+    print("3. 下载视频...")
+    output_path = f"sora2_video_{video_id}.mp4"
+    if download_video(video_id, output_path):
+        print(f"   完成！视频已保存: {output_path}")
+        return output_path
+
+    return None
+
+# 使用示例
+if __name__ == "__main__":
+    video_path = generate_video_complete("一只可爱的小猫在花园里玩耍，阳光明媚")
+    if video_path:
+        print(f"\n视频生成成功: {video_path}")
+    else:
+        print("\n视频生成失败")
+```
+
+</CodeGroup>
+
+## 平台兼容视频接口
+
+除了使用 `multipart/form-data` 格式，我们的平台还支持使用 JSON 格式的 `content` 字段来传递 prompt 和参考图片，这种方式更加灵活，适合程序化调用。
+
+### Content 字段结构
+
+`content` 是一个数组，每个元素包含以下字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| **type** | String | 内容类型：`text`（文本）、`image_url`（图片URL）、`image_base64`（Base64图片） |
+| **text** | String | 文本内容（当 type=text 时） |
+| **image_url** | Object | 图片信息（当 type=image_url 或 image_base64 时），包含 `url` 字段 |
+
+### 纯文本生成视频
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/videos" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sora-2-2025-10-06",
+    "size": "1280x720",
+    "seconds": "8",
+    "content": [
+      {
+        "type": "text",
+        "text": "有一个飞机在缓缓飞过蓝天白云"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+import json
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def generate_video_with_content(content, model="sora-2-2025-10-06", size="1280x720", seconds="8"):
+    """
+    使用 content 字段生成视频
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": model,
+        "size": size,
+        "seconds": seconds,
+        "content": content
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"视频生成任务已启动")
+        print(f"任务ID: {result.get('id', 'N/A')}")
+        print(f"状态: {result.get('status', 'N/A')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 示例：纯文本生成
+content = [
+    {
+        "type": "text",
+        "text": "有一个飞机在缓缓飞过蓝天白云"
+    }
+]
+result = generate_video_with_content(content)
+```
+
+</CodeGroup>
+
+### 使用图片 URL 作为参考帧
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/videos" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sora-2-2025-10-06",
+    "size": "1280x720",
+    "seconds": "8",
+    "content": [
+      {
+        "type": "text",
+        "text": "让画面中的飞机缓缓起飞，穿越云层"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://example.com/airplane.jpg"
+        }
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def generate_video_with_image_url(prompt, image_url, model="sora-2-2025-10-06", size="1280x720", seconds="8"):
+    """
+    使用图片 URL 作为参考帧生成视频
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": model,
+        "size": size,
+        "seconds": seconds,
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": image_url
+                }
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"视频生成任务已启动")
+        print(f"任务ID: {result.get('id', 'N/A')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 示例
+result = generate_video_with_image_url(
+    prompt="让画面中的飞机缓缓起飞，穿越云层",
+    image_url="https://example.com/airplane.jpg"
+)
+```
+
+</CodeGroup>
+
+### 使用 Base64 编码的图片
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/videos" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sora-2-2025-10-06",
+    "size": "1280x720",
+    "seconds": "8",
+    "content": [
+      {
+        "type": "text",
+        "text": "让画面中的小猫跳跃玩耍"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+        }
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+import base64
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def generate_video_with_base64_image(prompt, image_path, model="sora-2-2025-10-06", size="1280x720", seconds="8"):
+    """
+    使用 Base64 编码的图片作为参考帧生成视频
+    """
+    # 读取图片并转为 Base64
+    with open(image_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode("utf-8")
+
+    # 根据文件扩展名确定 MIME 类型
+    ext = image_path.lower().split(".")[-1]
+    mime_type = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "webp": "image/webp"
+    }.get(ext, "image/jpeg")
+
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": model,
+        "size": size,
+        "seconds": seconds,
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{image_data}"
+                }
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"视频生成任务已启动")
+        print(f"任务ID: {result.get('id', 'N/A')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 示例
+result = generate_video_with_base64_image(
+    prompt="让画面中的小猫跳跃玩耍",
+    image_path="cat.jpg"
+)
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
+
+async function generateVideoWithBase64Image(prompt, imagePath, model = 'sora-2-2025-10-06', size = '1280x720', seconds = '8') {
+    // 读取图片并转为 Base64
+    const imageData = fs.readFileSync(imagePath);
+    const base64Data = imageData.toString('base64');
+
+    // 根据文件扩展名确定 MIME 类型
+    const ext = path.extname(imagePath).toLowerCase().slice(1);
+    const mimeTypes = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'webp': 'image/webp'
+    };
+    const mimeType = mimeTypes[ext] || 'image/jpeg';
+
+    const url = `${BASE_URL}/videos`;
+
+    try {
+        const response = await axios.post(url, {
+            model: model,
+            size: size,
+            seconds: seconds,
+            content: [
+                {
+                    type: 'text',
+                    text: prompt
+                },
+                {
+                    type: 'image_url',
+                    image_url: {
+                        url: `data:${mimeType};base64,${base64Data}`
+                    }
+                }
+            ]
+        }, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('视频生成任务已启动');
+        console.log(`任务ID: ${response.data.id || 'N/A'}`);
+        return response.data;
+    } catch (error) {
+        console.error('错误:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 示例
+generateVideoWithBase64Image('让画面中的小猫跳跃玩耍', 'cat.jpg');
+```
+
+</CodeGroup>
+
+### Content 字段请求示例
+
+```json
+{
+  "model": "sora-2-2025-10-06",
+  "size": "1280x720",
+  "seconds": "8",
+  "content": [
+    {
+      "type": "text",
+      "text": "让画面中的飞机缓缓起飞"
+    },
+    {
+      "type": "image_url",
+      "image_url": {
+        "url": "https://example.com/airplane.jpg"
+      }
+    }
+  ]
+}
+```
+
+<Note>
+**提示**：使用 `content` 字段时，系统会自动从中提取文本作为 prompt，提取图片作为参考帧。如果同时提供了 `prompt` 字段和 `content` 中的文本，`prompt` 字段会优先使用。
+</Note>

@@ -10,7 +10,7 @@
   },
   "servers": [
     {
-      "url": "https://api.tokenops.ai",
+      "url": "https://model-api.skyengine.com.cn",
       "description": "TokenOps AI API 生产环境"
     }
   ],
@@ -1455,7 +1455,7 @@
     "/v1/files/upload": {
       "post": {
         "summary": "上传文件",
-        "description": "将本地文件上传到 TokenOPS.AI 存储服务。支持多种文件格式（如：mp4、jpg、png等），最大文件大小 1GB。文件内容需要以二进制形式放在 HTTP 请求体中。",
+        "description": "将本地文件上传到 ModelHub 存储服务。支持多种文件格式（如：mp4、jpg、png等），最大文件大小 1GB。文件内容需要以二进制形式放在 HTTP 请求体中。",
         "operationId": "uploadFile",
         "security": [
           {
@@ -1869,7 +1869,7 @@
       "ApiKeyAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "TokenOPS.AI API密钥认证。在 `Authorization` HTTP Header 中包含您的 API-Key，格式为 `Bearer {API_KEY}`"
+        "description": "ModelHub API密钥认证。在 `Authorization` HTTP Header 中包含您的 API-Key，格式为 `Bearer {API_KEY}`"
       }
     },
     "schemas": {

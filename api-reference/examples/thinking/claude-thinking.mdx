@@ -14,7 +14,7 @@ description: '使用Claude展示AI逐步分析和推理过程的完整示例代�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/messages" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/messages" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -H "anthropic-version: 2023-06-01" \
@@ -40,7 +40,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def claude_thinking_mode(problem, enable_thinking=True):
     """
@@ -272,7 +272,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function claudeThinkingMode(problem, thinkingTemplate) {
     const url = `${BASE_URL}/messages`;
@@ -467,7 +467,7 @@ import (
 
 const (
     APIKey  = "<API-KEY>"
-    BaseURL = "https://api.tokenops.ai/v1"
+    BaseURL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type Message struct {

@@ -14,7 +14,7 @@ Model Context Protocol (MCP) 是一个开源标准，用于连接AI应用程序�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/responses" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/responses" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -38,7 +38,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def use_mcp_servers():
     """使用MCP服务器的基础示例"""
@@ -124,7 +124,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function useMCPServers() {
     const url = `${BASE_URL}/responses`;
@@ -186,7 +186,7 @@ import (
 
 const (
     APIKey  = "<API-KEY>"
-    BaseURL = "https://api.tokenops.ai/v1"
+    BaseURL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type MCPTool struct {
@@ -296,7 +296,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 public class ResponsesMCP {
     private static final String API_KEY = "<API-KEY>";
-    private static final String BASE_URL = "https://api.tokenops.ai/v1";
+    private static final String BASE_URL = "https://model-api.skyengine.com.cn/v1";
     
     private final HttpClient client;
     private final ObjectMapper mapper;
@@ -375,7 +375,7 @@ class ResponsesMCP {
     
     public function __construct($apiKey) {
         $this->apiKey = $apiKey;
-        $this->baseUrl = 'https://api.tokenops.ai/v1';
+        $this->baseUrl = 'https://model-api.skyengine.com.cn/v1';
     }
     
     public function useMCPServers() {

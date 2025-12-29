@@ -14,15 +14,16 @@ description: '使用Gemini API进行Function Calling工具调用的完整示例�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:generateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
     "contents": [
       {
+        "role": "user",
         "parts": [
           {
-            "text": "北京今天的天气怎么样？"
+            "text": "计算一下 (25 + 15) * 3 - 20 等于多少？"
           }
         ]
       }
@@ -30,69 +31,34 @@ curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateCon
     "tools": [{
       "functionDeclarations": [
         {
-          "name": "get_current_weather",
-          "description": "Get the current weather in a given location",
+          "name": "calculate_math",
+          "description": "执行数学计算，支持基本的四则运算和括号",
           "parameters": {
             "type": "object",
             "properties": {
-              "location": {
+              "expression": {
                 "type": "string",
-                "description": "The city name of the location for which to get the weather.",
-                "default": {
-                  "string_value": "Boston, MA"
-                }
+                "description": "要计算的数学表达式，如 '2+3*4' 或 '(10+5)/3'"
               }
             },
             "required": [
-              "location"
+              "expression"
             ]
           }
         }
       ]
-    }],
-    "generationConfig": {
-      "maxOutputTokens": 1000,
-      "temperature": 0.7
-    }
+    }]
   }'
 ```
 
 ```python Python
 import requests
-import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
-# 定义可调用的工具函数
-def get_current_weather(location):
-    """获取指定位置的当前天气信息"""
-    weather_data = {
-        "北京": {"temperature": 15, "condition": "晴天", "humidity": 45, "wind": "微风"},
-        "上海": {"temperature": 18, "condition": "多云", "humidity": 60, "wind": "东风3级"},
-        "广州": {"temperature": 25, "condition": "小雨", "humidity": 75, "wind": "南风2级"},
-        "深圳": {"temperature": 24, "condition": "晴天", "humidity": 55, "wind": "无风"},
-        "成都": {"temperature": 20, "condition": "阴天", "humidity": 70, "wind": "西风2级"},
-        "Boston, MA": {"temperature": 68, "condition": "Sunny", "humidity": 50, "wind": "Light breeze"}
-    }
-
-    if location in weather_data:
-        data = weather_data[location]
-        return {
-            "location": location,
-            "temperature": f"{data['temperature']}°C",
-            "condition": data["condition"],
-            "humidity": f"{data['humidity']}%",
-            "wind": data["wind"],
-            "status": "success"
-        }
-    else:
-        return {
-            "error": f"暂时无法获取{location}的天气信息",
-            "status": "error"
-        }
-
+# 定义计算器工具函数
 def calculate_math(expression):
     """执行安全的数学计算"""
     try:
@@ -116,174 +82,9 @@ def calculate_math(expression):
     except Exception as e:
         return {"error": f"计算出错: {str(e)}", "status": "error"}
 
-def search_information(query, category="general"):
-    """模拟信息搜索功能"""
-    # 模拟的搜索结果
-    search_results = {
-        "technology": {
-            "AI": "人工智能是模拟人类智能的计算机科学技术，包括机器学习、深度学习等分支。",
-            "云计算": "云计算是一种基于互联网的计算方式，提供可配置的计算资源共享池。",
-            "区块链": "区块链是一种分布式数据库技术，以加密方式链接的数据块序列。"
-        },
-        "science": {
-            "量子物理": "量子物理学研究原子和亚原子粒子的物理现象，是现代物理学的基础。",
-            "基因工程": "基因工程是直接操作生物体基因的生物技术，用于改良生物性状。",
-            "太空探索": "太空探索是人类对宇宙空间的科学探测和研究活动。"
-        },
-        "general": {
-            "健康": "保持健康需要均衡饮食、适度运动、充足睡眠和良好心态。",
-            "教育": "现代教育注重培养学生的创新思维、批判能力和终身学习习惯。",
-            "环保": "环境保护需要减少污染、节约资源、保护生物多样性。"
-        }
-    }
-
-    # 简单的关键词匹配
-    results = []
-    if category in search_results:
-        for key, value in search_results[category].items():
-            if query.lower() in key.lower() or key.lower() in query.lower():
-                results.append({
-                    "title": key,
-                    "content": value,
-                    "category": category,
-                    "relevance": 0.9 if query.lower() in key.lower() else 0.7
-                })
-
-    if not results:
-        # 如果没有精确匹配，返回相关类别的所有结果
-        if category in search_results:
-            for key, value in list(search_results[category].items())[:2]:
-                results.append({
-                    "title": key,
-                    "content": value,
-                    "category": category,
-                    "relevance": 0.5
-                })
-
-    return {
-        "query": query,
-        "category": category,
-        "results": results,
-        "count": len(results),
-        "status": "success" if results else "no_results"
-    }
-
-def get_time_info(timezone="Asia/Shanghai", format_type="standard"):
-    """获取时间信息"""
-    from datetime import datetime
-    import pytz
-
-    try:
-        if timezone == "Asia/Shanghai":
-            # 模拟北京时间
-            time_str = "2024-10-15 14:30:00"
-            weekday = "星期二"
-        elif timezone == "America/New_York":
-            # 模拟纽约时间
-            time_str = "2024-10-15 02:30:00"
-            weekday = "Tuesday"
-        elif timezone == "Europe/London":
-            # 模拟伦敦时间
-            time_str = "2024-10-15 07:30:00"
-            weekday = "Tuesday"
-        else:
-            time_str = "2024-10-15 12:00:00"
-            weekday = "Unknown"
-
-        if format_type == "12hour":
-            # 转换为12小时制（简化处理）
-            parts = time_str.split(" ")
-            time_part = parts[1]
-            hour = int(time_part.split(":")[0])
-            minute = time_part.split(":")[1]
-            second = time_part.split(":")[2]
-
-            if hour == 0:
-                formatted_time = f"{parts[0]} 12:{minute}:{second} AM"
-            elif hour < 12:
-                formatted_time = f"{parts[0]} {hour}:{minute}:{second} AM"
-            elif hour == 12:
-                formatted_time = f"{parts[0]} 12:{minute}:{second} PM"
-            else:
-                formatted_time = f"{parts[0]} {hour-12}:{minute}:{second} PM"
-
-            time_str = formatted_time
-
-        return {
-            "timezone": timezone,
-            "current_time": time_str,
-            "weekday": weekday,
-            "format": format_type,
-            "status": "success"
-        }
-
-    except Exception as e:
-        return {
-            "error": f"无法获取时区 {timezone} 的时间: {str(e)}",
-            "status": "error"
-        }
-
-def currency_converter(amount, from_currency, to_currency):
-    """货币转换器（使用模拟汇率）"""
-    # 模拟汇率数据（实际应用中应该调用真实的汇率API）
-    exchange_rates = {
-        "USD": {"CNY": 7.2, "EUR": 0.92, "JPY": 149.5, "GBP": 0.82},
-        "CNY": {"USD": 0.139, "EUR": 0.128, "JPY": 20.76, "GBP": 0.114},
-        "EUR": {"USD": 1.09, "CNY": 7.83, "JPY": 162.4, "GBP": 0.89},
-        "JPY": {"USD": 0.0067, "CNY": 0.048, "EUR": 0.0062, "GBP": 0.0055},
-        "GBP": {"USD": 1.22, "CNY": 8.78, "EUR": 1.12, "JPY": 182.3}
-    }
-
-    try:
-        amount = float(amount)
-
-        if from_currency == to_currency:
-            return {
-                "original_amount": amount,
-                "converted_amount": amount,
-                "from_currency": from_currency,
-                "to_currency": to_currency,
-                "exchange_rate": 1.0,
-                "status": "success"
-            }
-
-        if from_currency in exchange_rates and to_currency in exchange_rates[from_currency]:
-            rate = exchange_rates[from_currency][to_currency]
-            converted = round(amount * rate, 2)
-
-            return {
-                "original_amount": amount,
-                "converted_amount": converted,
-                "from_currency": from_currency,
-                "to_currency": to_currency,
-                "exchange_rate": rate,
-                "formatted_result": f"{amount} {from_currency} = {converted} {to_currency}",
-                "status": "success"
-            }
-        else:
-            return {
-                "error": f"不支持 {from_currency} 到 {to_currency} 的转换",
-                "status": "error"
-            }
-
-    except ValueError:
-        return {
-            "error": "金额必须是有效的数字",
-            "status": "error"
-        }
-    except Exception as e:
-        return {
-            "error": f"货币转换失败: {str(e)}",
-            "status": "error"
-        }
-
 # 工具函数映射
 AVAILABLE_FUNCTIONS = {
-    "get_current_weather": get_current_weather,
-    "calculate_math": calculate_math,
-    "search_information": search_information,
-    "get_time_info": get_time_info,
-    "currency_converter": currency_converter
+    "calculate_math": calculate_math
 }
 
 def gemini_function_calling(user_message):
@@ -299,23 +100,6 @@ def gemini_function_calling(user_message):
         {
             "functionDeclarations": [
                 {
-                    "name": "get_current_weather",
-                    "description": "Get the current weather in a given location",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "location": {
-                                "type": "string",
-                                "description": "The city name of the location for which to get the weather.",
-                                "default": {
-                                    "string_value": "Boston, MA"
-                                }
-                            }
-                        },
-                        "required": ["location"]
-                    }
-                },
-                {
                     "name": "calculate_math",
                     "description": "执行数学计算，支持基本的四则运算和括号",
                     "parameters": {
@@ -328,68 +112,6 @@ def gemini_function_calling(user_message):
                         },
                         "required": ["expression"]
                     }
-                },
-                {
-                    "name": "search_information",
-                    "description": "搜索相关信息和知识",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "搜索关键词或问题"
-                            },
-                            "category": {
-                                "type": "string",
-                                "enum": ["general", "technology", "science"],
-                                "description": "搜索类别，general为通用，technology为技术，science为科学"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                },
-                {
-                    "name": "get_time_info",
-                    "description": "获取指定时区的当前时间信息",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "timezone": {
-                                "type": "string",
-                                "description": "时区名称，如 'Asia/Shanghai', 'America/New_York', 'Europe/London'"
-                            },
-                            "format_type": {
-                                "type": "string",
-                                "enum": ["standard", "12hour"],
-                                "description": "时间格式，standard为24小时制，12hour为12小时制"
-                            }
-                        },
-                        "required": ["timezone"]
-                    }
-                },
-                {
-                    "name": "currency_converter",
-                    "description": "货币转换工具，支持主要货币间的汇率转换",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "amount": {
-                                "type": "number",
-                                "description": "要转换的金额"
-                            },
-                            "from_currency": {
-                                "type": "string",
-                                "enum": ["USD", "CNY", "EUR", "JPY", "GBP"],
-                                "description": "源货币代码"
-                            },
-                            "to_currency": {
-                                "type": "string",
-                                "enum": ["USD", "CNY", "EUR", "JPY", "GBP"],
-                                "description": "目标货币代码"
-                            }
-                        },
-                        "required": ["amount", "from_currency", "to_currency"]
-                    }
                 }
             ]
         }
@@ -397,6 +119,7 @@ def gemini_function_calling(user_message):
 
     messages = [
         {
+            "role": "user",
             "parts": [
                 {
                     "text": user_message
@@ -407,11 +130,7 @@ def gemini_function_calling(user_message):
 
     data = {
         "contents": messages,
-        "tools": tools,
-        "generationConfig": {
-            "maxOutputTokens": 1000,
-            "temperature": 0.7
-        }
+        "tools": tools
     }
 
     try:
@@ -428,8 +147,8 @@ def gemini_function_calling(user_message):
             content = candidate.get('content', {})
             parts = content.get('parts', [])
 
-            # 检查是否有函数调用
-            function_calls = [part for part in parts if 'function_call' in part]
+            # 检查是否有函数调用（注意：API返回的是 functionCall 而不是 function_call）
+            function_calls = [part for part in parts if 'functionCall' in part]
 
             if function_calls:
                 print("检测到函数调用请求:")
@@ -438,8 +157,8 @@ def gemini_function_calling(user_message):
                 function_responses = []
 
                 for part in parts:
-                    if 'function_call' in part:
-                        function_call = part['function_call']
+                    if 'functionCall' in part:
+                        function_call = part['functionCall']
                         function_name = function_call['name']
                         function_args = function_call.get('args', {})
 
@@ -453,7 +172,7 @@ def gemini_function_calling(user_message):
                                 print(f"- 结果: {function_result}")
 
                                 function_responses.append({
-                                    "function_response": {
+                                    "functionResponse": {
                                         "name": function_name,
                                         "response": function_result
                                     }
@@ -462,7 +181,7 @@ def gemini_function_calling(user_message):
                             except Exception as e:
                                 error_result = {"error": f"函数执行失败: {str(e)}", "status": "error"}
                                 function_responses.append({
-                                    "function_response": {
+                                    "functionResponse": {
                                         "name": function_name,
                                         "response": error_result
                                     }
@@ -470,18 +189,22 @@ def gemini_function_calling(user_message):
                         else:
                             error_result = {"error": f"未知的函数: {function_name}", "status": "error"}
                             function_responses.append({
-                                "function_response": {
+                                "functionResponse": {
                                     "name": function_name,
                                     "response": error_result
                                 }
                             })
 
                 # 将函数结果发送回Gemini生成最终回复
+                # 模型的函数调用响应需要指定 role: "model"
                 messages.append({
+                    "role": "model",
                     "parts": parts
                 })
 
+                # 函数执行结果需要指定 role: "user"
                 messages.append({
+                    "role": "user",
                     "parts": function_responses
                 })
 
@@ -512,513 +235,13 @@ def gemini_function_calling(user_message):
 
 # 使用示例
 if __name__ == "__main__":
-    print("=== Gemini工具调用示例 ===\n")
+    print("=== Gemini计算器工具调用示例 ===\n")
 
-    test_queries = [
-        "帮我查一下北京和上海的天气情况",
-        "计算一下 (25 + 15) * 3 - 20 等于多少？",
-        "现在北京时间是几点？",
-        "搜索一下关于人工智能的信息",
-        "100美元等于多少人民币？",
-        "我想了解一下量子物理，然后计算 50 * 2 + 30"
-    ]
-
-    for i, query in enumerate(test_queries, 1):
-        print(f"{i}. 用户问题: {query}")
-        print("AI回复:")
-        response = gemini_function_calling(query)
-        print(response)
-        print("\n" + "="*60 + "\n")
-```
-
-```javascript JavaScript/Node.js
-const axios = require('axios');
-
-// 配置API密钥和基础URL
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1beta';
-
-// 定义可调用的工具函数
-function getCurrentWeather(location) {
-    const weatherData = {
-        '北京': { temperature: 15, condition: '晴天', humidity: 45, wind: '微风' },
-        '上海': { temperature: 18, condition: '多云', humidity: 60, wind: '东风3级' },
-        '广州': { temperature: 25, condition: '小雨', humidity: 75, wind: '南风2级' },
-        '深圳': { temperature: 24, condition: '晴天', humidity: 55, wind: '无风' },
-        '成都': { temperature: 20, condition: '阴天', humidity: 70, wind: '西风2级' },
-        'Boston, MA': { temperature: 68, condition: 'Sunny', humidity: 50, wind: 'Light breeze' }
-    };
-
-    if (weatherData[location]) {
-        const data = weatherData[location];
-        return {
-            location: location,
-            temperature: `${data.temperature}°C`,
-            condition: data.condition,
-            humidity: `${data.humidity}%`,
-            wind: data.wind,
-            status: 'success'
-        };
-    } else {
-        return {
-            error: `暂时无法获取${location}的天气信息`,
-            status: 'error'
-        };
-    }
-}
-
-function calculateMath(expression) {
-    try {
-        // 安全检查
-        const allowedChars = /^[0-9+\-*/.() ]+$/;
-        if (!allowedChars.test(expression)) {
-            return { error: '表达式包含不允许的字符', status: 'error' };
-        }
-
-        const result = eval(expression);
-        return {
-            expression: expression,
-            result: result,
-            formatted: `${expression} = ${result}`,
-            status: 'success'
-        };
-    } catch (error) {
-        return { error: `计算出错: ${error.message}`, status: 'error' };
-    }
-}
-
-function searchInformation(query, category = 'general') {
-    // 模拟的搜索结果
-    const searchResults = {
-        technology: {
-            'AI': '人工智能是模拟人类智能的计算机科学技术，包括机器学习、深度学习等分支。',
-            '云计算': '云计算是一种基于互联网的计算方式，提供可配置的计算资源共享池。',
-            '区块链': '区块链是一种分布式数据库技术，以加密方式链接的数据块序列。'
-        },
-        science: {
-            '量子物理': '量子物理学研究原子和亚原子粒子的物理现象，是现代物理学的基础。',
-            '基因工程': '基因工程是直接操作生物体基因的生物技术，用于改良生物性状。',
-            '太空探索': '太空探索是人类对宇宙空间的科学探测和研究活动。'
-        },
-        general: {
-            '健康': '保持健康需要均衡饮食、适度运动、充足睡眠和良好心态。',
-            '教育': '现代教育注重培养学生的创新思维、批判能力和终身学习习惯。',
-            '环保': '环境保护需要减少污染、节约资源、保护生物多样性。'
-        }
-    };
-
-    // 简单的关键词匹配
-    const results = [];
-    if (searchResults[category]) {
-        for (const [key, value] of Object.entries(searchResults[category])) {
-            if (query.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(query.toLowerCase())) {
-                results.push({
-                    title: key,
-                    content: value,
-                    category: category,
-                    relevance: query.toLowerCase().includes(key.toLowerCase()) ? 0.9 : 0.7
-                });
-            }
-        }
-    }
-
-    if (results.length === 0 && searchResults[category]) {
-        // 如果没有精确匹配，返回相关类别的前两个结果
-        const entries = Object.entries(searchResults[category]).slice(0, 2);
-        for (const [key, value] of entries) {
-            results.push({
-                title: key,
-                content: value,
-                category: category,
-                relevance: 0.5
-            });
-        }
-    }
-
-    return {
-        query: query,
-        category: category,
-        results: results,
-        count: results.length,
-        status: results.length > 0 ? 'success' : 'no_results'
-    };
-}
-
-function getTimeInfo(timezone = 'Asia/Shanghai', formatType = 'standard') {
-    try {
-        let timeStr, weekday;
-
-        if (timezone === 'Asia/Shanghai') {
-            timeStr = '2024-10-15 14:30:00';
-            weekday = '星期二';
-        } else if (timezone === 'America/New_York') {
-            timeStr = '2024-10-15 02:30:00';
-            weekday = 'Tuesday';
-        } else if (timezone === 'Europe/London') {
-            timeStr = '2024-10-15 07:30:00';
-            weekday = 'Tuesday';
-        } else {
-            timeStr = '2024-10-15 12:00:00';
-            weekday = 'Unknown';
-        }
-
-        if (formatType === '12hour') {
-            // 简化的12小时制转换
-            const parts = timeStr.split(' ');
-            const timePart = parts[1];
-            const [hour, minute, second] = timePart.split(':');
-            const hourInt = parseInt(hour);
-
-            let formattedTime;
-            if (hourInt === 0) {
-                formattedTime = `${parts[0]} 12:${minute}:${second} AM`;
-            } else if (hourInt < 12) {
-                formattedTime = `${parts[0]} ${hour}:${minute}:${second} AM`;
-            } else if (hourInt === 12) {
-                formattedTime = `${parts[0]} 12:${minute}:${second} PM`;
-            } else {
-                formattedTime = `${parts[0]} ${hourInt-12}:${minute}:${second} PM`;
-            }
-            timeStr = formattedTime;
-        }
-
-        return {
-            timezone: timezone,
-            current_time: timeStr,
-            weekday: weekday,
-            format: formatType,
-            status: 'success'
-        };
-
-    } catch (error) {
-        return {
-            error: `无法获取时区 ${timezone} 的时间: ${error.message}`,
-            status: 'error'
-        };
-    }
-}
-
-function currencyConverter(amount, fromCurrency, toCurrency) {
-    // 模拟汇率数据
-    const exchangeRates = {
-        'USD': { 'CNY': 7.2, 'EUR': 0.92, 'JPY': 149.5, 'GBP': 0.82 },
-        'CNY': { 'USD': 0.139, 'EUR': 0.128, 'JPY': 20.76, 'GBP': 0.114 },
-        'EUR': { 'USD': 1.09, 'CNY': 7.83, 'JPY': 162.4, 'GBP': 0.89 },
-        'JPY': { 'USD': 0.0067, 'CNY': 0.048, 'EUR': 0.0062, 'GBP': 0.0055 },
-        'GBP': { 'USD': 1.22, 'CNY': 8.78, 'EUR': 1.12, 'JPY': 182.3 }
-    };
-
-    try {
-        const amountNum = parseFloat(amount);
-
-        if (fromCurrency === toCurrency) {
-            return {
-                original_amount: amountNum,
-                converted_amount: amountNum,
-                from_currency: fromCurrency,
-                to_currency: toCurrency,
-                exchange_rate: 1.0,
-                status: 'success'
-            };
-        }
-
-        if (exchangeRates[fromCurrency] && exchangeRates[fromCurrency][toCurrency]) {
-            const rate = exchangeRates[fromCurrency][toCurrency];
-            const converted = Math.round(amountNum * rate * 100) / 100;
-
-            return {
-                original_amount: amountNum,
-                converted_amount: converted,
-                from_currency: fromCurrency,
-                to_currency: toCurrency,
-                exchange_rate: rate,
-                formatted_result: `${amountNum} ${fromCurrency} = ${converted} ${toCurrency}`,
-                status: 'success'
-            };
-        } else {
-            return {
-                error: `不支持 ${fromCurrency} 到 ${toCurrency} 的转换`,
-                status: 'error'
-            };
-        }
-
-    } catch (error) {
-        return {
-            error: `货币转换失败: ${error.message}`,
-            status: 'error'
-        };
-    }
-}
-
-// 工具函数映射
-const AVAILABLE_FUNCTIONS = {
-    get_current_weather: getCurrentWeather,
-    calculate_math: calculateMath,
-    search_information: searchInformation,
-    get_time_info: getTimeInfo,
-    currency_converter: currencyConverter
-};
-
-async function geminiFunctionCalling(userMessage) {
-    const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent`;
-    const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`
-    };
-
-    // 定义可用的工具
-    const tools = [
-        {
-            functionDeclarations: [
-                {
-                    name: 'get_current_weather',
-                    description: 'Get the current weather in a given location',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            location: {
-                                type: 'string',
-                                description: 'The city name of the location for which to get the weather.',
-                                default: {
-                                    string_value: 'Boston, MA'
-                                }
-                            }
-                        },
-                        required: ['location']
-                    }
-                },
-                {
-                    name: 'calculate_math',
-                    description: '执行数学计算，支持基本的四则运算和括号',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            expression: {
-                                type: 'string',
-                                description: "要计算的数学表达式，如 '2+3*4' 或 '(10+5)/3'"
-                            }
-                        },
-                        required: ['expression']
-                    }
-                },
-                {
-                    name: 'search_information',
-                    description: '搜索相关信息和知识',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            query: {
-                                type: 'string',
-                                description: '搜索关键词或问题'
-                            },
-                            category: {
-                                type: 'string',
-                                enum: ['general', 'technology', 'science'],
-                                description: '搜索类别，general为通用，technology为技术，science为科学'
-                            }
-                        },
-                        required: ['query']
-                    }
-                },
-                {
-                    name: 'get_time_info',
-                    description: '获取指定时区的当前时间信息',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            timezone: {
-                                type: 'string',
-                                description: "时区名称，如 'Asia/Shanghai', 'America/New_York', 'Europe/London'"
-                            },
-                            format_type: {
-                                type: 'string',
-                                enum: ['standard', '12hour'],
-                                description: '时间格式，standard为24小时制，12hour为12小时制'
-                            }
-                        },
-                        required: ['timezone']
-                    }
-                },
-                {
-                    name: 'currency_converter',
-                    description: '货币转换工具，支持主要货币间的汇率转换',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            amount: {
-                                type: 'number',
-                                description: '要转换的金额'
-                            },
-                            from_currency: {
-                                type: 'string',
-                                enum: ['USD', 'CNY', 'EUR', 'JPY', 'GBP'],
-                                description: '源货币代码'
-                            },
-                            to_currency: {
-                                type: 'string',
-                                enum: ['USD', 'CNY', 'EUR', 'JPY', 'GBP'],
-                                description: '目标货币代码'
-                            }
-                        },
-                        required: ['amount', 'from_currency', 'to_currency']
-                    }
-                }
-            ]
-        }
-    ];
-
-    const messages = [
-        {
-            parts: [
-                {
-                    text: userMessage
-                }
-            ]
-        }
-    ];
-
-    const data = {
-        contents: messages,
-        tools: tools,
-        generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.7
-        }
-    };
-
-    try {
-        const response = await axios.post(url, data, { headers });
-
-        if (response.status !== 200) {
-            return `API错误: ${response.status} - ${response.statusText}`;
-        }
-
-        const result = response.data;
-
-        // 处理Gemini的响应
-        if (result.candidates && result.candidates.length > 0) {
-            const candidate = result.candidates[0];
-            const content = candidate.content || {};
-            const parts = content.parts || [];
-
-            // 检查是否有函数调用
-            const functionCalls = parts.filter(part => part.function_call);
-
-            if (functionCalls.length > 0) {
-                console.log('检测到函数调用请求:');
-
-                // 处理函数调用并收集结果
-                const functionResponses = [];
-
-                for (const part of parts) {
-                    if (part.function_call) {
-                        const functionCall = part.function_call;
-                        const functionName = functionCall.name;
-                        const functionArgs = functionCall.args || {};
-
-                        console.log(`- 调用函数: ${functionName}`);
-                        console.log(`- 参数:`, functionArgs);
-
-                        // 执行函数调用
-                        if (AVAILABLE_FUNCTIONS[functionName]) {
-                            try {
-                                const functionResult = AVAILABLE_FUNCTIONS[functionName](...Object.values(functionArgs));
-                                console.log(`- 结果:`, functionResult);
-
-                                functionResponses.push({
-                                    function_response: {
-                                        name: functionName,
-                                        response: functionResult
-                                    }
-                                });
-
-                            } catch (error) {
-                                const errorResult = { error: `函数执行失败: ${error.message}`, status: 'error' };
-                                functionResponses.push({
-                                    function_response: {
-                                        name: functionName,
-                                        response: errorResult
-                                    }
-                                });
-                            }
-                        } else {
-                            const errorResult = { error: `未知的函数: ${functionName}`, status: 'error' };
-                            functionResponses.push({
-                                function_response: {
-                                    name: functionName,
-                                    response: errorResult
-                                }
-                            });
-                        }
-                    }
-                }
-
-                // 将函数结果发送回Gemini生成最终回复
-                messages.push({
-                    parts: parts
-                });
-
-                messages.push({
-                    parts: functionResponses
-                });
-
-                data.contents = messages;
-                const finalResponse = await axios.post(url, data, { headers });
-
-                if (finalResponse.status === 200) {
-                    const finalResult = finalResponse.data;
-                    if (finalResult.candidates && finalResult.candidates.length > 0) {
-                        const finalContent = finalResult.candidates[0].content;
-                        const finalParts = finalContent.parts || [];
-                        // 提取文本内容
-                        const textParts = finalParts.filter(part => part.text).map(part => part.text);
-                        return textParts.join('\n');
-                    } else {
-                        return '无法获取最终回复';
-                    }
-                } else {
-                    return `获取最终回复失败: ${finalResponse.status} - ${finalResponse.statusText}`;
-                }
-            } else {
-                // 没有函数调用，直接返回文本回复
-                const textParts = parts.filter(part => part.text).map(part => part.text);
-                return textParts.join('\n');
-            }
-        } else {
-            return '没有获得有效回复';
-        }
-
-    } catch (error) {
-        return `请求处理出错: ${error.response?.status} - ${error.response?.data || error.message}`;
-    }
-}
-
-// 使用示例
-(async () => {
-    try {
-        console.log('=== Gemini工具调用示例 ===\n');
-
-        const testQueries = [
-            '帮我查一下北京和上海的天气情况',
-            '计算一下 (25 + 15) * 3 - 20 等于多少？',
-            '现在北京时间是几点？',
-            '搜索一下关于人工智能的信息',
-            '100美元等于多少人民币？'
-        ];
-
-        for (let i = 0; i < testQueries.length; i++) {
-            const query = testQueries[i];
-            console.log(`${i + 1}. 用户问题: ${query}`);
-            console.log('AI回复:');
-            const response = await geminiFunctionCalling(query);
-            console.log(response);
-            console.log('\n' + '='.repeat(60) + '\n');
-        }
-
-    } catch (error) {
-        console.error('程序执行出错:', error.message);
-    }
-})();
+    query = "计算一下 (25 + 15) * 3 - 20 等于多少？"
+    print(f"用户问题: {query}")
+    print("AI回复:")
+    response = gemini_function_calling(query)
+    print(response)
 ```
 
 </CodeGroup>
@@ -1061,7 +284,7 @@ Gemini的工具调用响应格式：
       "content": {
         "parts": [
           {
-            "function_call": {
+            "functionCall": {
               "name": "function_name",
               "args": {
                 "param": "value"
@@ -1078,9 +301,9 @@ Gemini的工具调用响应格式：
 ### 3. 工作流程
 1. 用户发送带有工具定义的消息
 2. Gemini分析是否需要使用工具
-3. Gemini返回包含 `function_call` 的响应
+3. Gemini返回包含 `functionCall` 的响应
 4. 客户端执行对应的函数
-5. 客户端将结果作为 `function_response` 发送回Gemini
+5. 客户端将结果作为 `functionResponse` 发送回Gemini
 6. Gemini基于工具结果生成最终回复
 
 ## 结果示例
@@ -1091,10 +314,10 @@ Gemini的工具调用响应格式：
       "content": {
         "parts": [
           {
-            "function_call": {
-              "name": "get_current_weather",
+            "functionCall": {
+              "name": "calculate_math",
               "args": {
-                "location": "北京"
+                "expression": "(25 + 15) * 3 - 20"
               }
             }
           }
@@ -1113,119 +336,90 @@ Gemini的工具调用响应格式：
 }
 ```
 
-## 高级特性
+## Google Search 工具
 
-### 1. 多工具组合调用
-Gemini可以智能地决定调用多个工具来完成复杂任务：
+Gemini 支持内置的 Google Search 工具，可以让模型搜索实时信息来回答问题。与自定义函数调用不同，Google Search 是由 Gemini 自动执行的，无需客户端处理搜索逻辑。
 
-```python
-# Gemini可能会依次调用多个函数
-user_query = "查询北京天气，然后计算如果温度是15度转换成华氏度是多少"
+<CodeGroup>
 
-# Gemini会：
-# 1. 先调用 get_current_weather("北京")
-# 2. 获取结果后调用 calculate_math("15*9/5+32")
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:generateContent" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {"text": "2024年欧洲杯冠军是谁？"}
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "googleSearch": {}
+      }
+    ]
+  }'
 ```
 
-### 2. 条件性工具使用
-Gemini会智能判断是否需要使用工具：
+```python Python
+import requests
 
-```python
-# 需要工具的查询
-"北京今天天气如何？"  # 会调用get_current_weather
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
-# 不需要工具的查询
-"你好，请介绍一下自己"  # 直接回复，不调用工具
+def gemini_google_search(query):
+    """使用 Gemini 的 Google Search 工具进行搜索"""
+    url = f"{BASE_URL}/models/gemini-2.5-flash:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": query}
+                ]
+            }
+        ],
+        "tools": [
+            {
+                "googleSearch": {}
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        if 'candidates' in result and len(result['candidates']) > 0:
+            parts = result['candidates'][0]['content'].get('parts', [])
+            text_parts = [part.get('text', '') for part in parts if 'text' in part]
+            return '\n'.join(text_parts)
+    return f"错误: {response.status_code} - {response.text}"
+
+# 使用示例
+if __name__ == "__main__":
+    query = "2024年欧洲杯冠军是谁？"
+    print(f"问题: {query}")
+    print("回答:")
+    print(gemini_google_search(query))
 ```
 
-### 3. 错误处理和重试
-```python
-def robust_function_call(function_name, args):
-    """带错误处理的函数调用"""
-    try:
-        result = AVAILABLE_FUNCTIONS[function_name](**args)
-        if result.get('status') == 'error':
-            # 返回错误信息，让Gemini知道调用失败
-            return {"error": result['error'], "retry_suggestion": True}
-        return result
-    except Exception as e:
-        return {"error": f"函数执行异常: {str(e)}", "retry_suggestion": False}
-```
+</CodeGroup>
 
-## 应用场景
+### Google Search 工具特点
 
-### 实时信息查询
-- **天气服务**: 获取实时天气信息
-- **金融数据**: 查询股价、汇率等金融信息
-- **交通信息**: 获取路况、班次信息
-
-### 计算和转换
-- **数学计算**: 复杂数学表达式计算
-- **单位转换**: 货币、度量单位转换
-- **数据处理**: 格式转换、数据验证
-
-### 信息检索
-- **知识查询**: 搜索百科知识
-- **文档检索**: 查找相关文档内容
-- **数据库查询**: 从数据库获取信息
-
-### 系统操作
-- **文件操作**: 文件读写、管理
-- **API调用**: 调用第三方服务
-- **任务执行**: 自动化任务处理
-
-## 最佳实践
-
-### 1. 工具设计原则
-- **功能单一**: 每个工具只负责一个明确的功能
-- **参数清晰**: 提供详细的参数描述和类型定义
-- **错误处理**: 完善的错误处理和状态返回
-- **安全验证**: 对输入参数进行安全验证
-
-### 2. 性能优化
-- **缓存机制**: 对频繁查询的数据进行缓存
-- **并发控制**: 合理控制并发工具调用数量
-- **超时设置**: 为工具调用设置合理的超时时间
-- **资源限制**: 限制资源密集型操作
-
-### 3. 用户体验
-- **响应及时**: 确保工具调用响应快速
-- **信息完整**: 返回完整且有用的信息
-- **错误友好**: 提供用户友好的错误信息
-- **状态透明**: 让用户了解工具调用的进度
-
-## 安全考虑
-
-### 1. 输入验证
-```python
-def validate_input(param, param_type, allowed_values=None):
-    """输入参数验证"""
-    if param_type == "string" and not isinstance(param, str):
-        raise ValueError("参数类型必须为字符串")
-
-    if allowed_values and param not in allowed_values:
-        raise ValueError(f"参数值必须在 {allowed_values} 中")
-
-    return True
-```
-
-### 2. 权限控制
-- **功能限制**: 限制工具的执行权限
-- **资源控制**: 防止资源滥用
-- **访问控制**: 控制敏感操作的访问
-- **审计日志**: 记录所有工具调用
-
-### 3. 数据保护
-- **敏感信息**: 避免在工具调用中传递敏感信息
-- **数据加密**: 对传输的数据进行适当加密
-- **临时数据**: 及时清理临时生成的数据
-- **隐私合规**: 确保符合隐私保护规定
+- **自动执行**: 模型会自动调用 Google Search 获取信息，无需客户端处理
+- **实时信息**: 可以获取最新的新闻、事件、数据等实时信息
+- **简单配置**: 只需在 `tools` 中添加 `{"googleSearch": {}}` 即可启用
 
 ## 注意事项
 
-1. **API成本**: 工具调用会增加API调用次数和成本
-2. **网络延迟**: 工具执行可能增加整体响应时间
-3. **错误传播**: 工具错误会影响整个对话流程
-4. **依赖管理**: 确保外部依赖的可用性和稳定性
-5. **版本兼容**: 注意工具接口的版本兼容性
-6. **调试复杂性**: 多工具调用链的调试较为复杂
+1. **消息角色**: 多轮对话时，所有消息都需要指定 `role` 字段（`user` 或 `model`）
+2. **字段命名**: API 使用 camelCase 命名（`functionCall`、`functionResponse`），而不是 snake_case
+3. **函数响应**: 函数执行结果需要以 `role: "user"` 的消息发送回模型
+4. **错误处理**: 建议在函数执行中添加完善的错误处理机制

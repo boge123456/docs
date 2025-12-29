@@ -12,7 +12,7 @@ description: '使用 OpenAI API进行图片生成的完整示例代码'
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -32,7 +32,7 @@ from PIL import Image
 from io import BytesIO
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image(prompt, size="1024x1024", quality="medium", n=1, model="gpt-image-1"):
     url = f"{BASE_URL}/images/generations"

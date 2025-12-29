@@ -7,7 +7,7 @@ sidebarTitle: "快速上手"
 ---
 
 ### 登录平台
-访问[TokenOPS.AI](https://tokenops.ai)官网，点击左下角的“登录”按钮，输入手机号码+验证码进行登录（首次登录即注册）
+访问[ModelHub](https://tokenops.ai)官网，点击左下角的“登录”按钮，输入手机号码+验证码进行登录（首次登录即注册）
 
 ### 了解模型
 通过 [模型广场](https://tokenops.ai/model-square) 查找并了解当前可用的模型详情、模型价格，确定需要使用的模型，点击模型卡片，了解模型更详情信息，并可通过 立即体验 进入到模型体验页。
@@ -22,7 +22,7 @@ sidebarTitle: "快速上手"
 from openai import OpenAI
 
 client = OpenAI(
-  base_url="https://api.tokenops.ai/v1",
+  base_url="https://model-api.skyengine.com.cn/v1",
   api_key="<TOKENOPS_API_KEY>",
 )
 
@@ -44,4 +44,4 @@ print(completion.choices[0].message.content)
 ```
 
 ### 客户端使用
-TokenOPS.AI平台的API-Key是支持在常见的AI客户端上进行使用的，具体详见 [客户端使用](./aiclient/cherrystudio)
+ModelHub平台的API-Key是支持在常见的AI客户端上进行使用的，具体详见 [客户端使用](./aiclient/cherrystudio)

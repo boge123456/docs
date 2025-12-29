@@ -14,7 +14,7 @@ description: '使用Gemini API进行流式文本生成的完整示例代码'
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:streamGenerateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:streamGenerateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -41,7 +41,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
 def stream_chat_with_gemini(message, model="gemini-2.5-flash"):
     url = f"{BASE_URL}/models/{model}:streamGenerateContent"
@@ -67,12 +67,16 @@ def stream_chat_with_gemini(message, model="gemini-2.5-flash"):
     }
     
     response = requests.post(url, headers=headers, json=data, stream=True)
-    
+    response.encoding = 'utf-8'  # 设置响应编码为UTF-8
+
     if response.status_code == 200:
         full_response = ""
-        
+
         for line in response.iter_lines(decode_unicode=True):
             if line.strip():
+                # 去掉 "data: " 前缀（如果有）
+                if line.startswith("data: "):
+                    line = line[6:]
                 try:
                     data = json.loads(line)
                     if 'candidates' in data and len(data['candidates']) > 0:

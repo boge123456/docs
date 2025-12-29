@@ -16,7 +16,7 @@ description: '使用Responses API启用思考模式的示例，展示模型的�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/responses" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/responses" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -35,7 +35,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def create_thinking_response():
     """使用gpt-5模型的思考模式"""
@@ -100,7 +100,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function createThinkingResponse() {
     const url = `${BASE_URL}/responses`;
@@ -187,7 +187,7 @@ import (
 
 const (
     API_KEY = "<API-KEY>"
-    BASE_URL = "https://api.tokenops.ai/v1"
+    BASE_URL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type ThinkingRequest struct {

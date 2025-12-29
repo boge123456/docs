@@ -2,14 +2,14 @@
 title: "Claude Code 接入指南"
 ---
 
-Claude Code 是 Anthropic 推出的专业编码助手，功能强大但使用门槛较高。不仅需登录专属 Claude 账号，还需购买官方月度订阅才能解锁。为了让 TokenOPS.AI 平台用户更便捷的享受这一工具，我们已完成对 Claude Code 进行兼容，您可通过下列方式安装使用。
+Claude Code 是 Anthropic 推出的专业编码助手，功能强大但使用门槛较高。不仅需登录专属 Claude 账号，还需购买官方月度订阅才能解锁。为了让 ModelHub 平台用户更便捷的享受这一工具，我们已完成对 Claude Code 进行兼容，您可通过下列方式安装使用。
 
 > 适用于 macOS / Linux / Windows(WSL/PowerShell)  
 > 国内网络已给出镜像方案，5 分钟搞定。
 
 ### 准备工作
 
-1. 获取TokenOPS.AI平台的API-Key  
+1. 获取ModelHub平台的API-Key  
    获取方式：登陆平台 → 点击API密钥 → 创建密钥 → 点击复制即可获取API-Key
 
 ### 前置条件
@@ -49,9 +49,9 @@ npm install -g @anthropic-ai/claude-code
 
 #### 步骤二：配置 API 接入点和 API Key
 
-Claude Code 需要配置环境变量来连接 TokenOPS.AI 服务：
+Claude Code 需要配置环境变量来连接 ModelHub 服务：
 - `ANTHROPIC_BASE_URL` - API 接入点
-- `ANTHROPIC_AUTH_TOKEN` - TokenOPS.AI 平台的API-Key
+- `ANTHROPIC_AUTH_TOKEN` - ModelHub 平台的API-Key
 - `ANTHROPIC_MODEL` - 模型名称
 
 将以下命令添加到您的 shell 配置文件中（例如 `~/.zshrc`、`~/.bashrc` 或 `~/.bash_profile`），以 `~/.bash_profile` 为例：
@@ -63,8 +63,8 @@ vim ~/.bash_profile
 添加以下配置内容：
 
 ```bash
-# TokenOPS.AI Claude Code配置(必填项)
-export ANTHROPIC_BASE_URL="https://api.tokenops.ai"
+# ModelHub Claude Code配置(必填项)
+export ANTHROPIC_BASE_URL="https://model-api.skyengine.com.cn"
 export ANTHROPIC_MODEL="Claude-xxxxxxxx"
 export ANTHROPIC_AUTH_TOKEN="ak-xxxxxxxxxxxxxxxx"
 ```
@@ -118,7 +118,7 @@ npm install -g @anthropic-ai/claude-code
 
 **变量 1：**
 - 变量名：`ANTHROPIC_BASE_URL`
-- 变量值：`https://api.tokenops.ai`
+- 变量值：`https://model-api.skyengine.com.cn`
 
 **变量 2：**
 - 变量名：`ANTHROPIC_AUTH_TOKEN`
@@ -172,7 +172,7 @@ Claude Code 首次启动时会需要你登录Claude官方账号，你如果挂�
 
 ### 开始使用
 
-恭喜您！所有配置都已完成。Claude Code 会启动一个交互式的 REPL 会话，您可以直接开始提问和交互。由于我们已经配置好了 API 接入点和 Key，它现在完全通过 TokenOPS.AI 平台运行。
+恭喜您！所有配置都已完成。Claude Code 会启动一个交互式的 REPL 会话，您可以直接开始提问和交互。由于我们已经配置好了 API 接入点和 Key，它现在完全通过 ModelHub 平台运行。
 
 在项目目录中使用 Claude Code：
 
@@ -183,4 +183,4 @@ cd /path/to/your/project
 claude
 ```
 
-尽情享受由 TokenOPS.AI 驱动的强大编码体验吧！
+尽情享受由 ModelHub 驱动的强大编码体验吧！

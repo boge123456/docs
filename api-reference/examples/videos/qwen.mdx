@@ -17,38 +17,38 @@ title: '通义万象视频生成示例'
 - **model**: 使用的模型名称
 - **prompt**: 视频描述文本（文生视频场景必需设置，支持中英文）
 - **size** (string, 可选): 指定生成的视频分辨率，格式为宽x高
-  - **重要**: size 直接影响费用，费用 = 单价（基于分辨率）× 时长（秒）。同一模型：1080P > 720P > 480P，请在调用前确认模型价格
-  - size 必须设置为具体数值（如 1280x720），而不是 1:1或480P
+  - **重要**: size 直接影响费用，费用 = 单价（基于分辨率）× 时长（秒）。同一模型下：1080P > 720P > 480P，请在调用前确认模型价格
+  - size 必须设置为具体数值（如1280x720），而不是1:1或480P
   - 该参数的默认值和可用枚举值依赖于 model 参数
-  - **图生视频场景特别说明**：在图生视频的场景（包括首帧、首尾帧），size 参数不支持控制宽高比，只能用于设置清晰度档位（总像素）。比如，希望视频的清晰度是 1080P 这个档位，可以把 size 设置成 1920x1080 或 1080x1920，但实际输出视频的宽高比由输入首帧图像决定
+  - **图生视频场景特别说明**：在图生视频的场景（包括首帧、首尾帧），size 参数不支持控制宽高比，只能用于设置清晰度档位（总像素）。比如，希望视频的清晰度为1080P 这个档位，可以把 size 设置为1920x1080 或1080x1920，但实际输出视频的宽高比由输入首帧图像决定
   - **480P档位**：832x480（16:9）、480x832（9:16）、624x624（1:1）
   - **720P档位**：1280x720（16:9）、720x1280（9:16）、960x960（1:1）、1088x832（4:3）、832x1088（3:4）
   - **1080P档位**：1920x1080（16:9）、1080x1920（9:16）、1440x1440（1:1）、1632x1248（4:3）、1248x1632（3:4）
 - **seconds** (string, 可选): 生成视频的时长，单位为秒
   - **重要**: seconds直接影响费用。费用 = 单价（基于分辨率）× 时长（秒），请在调用前确认模型价格
-  - **wan2.5-t2v-preview**: 可选值为"5"、"10"，默认值为"5"
+  - **wan2.5-t2v-preview**: 可选值为"5"和"10"，默认值为"5"
   - **wan2.2-t2v-plus**: 固定为"5"秒，且不支持修改
   - **wanx2.1-t2v-plus**: 固定为"5"秒，且不支持修改
   - **wanx2.1-t2v-turbo**: 固定为"5"秒，且不支持修改
   - 示例值："5"
 - **content.text** (string, 可选): 视频描述文本，用于指导视频生成的内容和风格
-  - **使用说明**: 在使用 content 数组格式时，通过 text 类型的 content 元素来传递视频描述
+  - **使用说明**: 在使用content 数组格式时，通过 text 类型的content 元素来传递视频描述
   - **支持语言**: 中文和英文
   - **内容要求**: 描述应该详细、具体，有助于模型理解所需生成的视频内容
-  - **与 prompt 的关系**: 二选一即可
+  - **与prompt 的关系**: 二选一即可
   - 示例值："一只可爱的小猫在花园里玩耍，阳光明媚，画面温馨"
 - **content.image_url.url** (string, 可选): 输入图像的公网可访问的HTTP/HTTPS链接
-  - **重要**: 链接不能包含中文等非ASCII字符，否则需要进行编码后再传入
+  - **重要**: 链接不能包含中文等非ASCII字符，否则需要进行编码后再传递
   - **本地文件**: 可通过上传文件获取临时URL
   - **格式**: JPG、JPEG、PNG、BMP、WEBP
-  - **尺寸**: 图像的宽度和高度都在[200,4096]像素范围内，宽高比在1:3至3:1范围内
-  - **文件大小**: 不超过5MB
+  - **尺寸**: 图像的宽度和高度都在[200,4096]像素范围内，宽高比在1:3到3:1范围内
+  - **文件大小**: 不超过20MB
   - **内容**: 画面中仅有一人，正对镜头，人脸完整无遮挡，且在画面中的占比适中，避免过大或过小
   - 示例值：https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250919/adsyrp/move_input_image.jpeg
-- **content.audio_url.url** (string, 可选): 音频设置：通过content.audio_url.url和 audio参数组合控制音频行为，参数优先级：audio_url > audio。支持三种模式：
-  - **生成无声视频**: 参数设置：不传audio_url，且 audio 为 false。适用场景：纯视觉内容展示，后期自行添加音频或配乐
-  - **自动生成音频**: 参数设置：不传audio_url，且 audio 为 true。效果说明：模型根据提示词和画面内容，自动生成匹配的背景音频或音乐
-  - **使用自定义音频**: 参数设置：传入 audio_url（此时 audio参数无效）。效果说明：视频画面会与音频内容对齐（如口型、节奏等）
+- **content.audio_url.url** (string, 可选): 音频设置：通过content.audio_url.url和audio参数组合控制音频行为，参数优先级：audio_url > audio。支持三种模式：
+  - **生成无声视频**: 参数设置：不传audio_url，且 audio 为false。适用场景：纯视觉内容展示，后期自行添加音频或配乐
+  - **自动生成音频**: 参数设置：不传audio_url，且 audio 为true。效果说明：模型根据提示词和画面内容，自动生成匹配的背景音频或音效
+  - **使用自定义音乐**: 参数设置：传入audio_url（此时audio参数无效）。效果说明：视频画面会与音频内容对齐（如口型、节奏等）
   - 示例值：https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250923/hbiayh/%E4%BB%8E%E5%86%9B%E8%A1%8C.mp3
 
 ### Qwen 扩展参数
@@ -63,7 +63,7 @@ title: '通义万象视频生成示例'
   - **true**: 添加水印
   - 示例值：false
 
-- **audio** (boolean, 可选): 仅 **wan2.5-t2v-preview** 支持。是否添加音频。参数优先级：content.audio_url.url > audio，仅在 content.audio_url.url为空时生效
+- **audio** (boolean, 可选): 仅**wan2.5-t2v-preview** 支持。是否添加音频。参数优先级：content.audio_url.url > audio，仅在content.audio_url.url为空时生效
   - **true**: 默认值，自动为视频添加音频
   - **false**: 不添加音频，输出无声视频
   - 示例值：true
@@ -88,7 +88,7 @@ title: '通义万象视频生成示例'
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -96,12 +96,10 @@ curl --request POST \
     "prompt": "在森林中奔跑的狐狸，阳光透过树叶洒在地面上，微风轻拂树枝，鸟儿在枝头欢快地歌唱",
     "size": "832x480",
     "seconds": "10",
-    "qwen": {
-        "prompt_extend": true,
-        "audio": true,
-        "watermark": false,
-        "seed": 12345
-    }
+    "prompt_extend": true,
+    "audio": true,
+    "watermark": false,
+    "seed": 12345
   }'
 ```
 
@@ -110,7 +108,7 @@ import requests
 import time
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def create_qwen_video(prompt, model="wan2.5-t2v-preview", **kwargs):
     """
@@ -142,13 +140,9 @@ def create_qwen_video(prompt, model="wan2.5-t2v-preview", **kwargs):
             data[key] = kwargs[key]
     
     # 添加通义万象特有参数
-    qwen_params = {}
     for key in ["prompt_extend", "audio", "audio_url", "watermark", "seed"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -183,7 +177,7 @@ result = create_qwen_video(
 const axios = require('axios');
 
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function createQwenVideo(prompt, model = 'wan2.5-t2v-preview', options = {}) {
     const url = `${BASE_URL}/videos`;
@@ -201,16 +195,11 @@ async function createQwenVideo(prompt, model = 'wan2.5-t2v-preview', options = {
     });
     
     // 添加通义千问特有参数
-    const qwenParams = {};
     ['prompt_extend', 'audio', 'audio_url', 'watermark', 'seed'].forEach(key => {
         if (options[key] !== undefined) {
-            qwenParams[key] = options[key];
+            data[key] = options[key];
         }
     });
-    
-    if (Object.keys(qwenParams).length > 0) {
-        data.qwen = qwenParams;
-    }
     
     try {
         const response = await axios.post(url, data, {
@@ -266,7 +255,7 @@ const result = await createQwenVideo(
 
 ```bash cURL
 # 查询任务状态
-curl -X GET "https://api.tokenops.ai/v1/videos/eff1443c-ccab-4676-aad3-xxxxxx" \
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/eff1443c-ccab-4676-aad3-xxxxxx" \
   --header 'Authorization: Bearer <API-KEY>'
 ```
 
@@ -320,7 +309,7 @@ async function checkVideoStatus(videoId) {
         console.log(`任务状态: ${response.data.status}`);
         return response.data;
     } catch (error) {
-        console.error('状态查询失败:', error.response?.data || error.message);
+        console.error('状态查询失败', error.response?.data || error.message);
         return null;
     }
 }
@@ -335,7 +324,7 @@ const statusInfo = await checkVideoStatus(videoId);
 
 ### 状态响应示例
 
-**排队中:**
+**排队中**
 ```json
 {
   "id": "eff1443c-ccab-4676-aad3-xxxxxx",
@@ -344,7 +333,7 @@ const statusInfo = await checkVideoStatus(videoId);
 }
 ```
 
-**处理中:**
+**处理中**
 ```json
 {
   "id": "eff1443c-ccab-4676-aad3-xxxxxx",
@@ -353,7 +342,7 @@ const statusInfo = await checkVideoStatus(videoId);
 }
 ```
 
-**已完成:**
+**已完成**
 ```json
 {
   "id": "eff1443c-ccab-4676-aad3-xxxxxx",
@@ -369,7 +358,7 @@ const statusInfo = await checkVideoStatus(videoId);
 
 ```bash cURL
 # 下载视频文件
-curl -X GET "https://api.tokenops.ai/v1/videos/eff1443c-ccab-4676-aad3-xxxxxx/content" \
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/eff1443c-ccab-4676-aad3-xxxxxx/content" \
   --header 'Authorization: Bearer <API-KEY>' \
   --output qwen_video.mp4
 ```
@@ -452,13 +441,13 @@ const success = await downloadVideo(videoId, 'qwen_forest_fox_video.mp4');
 
 ## 使用音频背景音乐示例
 
-> **注意**: 音频背景音乐功能仅支持 **wan2.5-i2v-preview** 和 **wan2.5-t2v-preview** 模型。
+> **注意**: 音频背景音乐功能仅支持**wan2.5-i2v-preview** 和**wan2.5-t2v-preview** 模型。
 
 <CodeGroup>
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -477,10 +466,8 @@ curl --request POST \
     ],
     "size": "1280x720",
     "seconds": "10",
-    "qwen": {
-        "prompt_extend": true,
-        "watermark": false
-    }
+    "prompt_extend": true,
+    "watermark": false
   }'
 ```
 
@@ -526,14 +513,9 @@ def create_video_with_background_music(prompt, audio_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加通义万象特有参数
-    qwen_params = {}
-    
     for key in ["prompt_extend", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -575,7 +557,7 @@ result = create_video_with_background_music(
 | **wan2.2-i2v-flash** | **万相2.2极速版（无声视频）**<br/>较2.1模型速度提升50% | • 分辨率档位：480P、720P、1080P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
 | **wan2.2-i2v-plus** | **万相2.2专业版（无声视频）**<br/>较2.1模型稳定性与成功率全面提升 | • 分辨率档位：480P、1080P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
 | **wanx2.1-i2v-plus** | **万相2.1专业版（无声视频）** | • 分辨率档位：720P<br/>• 视频时长：5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
-| **wanx2.1-i2v-turbo** | **万相2.1极速版（无声视频）** | • 分辨率档位：480P、720P<br/>• 视频时长：3、4、5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
+| **wanx2.1-i2v-turbo** | **万相2.1极速版（无声视频）** | • 分辨率档位：480P、720P<br/>• 视频时长：3秒、5秒<br/>• 固定规格：30fps、MP4 (H.264编码) |
 
 ## 图生视频-首帧示例
 
@@ -585,7 +567,7 @@ result = create_video_with_background_music(
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -603,14 +585,12 @@ curl --request POST \
       }
     ],
     "size": "1280x720",
-    "qwen": {
-      "audio": true
-    }
+    "audio": true
   }'
 
 # 使用 Base64 编码图片的示例
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -628,9 +608,7 @@ curl --request POST \
       }
     ],
     "size": "1280x720",
-    "qwen": {
-      "audio": false
-    }
+    "audio": false
   }'
 ```
 
@@ -676,13 +654,9 @@ def create_image_to_video(prompt, image_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
     for key in ["audio", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -711,7 +685,7 @@ result = create_image_to_video(
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -737,9 +711,7 @@ curl --request POST \
       }
     ],
     "size": "1280x720",
-    "qwen": {
-      "audio": true
-    }
+    "audio": true
   }'
 ```
 
@@ -793,13 +765,9 @@ def create_keyframe_to_video(prompt, first_frame_url, last_frame_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
     for key in ["audio", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -856,16 +824,11 @@ async function createKeyframeToVideo(prompt, firstFrameUrl, lastFrameUrl, option
     });
     
     // 添加qwen扩展参数
-    const qwenParams = {};
     ['audio', 'watermark'].forEach(key => {
         if (options[key] !== undefined) {
-            qwenParams[key] = options[key];
+            data[key] = options[key];
         }
     });
-    
-    if (Object.keys(qwenParams).length > 0) {
-        data.qwen = qwenParams;
-    }
     
     try {
         const response = await axios.post(url, data, {
@@ -905,7 +868,7 @@ const result = await createKeyframeToVideo(
 
 ## 图生动作示例
 
-通义万象支持基于图片和视频生成动作视频，通过 [`wan2.2-animate-move`](services/mintlify/api-reference/examples/videos/qwen.mdx:965) 模型实现图生动作功能：
+通义万象支持基于图片和视频生成动作视频，通过 [`wan2.2-animate-move`](services/mintlify/api-reference/examples/videos/qwen.mdx:965) 模型实现图生动作功能。
 
 <CodeGroup>
 
@@ -931,9 +894,7 @@ curl --request POST \
       }
     ],
     "size": "1920x1080",
-    "qwen": {
-        "mode": "wan-std"
-    }
+    "mode": "wan-std"
   }'
 ```
 
@@ -980,13 +941,9 @@ def create_animate_move_video(image_url, video_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
     for key in ["mode", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -1089,10 +1046,10 @@ const result = await createAnimateMoveVideo(
 
 ### 图生动作参数
 
-- **qwen.mode** (string, 图生动作场景必选): 用于图生动作场景。模型服务模式选择，支持两种模式：
+- **mode** (string, 图生动作场景必需): 用于图生动作场景。模型服务模式选择，支持两种模式：
 
-- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础动画场景，处理1s视频耗时约8s
-- **wan-pro**: 专业模式，动画流畅度更高，效果更佳，但处理时间和费用也相应增加，处理1s视频耗时约13s
+- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础动画场景，处理1s视频耗时约1s
+- **wan-pro**: 专业模式，动画流畅度更高，效果更佳，但处理时间和费用也相应增加，处理1s视频耗时约3s
 - 示例值："wan-std"
 
 ### 图生动作模型说明
@@ -1103,8 +1060,8 @@ const result = await createAnimateMoveVideo(
 
 ### 支持的模式
 
-- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础动画场景，处理1s视频耗时约8s
-- **wan-pro**: 专业模式，动画流畅度更高，效果更佳，但处理时间和费用也相应增加，处理1s视频耗时约13s
+- **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础动画场景，处理1s视频耗时约1s
+- **wan-pro**: 专业模式，动画流畅度更高，效果更佳，但处理时间和费用也相应增加，处理1s视频耗时约3s
 
 ## 视频特效示例
 
@@ -1114,7 +1071,7 @@ const result = await createAnimateMoveVideo(
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -1130,9 +1087,7 @@ curl --request POST \
     ],
     "size": "1280x720",
     "seconds": "5",
-    "qwen": {
-      "template": "hanfu-1"
-    }
+    "template": "hanfu-1"
   }'
 ```
 
@@ -1173,16 +1128,11 @@ def create_video_with_effects(image_url, template, **kwargs):
         data["seconds"] = kwargs["seconds"]
     
     # 添加qwen扩展参数
-    qwen_params = {
-        "template": template
-    }
+    data["template"] = template
     
     for key in ["audio", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -1274,24 +1224,24 @@ const result = await createVideoWithEffects(
 
 ### 视频特效参数
 
-- **qwen.template** (string, 可选): 通过 template 参数从特效列表中选择一个动态效果。模型将根据模板生成指定的动态效果：
+- **template** (string, 可选): 通过 template 参数从特效列表中选择一个动态效果。模型将根据模板生成指定的动态效果：
 
 - 示例值："hanfu-1"
 
 ### 支持的视频特效模板
 
-> 更多特效模板请参考 [阿里云万相视频特效文档](https://help.aliyun.com/zh/model-studio/wanx-video-effects?spm=a2c4g.11186623.help-menu-2400256.d_2_3_2.59d3a492mg1zMt&scm=20140722.H_2930017._.OR_help-T_cn~zh-V_1#995f374aafh69)，获取最新的特效模板列表和使用说明。
+> 更多特效模板请参考[阿里云万相视频特效文档](https://help.aliyun.com/zh/model-studio/wanx-video-effects?spm=a2c4g.11186623.help-menu-2400256.d_2_3_2.59d3a492mg1zMt&scm=20140722.H_2930017._.OR_help-T_cn~zh-V_1#995f374aafh69)，获取最新的特效模板列表和使用说明。
 
 
 ## 视频编辑-多图参考示例
 
-通义万象支持基于多张参考图像生成视频，可以分别指定主体和背景参考，以下是多图参考视频编辑的示例：
+通义万象支持基于多张参考图像生成视频，可以分别指定主体和背景参考，以下是多图参考视频编辑的示例。
 
 <CodeGroup>
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -1317,10 +1267,8 @@ curl --request POST \
       }
     ],
     "size": "1280x720",
-    "qwen": {
-      "prompt_extend": true,
-      "obj_or_bg": ["obj", "bg"]
-    }
+    "prompt_extend": true,
+    "obj_or_bg": ["obj", "bg"]
   }'
 ```
 
@@ -1332,7 +1280,7 @@ def create_multi_reference_video(prompt, reference_images, obj_or_bg, **kwargs):
     Args:
         prompt: 视频描述文本
         reference_images: 参考图像URL列表
-        obj_or_bg: 图像用途标识列表 ["obj"|"bg"]
+        obj_or_bg: 图像用途标识列表["obj"|"bg"]
         **kwargs: 其他参数
     
     Returns:
@@ -1373,16 +1321,11 @@ def create_multi_reference_video(prompt, reference_images, obj_or_bg, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {
-        "obj_or_bg": obj_or_bg
-    }
+    data["obj_or_bg"] = obj_or_bg
     
     for key in ["prompt_extend", "audio", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -1495,7 +1438,7 @@ const result = await createMultiReferenceVideo(
 
 ### 多图参考参数
 
-- **qwen.obj_or_bg** (array[string], 可选): 该参数用于标识每张参考图像的用途，与参考图像一一对应。数组中每个元素表示对应位置的图像为"主体"还是"背景"：
+- **obj_or_bg** (array[string], 可选): 该参数用于标识每张参考图像的用途，与参考图像一一对应。数组中每个元素表示对应位置的图像为"主体"还是"背景"。
 
 - **obj**: 表示该图像作为主体参考
 - **bg**: 表示该图像作为背景参考（最多仅允许一个）
@@ -1527,10 +1470,8 @@ curl --request POST \
 		}
 	],
 	"size": "1280x720",
-	"qwen": {
-        "prompt_extend": false,
-        "control_condition": "depth"
-    }
+	"prompt_extend": false,
+	"control_condition": "depth"
 }'
 ```
 
@@ -1575,13 +1516,10 @@ def create_video_repainting(prompt, video_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
+    # 添加qwen扩展参数
     for key in ["prompt_extend", "control_condition", "strength", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -1686,14 +1624,14 @@ const result = await createVideoRepainting(
 
 视频重绘功能支持以下参数，用于控制视频特征提取和重绘强度：
 
-- **qwen.control_condition** (string, 必选): 设置视频特征提取的方式，用于视频重绘功能
+- **control_condition** (string, 必需): 设置视频特征提取的方式，用于视频重绘功能
   - **posebodyface**: 提取输入视频中主体的脸部表情和肢体动作，适用于需保留主体表情细节的场景
   - **posebody**: 提取输入视频中主体的肢体动作（不含脸部表情），适用于只需要控制主体身体动作的场景
   - **depth**: 提取输入视频的构图和运动轮廓
   - **scribble**: 提取输入视频的线稿结构
   - 示例值："depth"
 
-- **qwen.strength** (float, 可选): 调节 control_condition 所指定的视频特征提取方式对生成视频的控制强度
+- **strength** (float, 可选): 调节 control_condition 所指定的视频特征提取方式对生成视频的控制强度
   - 默认值为1.0，取值范围[0.0, 1.0]
   - 数值越大，生成视频越贴近原视频动作和构图
   - 数值越小，生成内容越自由
@@ -1731,12 +1669,10 @@ curl --request POST \
   }
  ],
  "size": "1280x720",
- "qwen": {
-        "prompt_extend": false,
-        "mask_type": "tracking",
-        "expand_ratio": 0.05,
-        "mask_frame_id": 1
-    }
+ "prompt_extend": false,
+ "mask_type": "tracking",
+ "expand_ratio": 0.05,
+ "mask_frame_id": 1
 }'
 ```
 
@@ -1789,13 +1725,9 @@ def create_video_local_edit(prompt, video_url, mask_image_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
     for key in ["prompt_extend", "mask_type", "expand_ratio", "expand_mode", "mask_frame_id", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -1913,23 +1845,23 @@ const result = await createVideoLocalEdit(
 
 视频局部重绘功能支持以下参数，用于控制掩码区域的行为和编辑效果：
 
-- **qwen.mask_type** (string, 可选): 当使用掩码图像时，该参数用于指定编辑区域的行为方式
+- **mask_type** (string, 可选): 当使用掩码图像时，该参数用于指定编辑区域的行为方式
   - **tracking**（默认值）: 编辑区域将根据目标物体的运动轨迹动态跟随，适用于主体运动场景
   - **fixed**: 编辑区域保持固定不变，不会随画面内容变化
   - 示例值："tracking"
 
-- **qwen.expand_ratio** (float, 可选): 当 mask_type 为 tracking 时生效，表示对掩码区域进行向外扩展的比例
+- **expand_ratio** (float, 可选): 当mask_type 为tracking 时生效，表示对掩码区域进行向外扩展的比例
   - 取值范围为 [0.0, 1.0]，默认值为 0.05
-  - 取值越小，掩码区域越贴合目标物体；取值越大，掩码区域的扩展范围越广
+  - 取值越小，掩码区域越贴合目标物体；取值越大，掩码区域的扩展范围越大
   - 示例值：0.05
 
-- **qwen.expand_mode** (string, 可选): 当 mask_type 为 tracking 时生效，表示掩码区域的形状
+- **expand_mode** (string, 可选): 当mask_type 为tracking 时生效，表示掩码区域的形状
   - **hull**（默认值）: 多边形模式，使用一个多边形包裹掩码目标
   - **bbox**: 边界框模式，使用一个矩形包裹掩码目标
   - **original**: 原始模式，尽量保持与原始掩码目标的形状一致
   - 示例值："hull"
 
-- **qwen.mask_frame_id** (integer, 可选): 指定掩码对应的视频帧ID，用于局部编辑功能
+- **mask_frame_id** (integer, 可选): 指定掩码对应的视频帧ID，用于局部编辑功能
   - 示例值：1
 
 ## 视频延展示例
@@ -1948,7 +1880,7 @@ curl --request POST \
     "model": "wanx2.1-vace-plus",
     "content": [{
         "type": "text",
-        "text": "一只戴着墨镜的狗在街道上滑滑板，3D卡通。"
+        "text": "一只戴着墨镜的狗在街道上滑滑板，3D卡通风"
       },
       {
         "type": "video_url",
@@ -1959,9 +1891,7 @@ curl --request POST \
       }
     ],
     "size": "1280x720",
-    "qwen": {
-      "prompt_extend": false
-    }
+    "prompt_extend": false
   }'
 
 # 使用Base64编码视频的示例
@@ -1973,7 +1903,7 @@ curl --request POST \
     "model": "wanx2.1-vace-plus",
     "content": [{
         "type": "text",
-        "text": "一只戴着墨镜的狗在街道上滑滑板，3D卡通。"
+        "text": "一只戴着墨镜的狗在街道上滑滑板，3D卡通风"
       },
       {
         "type": "video_base64",
@@ -1984,9 +1914,7 @@ curl --request POST \
       }
     ],
     "size": "1280x720",
-    "qwen": {
-      "prompt_extend": false
-    }
+    "prompt_extend": false
   }'
 ```
 
@@ -1998,7 +1926,7 @@ def create_video_extension(prompt, video_input, input_type="url", **kwargs):
     Args:
         prompt: 延展描述文本
         video_input: 基础视频URL或Base64编码
-        input_type: 输入类型，"url" 或 "base64"
+        input_type: 输入类型："url" 或"base64"
         **kwargs: 其他参数
     
     Returns:
@@ -2036,13 +1964,9 @@ def create_video_extension(prompt, video_input, input_type="url", **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
     for key in ["prompt_extend", "audio", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -2054,7 +1978,7 @@ def create_video_extension(prompt, video_input, input_type="url", **kwargs):
 # 使用示例 - URL方式
 video_url = "http://wanx.alicdn.com/material/20250318/video_extension_1.mp4"
 result_url = create_video_extension(
-    prompt="一只戴着墨镜的狗在街道上滑滑板，3D卡通。",
+    prompt="一只戴着墨镜的狗在街道上滑滑板，3D卡通风",
     video_input=video_url,
     input_type="url",
     size="1280x720",
@@ -2064,7 +1988,7 @@ result_url = create_video_extension(
 # 使用示例 - Base64方式
 video_base64 = "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAACKBtZGF0AAAC..."
 result_base64 = create_video_extension(
-    prompt="一只戴着墨镜的狗在街道上滑滑板，3D卡通。",
+    prompt="一只戴着墨镜的狗在街道上滑滑板，3D卡通风",
     video_input=video_base64,
     input_type="base64",
     size="1280x720",
@@ -2137,7 +2061,7 @@ async function createVideoExtension(prompt, videoInput, inputType = 'url', optio
 // 使用示例 - URL方式
 const videoUrl = 'http://wanx.alicdn.com/material/20250318/video_extension_1.mp4';
 const resultUrl = await createVideoExtension(
-    '一只戴着墨镜的狗在街道上滑滑板，3D卡通。',
+    '一只戴着墨镜的狗在街道上滑滑板，3D卡通风',
     videoUrl,
     'url',
     {
@@ -2149,7 +2073,7 @@ const resultUrl = await createVideoExtension(
 // 使用示例 - Base64方式
 const videoBase64 = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAACKBtZGF0AAAC...';
 const resultBase64 = await createVideoExtension(
-    '一只戴着墨镜的狗在街道上滑滑板，3D卡通。',
+    '一只戴着墨镜的狗在街道上滑滑板，3D卡通风',
     videoBase64,
     'base64',
     {
@@ -2169,7 +2093,7 @@ const resultBase64 = await createVideoExtension(
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -2187,13 +2111,11 @@ curl --request POST \
       }
     ],
     "size": "1920x1080",
-    "qwen": {
-      "prompt_extend": false,
-      "top_scale": 1.5,
-      "bottom_scale": 1.5,
-      "left_scale": 1.5,
-      "right_scale": 1.5
-    }
+    "prompt_extend": false,
+    "top_scale": 1.5,
+    "bottom_scale": 1.5,
+    "left_scale": 1.5,
+    "right_scale": 1.5
   }'
 ```
 
@@ -2238,13 +2160,9 @@ def create_video_outpainting(prompt, video_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
     for key in ["prompt_extend", "top_scale", "bottom_scale", "left_scale", "right_scale", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -2377,35 +2295,35 @@ const resultHorizontal = await createVideoOutpainting(
 
 视频画面扩展功能支持以下参数，用于控制不同方向的扩展比例：
 
-- **qwen.top_scale** (float, 可选): 设置顶部扩展比例
+- **top_scale** (float, 可选): 设置顶部扩展比例
   - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
   - 数值越大，顶部扩展范围越大
   - 示例值：1.5
 
-- **qwen.bottom_scale** (float, 可选): 设置底部扩展比例
+- **bottom_scale** (float, 可选): 设置底部扩展比例
   - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
   - 数值越大，底部扩展范围越大
   - 示例值：1.5
 
-- **qwen.left_scale** (float, 可选): 设置左侧扩展比例
+- **left_scale** (float, 可选): 设置左侧扩展比例
   - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
   - 数值越大，左侧扩展范围越大
   - 示例值：1.5
 
-- **qwen.right_scale** (float, 可选): 设置右侧扩展比例
+- **right_scale** (float, 可选): 设置右侧扩展比例
   - 取值范围：[1.0, 2.0]，默认值为1.0（不扩展）
   - 数值越大，右侧扩展范围越大
   - 示例值：1.5
 
 ## 视频换人示例
 
-通义万象支持基于图片和参考视频进行视频换人，通过 [`wan2.2-animate-mix`](services/mintlify/api-reference/examples/videos/qwen.mdx:2400) 模型可以将输入图片中的人物融入到参考视频的动作中，实现人物替换效果：
+通义万象支持基于图片和参考视频进行视频换人，通过 [`wan2.2-animate-mix`](services/mintlify/api-reference/examples/videos/qwen.mdx:2400) 模型可以将输入图片中的人物融入到参考视频的动作中，实现人物替换效果。
 
 <CodeGroup>
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -2425,9 +2343,7 @@ curl --request POST \
 		}
 	],
 	"size": "1280x720",
-	"qwen": {
-		"mode": "wan-std"
-	}
+	"mode": "wan-std"
 }'
 ```
 
@@ -2474,13 +2390,9 @@ def create_video_face_swap(image_url, video_url, **kwargs):
             data[key] = kwargs[key]
     
     # 添加qwen扩展参数
-    qwen_params = {}
     for key in ["mode", "watermark"]:
         if key in kwargs:
-            qwen_params[key] = kwargs[key]
-    
-    if qwen_params:
-        data["qwen"] = qwen_params
+            data[key] = kwargs[key]
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -2583,7 +2495,7 @@ const result = await createVideoFaceSwap(
 
 ### 视频换人参数
 
-- **qwen.mode** (string, 视频换人场景必选): 用于视频换人场景。模型服务模式选择，支持两种模式：
+- **mode** (string, 视频换人场景必需): 用于视频换人场景。模型服务模式选择，支持两种模式：
 
 - **wan-std**: 标准模式，生成速度较快，性价比高，适用于快速预览和基础换人场景
 - **wan-pro**: 专业模式，换人效果更佳，但处理时间和费用也相应增加
@@ -2593,7 +2505,7 @@ const result = await createVideoFaceSwap(
 
 | 模型名称 | 模型简介 | 功能特点 |
 |---------|----------|----------|
-| | **万相2.2换人模型** | • 基于输入人物图片和参考动作视频生成换人视频<br/>• 支持标准模式和专业模式<br/>• 适用于人物替换和动作迁移场景 |
+| **wan2.2-animate-mix** | **万相2.2换人模型** | • 基于输入人物图片和参考动作视频生成换人视频<br/>• 支持标准模式和专业模式<br/>• 适用于人物替换和动作迁移场景 |
 
 ### 支持的模式
 

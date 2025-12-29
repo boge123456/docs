@@ -14,7 +14,7 @@ description: '使用Gemini展示AI逐步分析和推理过程的完整示例代�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:generateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -40,7 +40,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
 def gemini_thinking_mode(problem, thinking_framework=None, temperature=0.3, max_tokens=1500):
     """
@@ -461,7 +461,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1beta';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1beta';
 
 async function geminiThinkingMode(problem, thinkingFramework = null, temperature = 0.3, maxTokens = 1500) {
     const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent`;
@@ -718,26 +718,35 @@ async function criticalThinking() {
 
 </CodeGroup>
 
-## Gemini 3 中的新 API 功能
+## 思考配置参数
 
-Gemini 3 引入了新的参数，旨在让开发者更好地控制延迟时间、费用和多模态保真度。
+您可以通过 `thinkingConfig` 参数来控制模型的思考深度，有两种方式可供选择：
 
-### 思考等级
+```json
+{
+  "generationConfig": {
+    "thinkingConfig": {
+      "thinkingBudget": integer,  // 方式一：指定思考令牌数量
+      "thinkingLevel": enum       // 方式二：指定思考等级
+    }
+  }
+}
+```
 
-`thinkingLevel` 参数用于控制模型在生成回答之前进行内部推理过程的最大深度。Gemini 3 将这些级别视为相对的思考许可，而不是严格的令牌保证。如果未指定 `thinkingLevel`，Gemini 3 Pro 将默认为 `HIGH`。
+<Warning>
+**参数兼容性警告**
+
+您不能在同一请求中同时使用 `thinkingLevel` 和 `thinkingBudget` 参数。这样做会返回 400 错误。
+</Warning>
+
+### 思考等级 (thinkingLevel)
+
+`thinkingLevel` 参数用于控制模型在生成回答之前进行内部推理过程的最大深度。
 
 **可用的思考等级：**
 
 - **LOW**：尽可能缩短延迟时间并降低费用。最适合简单的指令遵循、聊天或高吞吐量应用
 - **HIGH**（默认）：最大限度地提高推理深度。模型可能需要更长时间才能生成第一个 token，但输出结果会经过更仔细的推理
-
-<Warning>
-**参数兼容性警告**
-
-您不能在同一请求中同时使用 `thinkingLevel` 和旧版 `thinkingBudget` 参数。这样做会返回 400 错误。
-</Warning>
-
-### 使用示例
 
 ```json
 {
@@ -746,8 +755,40 @@ Gemini 3 引入了新的参数，旨在让开发者更好地控制延迟时间�
     "thinkingConfig": {
       "thinkingLevel": "HIGH"
     },
-    "maxOutputTokens": 1500,
+    "maxOutputTokens": 2000,
     "temperature": 0.3
   }
 }
 ```
+
+### 思考预算 (thinkingBudget)
+
+`thinkingBudget` 参数允许您精确控制模型在思考过程中可以使用的令牌数量。这对于需要精细控制推理深度和成本的场景非常有用。
+
+**参数说明：**
+
+- **类型**：整数 (integer)
+- **范围**：建议值在 100 到 10000 之间
+- **作用**：限制模型内部推理过程的最大令牌数
+
+```json
+{
+  "contents": [...],
+  "generationConfig": {
+    "thinkingConfig": {
+      "thinkingBudget": 2000
+    },
+    "maxOutputTokens": 2000,
+    "temperature": 0.3
+  }
+}
+```
+
+**使用建议：**
+
+| 场景 | 推荐 thinkingBudget |
+|------|---------------------|
+| 简单问答 | 100 - 500 |
+| 一般推理 | 500 - 2000 |
+| 复杂分析 | 2000 - 5000 |
+| 深度推理 | 5000 - 10000 |

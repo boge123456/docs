@@ -14,7 +14,7 @@ Responses API 是一个统一的模型推理接口，支持多种AI模型的对�
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/responses" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/responses" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -35,7 +35,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def create_basic_response():
     """创建基础对话响应"""
@@ -90,7 +90,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function createBasicResponse() {
     const url = `${BASE_URL}/responses`;
@@ -154,7 +154,7 @@ import (
 
 const (
     API_KEY = "<API-KEY>"
-    BASE_URL = "https://api.tokenops.ai/v1"
+    BASE_URL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type InputMessage struct {
@@ -279,7 +279,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 public class ResponsesBasic {
     private static final String API_KEY = "<API-KEY>";
-    private static final String BASE_URL = "https://api.tokenops.ai/v1";
+    private static final String BASE_URL = "https://model-api.skyengine.com.cn/v1";
 
     private final HttpClient client;
     private final ObjectMapper mapper;
@@ -365,7 +365,7 @@ class ResponsesBasic {
 
     public function __construct($apiKey) {
         $this->apiKey = $apiKey;
-        $this->baseUrl = 'https://api.tokenops.ai/v1';
+        $this->baseUrl = 'https://model-api.skyengine.com.cn/v1';
     }
 
     public function createBasicResponse() {

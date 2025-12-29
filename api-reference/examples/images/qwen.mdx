@@ -12,7 +12,7 @@ description: '使用千问 API 进行图片生成和编辑的完整示例代码'
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -36,7 +36,7 @@ from PIL import Image
 from io import BytesIO
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_qwen(prompt, model="qwen-image-plus", size="1328*1328",
                        prompt_extend=True, negative_prompt=None, response_format="url"):
@@ -114,7 +114,7 @@ import requests
 import json
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_qwen_advanced(prompt, **kwargs):
     """
@@ -250,7 +250,7 @@ if __name__ == "__main__":
 <CodeGroup>
 
 ```bash cURL - 图片编辑示例
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -271,7 +271,7 @@ curl -X POST "https://api.tokenops.ai/v1/images/generations" \
 ```
 
 ```bash cURL - 多图融合示例
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{

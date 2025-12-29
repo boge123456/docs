@@ -18,7 +18,7 @@ description: '调用豆包 Seedance 视频生成模型的完整示例代码'
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -37,7 +37,7 @@ import requests
 import time
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def create_doubao_video(content, model="doubao-seedance-1.0-pro-250528", **kwargs):
     """
@@ -46,7 +46,7 @@ def create_doubao_video(content, model="doubao-seedance-1.0-pro-250528", **kwarg
     Args:
         content: 内容数组，支持文本和图片信息
         model: 使用的模型名称
-        **kwargs: 其他参数（resolution, ratio, duration等）
+        **kwargs: 其他参数（ratio, seconds等）
     
     Returns:
         任务创建响应
@@ -64,7 +64,7 @@ def create_doubao_video(content, model="doubao-seedance-1.0-pro-250528", **kwarg
     }
     
     # 添加豆包特有参数
-    for key in ["resolution", "ratio", "duration", "framespersecond", "camerafixed", "watermark", "return_last_frame"]:
+    for key in ["ratio", "seconds", "framespersecond", "camerafixed", "watermark", "return_last_frame"]:
         if key in kwargs:
             data[key] = kwargs[key]
     
@@ -100,7 +100,7 @@ result = create_doubao_video(content=text_content)
 const axios = require('axios');
 
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function createDoubaoVideo(content, model = 'doubao-seedance-1.0-pro-250528', options = {}) {
     const url = `${BASE_URL}/videos`;
@@ -154,7 +154,7 @@ import (
 
 const (
     APIKey  = "<API-KEY>"
-    BaseURL = "https://api.tokenops.ai/v1"
+    BaseURL = "https://model-api.skyengine.com.cn/v1"
 )
 
 type DoubaoContent struct {
@@ -171,9 +171,9 @@ type DoubaoImageURL struct {
 type DoubaoVideoRequest struct {
     Model           string          `json:"model"`
     Content         []DoubaoContent `json:"content"`
-    Resolution      string          `json:"resolution,omitempty"`      // 分辨率：480p, 720p, 1080p
+    Size            string          `json:"size,omitempty"`            // 视频尺寸，如 "1920x1088"，自动转换为宽高比
     Ratio           string          `json:"ratio,omitempty"`           // 宽高比：16:9, 4:3, 1:1, 3:4, 9:16, 21:9, keep_ratio, adaptive
-    Duration        *int            `json:"duration,omitempty"`        // 时长（秒）：2~12秒
+    Seconds         string          `json:"seconds,omitempty"`         // 时长（秒）：2~12秒
     FramesPerSecond *int            `json:"framespersecond,omitempty"` // 帧率：24
     CameraFixed     *bool           `json:"camerafixed,omitempty"`     // 是否固定摄像头
     Watermark       *bool           `json:"watermark,omitempty"`       // 是否包含水印
@@ -274,7 +274,7 @@ func main() {
 
 ```bash cURL
 # 查询任务状态
-curl -X GET "https://api.tokenops.ai/v1/videos/cgt-20251110203910-nmfp7" \
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/cgt-20251110203910-nmfp7" \
   --header 'Authorization: Bearer <API-KEY>'
 ```
 
@@ -300,16 +300,14 @@ def check_video_status(video_id):
         if response.status_code == 200:
             result = response.json()
             print(f"任务状态: {result.get('status')}")
-            
+
             # 显示豆包特有的响应信息
             if 'seed' in result:
                 print(f"使用的种子值: {result.get('seed')}")
-            if 'resolution' in result:
-                print(f"实际分辨率: {result.get('resolution')}")
             if 'ratio' in result:
                 print(f"实际宽高比: {result.get('ratio')}")
-            if 'duration' in result:
-                print(f"实际时长: {result.get('duration')}秒")
+            if 'seconds' in result:
+                print(f"实际时长: {result.get('seconds')}秒")
             if 'usage' in result:
                 usage = result.get('usage', {})
                 print(f"Token使用: {usage.get('total_tokens', 0)}")
@@ -346,14 +344,11 @@ async function checkVideoStatus(videoId) {
         if (result.seed) {
             console.log(`使用的种子值: ${result.seed}`);
         }
-        if (result.resolution) {
-            console.log(`实际分辨率: ${result.resolution}`);
-        }
         if (result.ratio) {
             console.log(`实际宽高比: ${result.ratio}`);
         }
-        if (result.duration) {
-            console.log(`实际时长: ${result.duration}秒`);
+        if (result.seconds) {
+            console.log(`实际时长: ${result.seconds}秒`);
         }
         if (result.usage) {
             console.log(`Token使用: ${result.usage.total_tokens || 0}`);
@@ -446,7 +441,7 @@ statusInfo, err := checkVideoStatus(videoID)
 
 ```bash cURL
 # 下载视频文件
-curl -X GET "https://api.tokenops.ai/v1/videos/cgt-20251110203910-nmfp7/content" \
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/cgt-20251110203910-nmfp7/content" \
   --header 'Authorization: Bearer <API-KEY>' \
   --output doubao_video.mp4
 ```
@@ -582,7 +577,7 @@ import requests
 import time
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def complete_doubao_video_generation(content, **kwargs):
     """
@@ -655,7 +650,7 @@ const axios = require('axios');
 const fs = require('fs');
 
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function completeDoubaoVideoGeneration(content, options = {}) {
     try {
@@ -812,25 +807,57 @@ func main() {
 ## 支持的参数
 
 ### 基础参数
-- **model**: 使用的模型名称（如 `doubao-seedance-1.0-pro-250528`）
-- **content**: 内容数组，支持文本和图片信息（必需）
 
-### 内容类型
-每个content对象支持以下字段：
-- **type**: 内容类型（`text` 或 `image_url`）
-- **text**: 文本内容（当type=text时）
-- **image_url**: 图片信息对象（当type=image_url时）
-  - **url**: 图片URL或Base64编码
-- **role**: 图片角色（`first_frame`, `last_frame`, `reference_image`）
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| **model** | String | 是 | 使用的模型名称，如 `doubao-seedance-1.0-pro-250528` |
+| **content** | Array | 是 | 内容数组，支持文本和图片信息 |
+
+### 内容类型 (content 数组元素)
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| **type** | String | 是 | 内容类型：`text`（文本）或 `image_url`（图片） |
+| **text** | String | 条件必填 | 文本内容（当 type=text 时必填） |
+| **image_url** | Object | 条件必填 | 图片信息对象（当 type=image_url 时必填），包含 `url` 字段 |
+| **role** | String | 否 | 图片角色：`first_frame`（首帧）、`last_frame`（尾帧）、`reference_image`（参考图片） |
 
 ### 视频生成参数
-- **resolution**: 分辨率（480p, 720p, 1080p）
-- **ratio**: 宽高比（16:9, 4:3, 1:1, 3:4, 9:16, 21:9, keep_ratio, adaptive）
-- **duration**: 时长（秒）：2~12秒
-- **framespersecond**: 帧率 24
-- **camerafixed**: 是否固定摄像头（布尔值）
-- **watermark**: 是否包含水印（布尔值）
-- **return_last_frame**: 是否返回生成视频的尾帧图像（布尔值）
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| **size** | String | 否 | 视频尺寸，格式为 `宽x高`（如 `1920x1088`），系统会自动转换为对应的宽高比 |
+| **ratio** | String | 否 | 宽高比，可选值：`16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`keep_ratio`、`adaptive`。可通过 size 参数自动推导 |
+| **seconds** | String | 否 | 视频时长（秒），范围：2~12秒 |
+| **framespersecond** | Integer | 否 | 帧率，支持值：`24` |
+| **camerafixed** | Boolean | 否 | 是否固定摄像头 |
+| **watermark** | Boolean | 否 | 是否包含水印 |
+| **return_last_frame** | Boolean | 否 | 是否返回生成视频的尾帧图像 |
+
+### Size 参数映射表
+
+通过 `size` 参数可以自动设置宽高比，支持的尺寸如下：
+
+| Size (宽x高) | 宽高比 |
+|-------------|--------|
+| 864x480 | 16:9 |
+| 736x544 | 4:3 |
+| 640x640 | 1:1 |
+| 544x736 | 3:4 |
+| 480x864 | 9:16 |
+| 960x416 | 21:9 |
+| 1248x704 | 16:9 |
+| 1120x832 | 4:3 |
+| 960x960 | 1:1 |
+| 832x1120 | 3:4 |
+| 704x1248 | 9:16 |
+| 1504x640 | 21:9 |
+| 1920x1088 | 16:9 |
+| 1664x1248 | 4:3 |
+| 1440x1440 | 1:1 |
+| 1248x1664 | 3:4 |
+| 1088x1920 | 9:16 |
+| 2176x928 | 21:9 |
 
 ## 任务状态说明
 
@@ -839,23 +866,9 @@ func main() {
 - **completed**: 任务已完成，可以下载视频
 - **failed**: 任务失败
 
-## 豆包 Seedance 模型特点
-
-### 技术优势
-- **多模态输入**: 支持文本和图片的组合输入
-- **高质量生成**: Seedance 1.0 Pro版本，专业级视频生成质量
-- **灵活控制**: 支持多种参数精细控制视频生成效果
-- **中文优化**: 对中文提示词有优秀的理解能力
-
-### 生成规格
-- **时长范围**: 2-12秒可调
-- **分辨率**: 480p、720p、1080p多种选择
-- **宽高比**: 支持多种比例，包括自适应比例
-- **文件格式**: MP4格式输出
-
 ## 内容格式示例
 
-### 纯文本输入
+### 纯文本输入（使用命令参数）
 ```json
 {
   "content": [
@@ -866,6 +879,22 @@ func main() {
   ]
 }
 ```
+
+### 使用 size 参数设置分辨率
+```json
+{
+  "model": "doubao-seedance-1.0-pro-250528",
+  "content": [
+    {
+      "type": "text",
+      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨"
+    }
+  ],
+  "size": "1920x1088",
+  "seconds": "6"
+}
+```
+> 使用 `size: "1920x1088"` 会自动设置为 1080p 分辨率和 16:9 宽高比
 
 ### 文本+参考图片
 ```json
@@ -904,44 +933,3 @@ func main() {
   ]
 }
 ```
-
-## 最佳实践
-
-### 1. 提示词优化
-```text
-推荐的提示词格式：
-"[场景描述] + [动作描述] + [视觉风格] + [技术参数]"
-
-优秀示例：
-"多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
-```
-
-### 2. 图片使用技巧
-- **first_frame**: 用于指定视频开始的画面
-- **last_frame**: 用于指定视频结束的画面
-- **reference_image**: 用于保持整体风格一致性
-
-## 注意事项
-
-1. **生成时间**: 豆包视频生成通常需要8-20分钟，具体取决于参数设置
-2. **内容审核**: 提示词和图片需符合内容安全规范
-3. **文件存储**: 生成的视频在服务器保存7天，请及时下载
-4. **并发限制**: 同时生成任务数量有限制
-5. **参数命令**: 支持在文本中使用 `--ratio`、`--duration` 等命令参数，
-详情：https://www.volcengine.com/docs/82379/1366799#api-%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E
-
-## 错误处理
-
-常见错误码和处理方法：
-
-- **400**: 请求参数错误，检查content格式和参数类型
-- **401**: API密钥无效或过期
-- **413**: 上传文件过大，压缩后重试
-- **429**: 请求频率超限，稍后重试
-- **500**: 服务器错误，联系技术支持
-
-### 任务失败原因
-- 提示词包含敏感内容
-- 参考图片格式不支持或内容不合规
-- 参数设置冲突或超出范围
-- 系统资源不足

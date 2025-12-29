@@ -12,7 +12,7 @@ description: '使用豆包 API 进行图片生成的完整示例代码'
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -32,7 +32,7 @@ from PIL import Image
 from io import BytesIO
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_doubao(prompt, model="doubao-seedream-4-0-250828", size="1024x1024",
                          watermark=True, response_format="url"):
@@ -113,7 +113,7 @@ from PIL import Image
 from io import BytesIO
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_doubao_stream(prompt, model="doubao-seedream-4-0-250828", size="1024x1024"):
     """
@@ -183,7 +183,7 @@ import requests
 import json
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_doubao_advanced(prompt, **kwargs):
     """
@@ -305,7 +305,7 @@ if __name__ == "__main__":
 <CodeGroup>
 
 ```bash cURL - 图片到图片
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -322,7 +322,7 @@ curl -X POST "https://api.tokenops.ai/v1/images/generations" \
 import requests
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_from_image(prompt, base_image_url, model="doubao-seedream-4-0-250828", size="1024x1024"):
     """
@@ -386,7 +386,7 @@ if __name__ == "__main__":
 <CodeGroup>
 
 ```bash cURL - 多图融合
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -407,7 +407,7 @@ curl -X POST "https://api.tokenops.ai/v1/images/generations" \
 import requests
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_from_multiple_images(prompt, image_urls, model="doubao-seedream-4-0-250828", size="1024x1024"):
     """
@@ -486,7 +486,7 @@ if __name__ == "__main__":
 <CodeGroup>
 
 ```bash cURL - 图生组图
-curl -X POST "https://api.tokenops.ai/v1/images/generations" \
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -510,7 +510,7 @@ curl -X POST "https://api.tokenops.ai/v1/images/generations" \
 import requests
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def generate_image_series_from_images(prompt, image_urls, max_images=3, model="doubao-seedream-4-0-250828"):
     """
@@ -597,7 +597,7 @@ if __name__ == "__main__":
   "created": 1762841059,
   "data": [
     {
-      "url": "xxx"
+      "url": "xxxxx"
     }
   ],
   "usage": {

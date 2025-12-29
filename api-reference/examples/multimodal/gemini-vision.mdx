@@ -1,11 +1,11 @@
 ---
 title: 'Gemini 多模态对话示例'
-description: '使用Gemini进行图片理解和多模态对话的完整示例代码'
+description: '使用Gemini进行图片理解和视频理解的完整示例代码'
 ---
 
 # Gemini 多模态对话示例
 
-以下示例展示如何使用Gemini的多模态功能，让AI理解和分析图片、视频和音频内容，进行多媒体智能对话。
+以下示例展示如何使用Gemini的多模态功能，让AI理解和分析图片、视频内容，进行多媒体智能对话。
 
 ## 快速开始
 
@@ -14,7 +14,7 @@ description: '使用Gemini进行图片理解和多模态对话的完整示例代
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:generateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -32,24 +32,19 @@ curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateCon
           }
         ]
       }
-    ],
-    "generationConfig": {
-      "maxOutputTokens": 1000,
-      "temperature": 0.7
-    }
+    ]
   }'
 ```
 
 ```python Python
 import requests
 import base64
-import json
 import mimetypes
 import os
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
 def encode_file_to_base64(file_path):
     """将文件编码为base64格式"""
@@ -63,29 +58,24 @@ def get_mime_type(file_path):
     """获取文件的MIME类型"""
     mime_type, _ = mimetypes.guess_type(file_path)
     if mime_type is None:
-        # 根据文件扩展名手动判断
         extension = file_path.lower().split('.')[-1]
         mime_types = {
             'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
             'png': 'image/png', 'gif': 'image/gif',
             'webp': 'image/webp', 'bmp': 'image/bmp',
             'mp4': 'video/mp4', 'mov': 'video/quicktime',
-            'avi': 'video/x-msvideo', 'webm': 'video/webm',
-            'mp3': 'audio/mp3', 'wav': 'audio/wav',
-            'flac': 'audio/flac', 'm4a': 'audio/mp4'
+            'avi': 'video/x-msvideo', 'webm': 'video/webm'
         }
         mime_type = mime_types.get(extension, 'application/octet-stream')
     return mime_type
 
-def gemini_multimodal_chat(text_prompt, file_paths=None, temperature=0.7, max_tokens=1000):
+def gemini_multimodal_chat(text_prompt, file_paths=None):
     """
     与Gemini进行多模态对话
 
     Args:
         text_prompt: 文本提示
-        file_paths: 文件路径列表 (图片、视频、音频)
-        temperature: 生成温度
-        max_tokens: 最大输出token数
+        file_paths: 文件路径列表 (图片、视频)
     """
     url = f"{BASE_URL}/models/gemini-2.5-flash:generateContent"
     headers = {
@@ -93,20 +83,13 @@ def gemini_multimodal_chat(text_prompt, file_paths=None, temperature=0.7, max_to
         "Authorization": f"Bearer {API_KEY}"
     }
 
-    # 构建消息部分
-    parts = [
-        {
-            "text": text_prompt
-        }
-    ]
+    parts = [{"text": text_prompt}]
 
-    # 添加文件内容
     if file_paths:
         for file_path in file_paths:
             if os.path.exists(file_path):
                 file_base64 = encode_file_to_base64(file_path)
                 mime_type = get_mime_type(file_path)
-
                 parts.append({
                     "inlineData": {
                         "mimeType": mime_type,
@@ -117,553 +100,67 @@ def gemini_multimodal_chat(text_prompt, file_paths=None, temperature=0.7, max_to
                 print(f"警告: 文件不存在 - {file_path}")
 
     data = {
-        "contents": [
-            {
-                "parts": parts
-            }
-        ],
-        "generationConfig": {
-            "maxOutputTokens": max_tokens,
-            "temperature": temperature
-        }
+        "contents": [{"parts": parts}]
     }
 
     try:
         response = requests.post(url, headers=headers, json=data)
-
         if response.status_code == 200:
             result = response.json()
             if 'candidates' in result and len(result['candidates']) > 0:
                 content = result['candidates'][0]['content']
                 if 'parts' in content and len(content['parts']) > 0:
                     return content['parts'][0]['text']
-                else:
-                    return "没有返回内容"
-            else:
-                return "没有生成候选回答"
-        else:
-            return f"错误: {response.status_code} - {response.text}"
-
+        return f"错误: {response.status_code} - {response.text}"
     except Exception as e:
         return f"请求失败: {e}"
 
-def analyze_image_with_gemini(image_path):
+def analyze_image(image_path):
     """使用Gemini分析图片内容"""
-    prompt = """请详细分析这张图片，从以下几个方面：
-
-🔍 **内容识别**
-- 主要对象和场景
-- 人物特征（如果有）
-- 背景环境
-
-🎨 **视觉分析**
-- 色彩搭配和主色调
-- 构图和布局
-- 光影效果
-
-💭 **情感氛围**
-- 图片传达的情感
-- 整体氛围和感受
-
-📝 **应用建议**
-- 适合的使用场景
-- 可能的改进建议
-
-请用中文详细回答，结构清晰。"""
-
+    prompt = """请详细分析这张图片，包括：
+1. 主要对象和场景
+2. 色彩搭配和构图
+3. 图片传达的情感
+请用中文详细回答。"""
     return gemini_multimodal_chat(prompt, [image_path])
 
-def extract_text_from_image(image_path):
-    """从图片中提取文字内容"""
-    prompt = """请仔细识别这张图片中的所有文字内容。
-
-**要求：**
-1. 按照从上到下、从左到右的顺序提取
-2. 保持原有格式和结构
-3. 如果是表格，请用markdown表格格式整理
-4. 如果有多种语言，请标注语言类型
-5. 如果文字模糊不清，请标注"[模糊]"
-6. 如果是手写文字，请标注"[手写]"
-
-**输出格式：**
-直接输出提取到的文字内容，不需要额外说明。"""
-
-    return gemini_multimodal_chat(prompt, [image_path])
-
-def analyze_video_content(video_path):
+def analyze_video(video_path):
     """分析视频内容"""
     prompt = """请分析这个视频的内容，包括：
-
-📹 **视频概览**
-- 视频主题和内容
-- 时长和节奏感受
-- 整体质量评价
-
-🎬 **画面分析**
-- 主要场景和画面
-- 拍摄角度和运镜
-- 视觉特效和剪辑
-
-👥 **人物/对象**
-- 主要人物或对象
-- 动作和表情分析
-- 互动和情节发展
-
-🎵 **音频分析**（如果有）
-- 背景音乐风格
-- 语言和对话内容
-- 音效和声音质量
-
-🎯 **应用价值**
-- 适合的用途和场景
-- 目标受众分析
-- 改进建议
-
+1. 视频主题和内容概述
+2. 主要场景和画面
+3. 人物动作和情节发展
 请详细分析并给出专业建议。"""
-
-    return gemini_multimodal_chat(prompt, [video_path], max_tokens=1500)
-
-def analyze_audio_content(audio_path):
-    """分析音频内容"""
-    prompt = """请分析这个音频文件的内容：
-
-🎵 **音频基本信息**
-- 音频类型（音乐/语音/环境音等）
-- 时长和质量感受
-- 整体特点
-
-🗣️ **语音内容**（如果是语音）
-- 语言类型和方言
-- 说话人特征（性别、年龄估计、语调）
-- 主要内容摘要
-- 情感色彩
-
-🎼 **音乐分析**（如果是音乐）
-- 音乐风格和类型
-- 乐器和编曲特点
-- 节拍和旋律特点
-- 情感表达
-
-🔊 **技术质量**
-- 音质清晰度
-- 背景噪音情况
-- 录音质量评价
-
-💡 **应用建议**
-- 适合的使用场景
-- 可能的用途
-- 优化建议
-
-请详细分析音频内容。"""
-
-    return gemini_multimodal_chat(prompt, [audio_path], max_tokens=1200)
-
-def multi_file_analysis(file_paths, analysis_task):
-    """分析多个文件的内容"""
-    prompt = f"""请分析这些多媒体文件，任务要求：
-
-{analysis_task}
-
-**分析要求：**
-1. 分别分析每个文件的特点
-2. 找出文件之间的关联性
-3. 给出综合评价和建议
-4. 如果是系列内容，分析其连贯性
-
-请详细分析并给出专业意见。"""
-
-    return gemini_multimodal_chat(prompt, file_paths, max_tokens=1500)
-
-def creative_storytelling(image_path):
-    """基于图片创作故事"""
-    prompt = """请基于这张图片创作一个有趣的故事：
-
-📖 **创作要求：**
-1. 故事长度：300-500字
-2. 包含开头、发展、高潮、结尾
-3. 人物性格鲜明
-4. 情节引人入胜
-5. 结合图片中的具体元素
-
-🎭 **故事风格：**
-请选择最适合图片内容的风格（温馨、悬疑、冒险、科幻等）
-
-📝 **输出格式：**
-- 故事标题
-- 故事正文
-- 故事寓意（如果有）
-
-请发挥创意，创作一个精彩的故事！"""
-
-    return gemini_multimodal_chat(prompt, [image_path], temperature=0.9, max_tokens=1200)
-
-def compare_media_files(file1_path, file2_path):
-    """比较两个媒体文件"""
-    prompt = """请比较这两个媒体文件：
-
-🔍 **内容对比**
-- 主要内容和主题的异同
-- 表现形式的差异
-- 质量水平对比
-
-🎨 **风格对比**
-- 视觉/听觉风格差异
-- 表现手法的不同
-- 艺术特色对比
-
-📊 **质量评估**
-- 技术质量对比
-- 创意水平评价
-- 专业程度分析
-
-💡 **应用建议**
-- 各自适合的使用场景
-- 优缺点分析
-- 选择建议
-
-请详细对比分析这两个文件。"""
-
-    return gemini_multimodal_chat(prompt, [file1_path, file2_path], max_tokens=1300)
+    return gemini_multimodal_chat(prompt, [video_path])
 
 # 使用示例
 if __name__ == "__main__":
     print("=== Gemini多模态对话示例 ===\n")
 
-    # 示例文件路径（请根据实际情况修改）
     sample_image = "sample_photo.jpg"
     sample_video = "sample_video.mp4"
-    sample_audio = "sample_audio.mp3"
 
-    try:
-        # 示例1: 图片分析
-        if os.path.exists(sample_image):
-            print("1. 图片内容分析:")
-            image_analysis = analyze_image_with_gemini(sample_image)
-            print(image_analysis)
-            print("\n" + "="*50 + "\n")
+    if os.path.exists(sample_image):
+        print("图片内容分析:")
+        print(analyze_image(sample_image))
 
-            # 示例2: 图片文字提取
-            print("2. 图片文字提取:")
-            text_extraction = extract_text_from_image(sample_image)
-            print(text_extraction)
-            print("\n" + "="*50 + "\n")
-
-            # 示例3: 创意故事创作
-            print("3. 基于图片的创意故事:")
-            story = creative_storytelling(sample_image)
-            print(story)
-            print("\n" + "="*50 + "\n")
-
-        # 示例4: 视频分析
-        if os.path.exists(sample_video):
-            print("4. 视频内容分析:")
-            video_analysis = analyze_video_content(sample_video)
-            print(video_analysis)
-            print("\n" + "="*50 + "\n")
-
-        # 示例5: 音频分析
-        if os.path.exists(sample_audio):
-            print("5. 音频内容分析:")
-            audio_analysis = analyze_audio_content(sample_audio)
-            print(audio_analysis)
-            print("\n" + "="*50 + "\n")
-
-        # 示例6: 多文件综合分析
-        available_files = []
-        for file_path in [sample_image, sample_video, sample_audio]:
-            if os.path.exists(file_path):
-                available_files.append(file_path)
-
-        if len(available_files) >= 2:
-            print("6. 多媒体文件综合分析:")
-            multi_analysis = multi_file_analysis(
-                available_files[:2],  # 取前两个文件
-                "分析这些文件是否属于同一个项目或主题，它们之间有什么关联性？"
-            )
-            print(multi_analysis)
-
-        if not any(os.path.exists(f) for f in [sample_image, sample_video, sample_audio]):
-            print("请准备示例文件:")
-            print(f"- 图片文件: {sample_image}")
-            print(f"- 视频文件: {sample_video}")
-            print(f"- 音频文件: {sample_audio}")
-            print("\n支持格式:")
-            print("- 图片: JPEG, PNG, GIF, WebP, BMP")
-            print("- 视频: MP4, MOV, AVI, WebM")
-            print("- 音频: MP3, WAV, FLAC, M4A")
-
-    except Exception as e:
-        print(f"程序执行出错: {e}")
-```
-
-```javascript JavaScript/Node.js
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-
-// 配置API密钥和基础URL
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1beta';
-
-function encodeFileToBase64(filePath) {
-    try {
-        const fileBuffer = fs.readFileSync(filePath);
-        return fileBuffer.toString('base64');
-    } catch (error) {
-        throw new Error(`文件编码失败: ${error.message}`);
-    }
-}
-
-function getMimeType(filePath) {
-    const extension = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
-        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.png': 'image/png', '.gif': 'image/gif',
-        '.webp': 'image/webp', '.bmp': 'image/bmp',
-        '.mp4': 'video/mp4', '.mov': 'video/quicktime',
-        '.avi': 'video/x-msvideo', '.webm': 'video/webm',
-        '.mp3': 'audio/mp3', '.wav': 'audio/wav',
-        '.flac': 'audio/flac', '.m4a': 'audio/mp4'
-    };
-    return mimeTypes[extension] || 'application/octet-stream';
-}
-
-async function geminiMultimodalChat(textPrompt, filePaths = [], temperature = 0.7, maxTokens = 1000) {
-    const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent`;
-    const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`
-    };
-
-    // 构建消息部分
-    const parts = [
-        {
-            text: textPrompt
-        }
-    ];
-
-    // 添加文件内容
-    if (filePaths && filePaths.length > 0) {
-        for (const filePath of filePaths) {
-            if (fs.existsSync(filePath)) {
-                const fileBase64 = encodeFileToBase64(filePath);
-                const mimeType = getMimeType(filePath);
-
-                parts.push({
-                    inlineData: {
-                        mimeType: mimeType,
-                        data: fileBase64
-                    }
-                });
-            } else {
-                console.log(`警告: 文件不存在 - ${filePath}`);
-            }
-        }
-    }
-
-    const data = {
-        contents: [
-            {
-                parts: parts
-            }
-        ],
-        generationConfig: {
-            maxOutputTokens: maxTokens,
-            temperature: temperature
-        }
-    };
-
-    try {
-        const response = await axios.post(url, data, { headers });
-
-        if (response.status === 200) {
-            const result = response.data;
-            if (result.candidates && result.candidates.length > 0) {
-                const content = result.candidates[0].content;
-                if (content.parts && content.parts.length > 0) {
-                    return content.parts[0].text;
-                } else {
-                    return '没有返回内容';
-                }
-            } else {
-                return '没有生成候选回答';
-            }
-        } else {
-            return `错误: ${response.status} - ${response.statusText}`;
-        }
-
-    } catch (error) {
-        return `请求失败: ${error.response?.status} - ${error.response?.data || error.message}`;
-    }
-}
-
-async function analyzeImageWithGemini(imagePath) {
-    const prompt = `请详细分析这张图片，从以下几个方面：
-
-🔍 **内容识别**
-- 主要对象和场景
-- 人物特征（如果有）
-- 背景环境
-
-🎨 **视觉分析**
-- 色彩搭配和主色调
-- 构图和布局
-- 光影效果
-
-💭 **情感氛围**
-- 图片传达的情感
-- 整体氛围和感受
-
-📝 **应用建议**
-- 适合的使用场景
-- 可能的改进建议
-
-请用中文详细回答，结构清晰。`;
-
-    return await geminiMultimodalChat(prompt, [imagePath]);
-}
-
-async function extractTextFromImage(imagePath) {
-    const prompt = `请仔细识别这张图片中的所有文字内容。
-
-**要求：**
-1. 按照从上到下、从左到右的顺序提取
-2. 保持原有格式和结构
-3. 如果是表格，请用markdown表格格式整理
-4. 如果有多种语言，请标注语言类型
-5. 如果文字模糊不清，请标注"[模糊]"
-6. 如果是手写文字，请标注"[手写]"
-
-**输出格式：**
-直接输出提取到的文字内容，不需要额外说明。`;
-
-    return await geminiMultimodalChat(prompt, [imagePath]);
-}
-
-async function analyzeVideoContent(videoPath) {
-    const prompt = `请分析这个视频的内容，包括：
-
-📹 **视频概览**
-- 视频主题和内容
-- 时长和节奏感受
-- 整体质量评价
-
-🎬 **画面分析**
-- 主要场景和画面
-- 拍摄角度和运镜
-- 视觉特效和剪辑
-
-👥 **人物/对象**
-- 主要人物或对象
-- 动作和表情分析
-- 互动和情节发展
-
-🎵 **音频分析**（如果有）
-- 背景音乐风格
-- 语言和对话内容
-- 音效和声音质量
-
-🎯 **应用价值**
-- 适合的用途和场景
-- 目标受众分析
-- 改进建议
-
-请详细分析并给出专业建议。`;
-
-    return await geminiMultimodalChat(prompt, [videoPath], 0.7, 1500);
-}
-
-async function creativeStorytelling(imagePath) {
-    const prompt = `请基于这张图片创作一个有趣的故事：
-
-📖 **创作要求：**
-1. 故事长度：300-500字
-2. 包含开头、发展、高潮、结尾
-3. 人物性格鲜明
-4. 情节引人入胜
-5. 结合图片中的具体元素
-
-🎭 **故事风格：**
-请选择最适合图片内容的风格（温馨、悬疑、冒险、科幻等）
-
-📝 **输出格式：**
-- 故事标题
-- 故事正文
-- 故事寓意（如果有）
-
-请发挥创意，创作一个精彩的故事！`;
-
-    return await geminiMultimodalChat(prompt, [imagePath], 0.9, 1200);
-}
-
-// 使用示例
-(async () => {
-    try {
-        console.log('=== Gemini多模态对话示例 ===\n');
-
-        // 示例文件路径
-        const sampleImage = 'sample_photo.jpg';
-        const sampleVideo = 'sample_video.mp4';
-        const sampleAudio = 'sample_audio.mp3';
-
-        // 示例1: 图片分析
-        if (fs.existsSync(sampleImage)) {
-            console.log('1. 图片内容分析:');
-            const imageAnalysis = await analyzeImageWithGemini(sampleImage);
-            console.log(imageAnalysis);
-            console.log('\n' + '='.repeat(50) + '\n');
-
-            // 示例2: 图片文字提取
-            console.log('2. 图片文字提取:');
-            const textExtraction = await extractTextFromImage(sampleImage);
-            console.log(textExtraction);
-            console.log('\n' + '='.repeat(50) + '\n');
-
-            // 示例3: 创意故事创作
-            console.log('3. 基于图片的创意故事:');
-            const story = await creativeStorytelling(sampleImage);
-            console.log(story);
-            console.log('\n' + '='.repeat(50) + '\n');
-        }
-
-        // 示例4: 视频分析
-        if (fs.existsSync(sampleVideo)) {
-            console.log('4. 视频内容分析:');
-            const videoAnalysis = await analyzeVideoContent(sampleVideo);
-            console.log(videoAnalysis);
-            console.log('\n' + '='.repeat(50) + '\n');
-        }
-
-        // 检查是否有示例文件
-        const hasAnyFile = [sampleImage, sampleVideo, sampleAudio].some(fs.existsSync);
-        if (!hasAnyFile) {
-            console.log('请准备示例文件:');
-            console.log(`- 图片文件: ${sampleImage}`);
-            console.log(`- 视频文件: ${sampleVideo}`);
-            console.log(`- 音频文件: ${sampleAudio}`);
-            console.log('\n支持格式:');
-            console.log('- 图片: JPEG, PNG, GIF, WebP, BMP');
-            console.log('- 视频: MP4, MOV, AVI, WebM');
-            console.log('- 音频: MP3, WAV, FLAC, M4A');
-        }
-
-    } catch (error) {
-        console.error('程序执行出错:', error.message);
-    }
-})();
+    if os.path.exists(sample_video):
+        print("\n视频内容分析:")
+        print(analyze_video(sample_video))
 ```
 
 </CodeGroup>
+
 ## 使用File API上传大视频文件
 
-对于超过20MB的大视频文件，或者需要重复使用的视频文件，推荐先使用File API上传，然后通过文件URI进行视频理解分析。这种方式更高效，特别适合处理大文件。
+对于超过20MB的大视频文件，推荐先使用File API上传，然后通过文件URI进行视频理解分析。
 
 <CodeGroup>
 
 ```bash cURL
 # 第一步：上传视频文件
 curl --request POST \
-  --url https://api.tokenops.ai/v1/files/upload \
+  --url https://model-api.skyengine.com.cn/v1/files/upload \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: video/mp4' \
   --header 'filename: my_large_video.mp4' \
@@ -676,7 +173,7 @@ curl --request POST \
 # }
 
 # 第二步：使用文件URI进行视频理解
-curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:generateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -694,311 +191,96 @@ curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateCon
           }
         ]
       }
-    ],
-    "generationConfig": {
-      "maxOutputTokens": 2000,
-      "temperature": 0.7
-    }
+    ]
   }'
 ```
 
 ```python Python
 import requests
 import os
-import json
 
-# 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai"
+BASE_URL = "https://model-api.skyengine.com.cn"
 
-def upload_large_video_file(file_path):
-    """
-    上传大视频文件到File API
-    
-    Args:
-        file_path: 本地视频文件路径
-    
-    Returns:
-        dict: 包含uri和mime_type的字典
-    """
+def upload_video_file(file_path):
+    """上传视频文件到File API"""
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"文件不存在: {file_path}")
-    
-    # 获取文件信息
-    file_size = os.path.getsize(file_path)
+
     filename = os.path.basename(file_path)
-    
-    # 确定MIME类型
     mime_types = {
         '.mp4': 'video/mp4',
-        '.mov': 'video/quicktime', 
+        '.mov': 'video/quicktime',
         '.avi': 'video/x-msvideo',
-        '.webm': 'video/webm',
-        '.mkv': 'video/x-matroska'
+        '.webm': 'video/webm'
     }
-    
+
     file_ext = os.path.splitext(filename)[1].lower()
     content_type = mime_types.get(file_ext, 'video/mp4')
-    
-    print(f"准备上传文件: {filename}")
-    print(f"文件大小: {file_size / (1024*1024):.2f} MB")
-    print(f"MIME类型: {content_type}")
-    
-    # 上传文件
+
     url = f"{BASE_URL}/v1/files/upload"
     headers = {
         'Authorization': f'Bearer {API_KEY}',
         'Content-Type': content_type,
         'filename': filename
     }
-    
-    try:
-        with open(file_path, 'rb') as file:
-            response = requests.post(url, headers=headers, data=file)
-        
-        if response.status_code == 200:
-            result = response.json()
-            file_uri = result.get('uri')
-            mime_type = result.get('mime_type')
-            print(f"文件上传成功! URI: {file_uri}")
-            return {
-                'uri': file_uri,
-                'mime_type': mime_type
-            }
-        else:
-            raise Exception(f"上传失败: {response.status_code} - {response.text}")
-            
-    except Exception as e:
-        raise Exception(f"上传过程中出错: {e}")
+
+    with open(file_path, 'rb') as file:
+        response = requests.post(url, headers=headers, data=file)
+
+    if response.status_code == 200:
+        result = response.json()
+        return {
+            'uri': result.get('uri'),
+            'mime_type': result.get('mime_type')
+        }
+    else:
+        raise Exception(f"上传失败: {response.status_code} - {response.text}")
 
 def analyze_video_with_file_api(file_info, prompt="请详细分析这个视频的内容"):
-    """
-    使用上传的文件URI进行视频分析
-    
-    Args:
-        file_info: 包含uri和mime_type的字典
-        prompt: 分析提示词
-    
-    Returns:
-        str: 分析结果
-    """
+    """使用上传的文件URI进行视频分析"""
     url = f"{BASE_URL}/v1beta/models/gemini-2.5-flash:generateContent"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}"
     }
-    
+
     data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    },
-                    {
-                        "fileData": {
-                            "mimeType": file_info['mime_type'],
-                            "fileUri": file_info['uri']
-                        }
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {
+                    "fileData": {
+                        "mimeType": file_info['mime_type'],
+                        "fileUri": file_info['uri']
                     }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "maxOutputTokens": 1000,
-            "temperature": 0.7
-        }
+                }
+            ]
+        }]
     }
-    
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        
-        if response.status_code == 200:
-            result = response.json()
-            if 'candidates' in result and len(result['candidates']) > 0:
-                content = result['candidates'][0]['content']
-                if 'parts' in content and len(content['parts']) > 0:
-                    return content['parts'][0]['text']
-                else:
-                    return "没有返回分析内容"
-            else:
-                return "没有生成候选分析结果"
-        else:
-            return f"分析请求失败: {response.status_code} - {response.text}"
-            
-    except Exception as e:
-        return f"分析过程中出错: {e}"
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        if 'candidates' in result and len(result['candidates']) > 0:
+            content = result['candidates'][0]['content']
+            if 'parts' in content and len(content['parts']) > 0:
+                return content['parts'][0]['text']
+    return f"分析请求失败: {response.status_code} - {response.text}"
 
 # 使用示例
 if __name__ == "__main__":
     video_path = "my_video.mp4"
-    
+
     if os.path.exists(video_path):
-        # 第1步：上传视频文件
         print("正在上传视频文件...")
-        file_info = upload_large_video_file(video_path)
+        file_info = upload_video_file(video_path)
         print(f"上传成功，URI: {file_info['uri']}")
-        
-        # 第2步：分析视频内容
+
         print("正在分析视频内容...")
         analysis = analyze_video_with_file_api(file_info, "请描述这个视频的主要内容")
         print(f"分析结果：{analysis}")
-    else:
-        print(f"视频文件 {video_path} 不存在")
-```
-
-```javascript JavaScript/Node.js
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-
-// 配置API密钥和基础URL
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai';
-
-/**
- * 上传大视频文件到File API
- * @param {string} filePath - 本地视频文件路径
- * @returns {Promise<Object>} 包含uri和mime_type的对象
- */
-async function uploadLargeVideoFile(filePath) {
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`文件不存在: ${filePath}`);
-    }
-    
-    // 获取文件信息
-    const stats = fs.statSync(filePath);
-    const fileSize = stats.size;
-    const filename = path.basename(filePath);
-    
-    // 确定MIME类型
-    const mimeTypes = {
-        '.mp4': 'video/mp4',
-        '.mov': 'video/quicktime', 
-        '.avi': 'video/x-msvideo',
-        '.webm': 'video/webm',
-        '.mkv': 'video/x-matroska'
-    };
-    
-    const fileExt = path.extname(filename).toLowerCase();
-    const contentType = mimeTypes[fileExt] || 'video/mp4';
-    
-    console.log(`准备上传文件: ${filename}`);
-    console.log(`文件大小: ${(fileSize / (1024*1024)).toFixed(2)} MB`);
-    console.log(`MIME类型: ${contentType}`);
-    
-    // 上传文件
-    const url = `${BASE_URL}/v1/files/upload`;
-    const headers = {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': contentType,
-        'filename': filename
-    };
-    
-    try {
-        const fileData = fs.readFileSync(filePath);
-        const response = await axios.post(url, fileData, { headers });
-        
-        if (response.status === 200) {
-            const result = response.data;
-            const fileUri = result.uri;
-            const mimeType = result.mime_type;
-            console.log(`文件上传成功! URI: ${fileUri}`);
-            return {
-                uri: fileUri,
-                mime_type: mimeType
-            };
-        } else {
-            throw new Error(`上传失败: ${response.status} - ${response.statusText}`);
-        }
-        
-    } catch (error) {
-        throw new Error(`上传过程中出错: ${error.message}`);
-    }
-}
-
-/**
- * 使用上传的文件URI进行视频分析
- * @param {Object} fileInfo - 包含uri和mime_type的对象
- * @param {string} prompt - 分析提示词
- * @returns {Promise<string>} 分析结果
- */
-async function analyzeVideoWithFileApi(fileInfo, prompt = '请详细分析这个视频的内容') {
-    const url = `${BASE_URL}/v1beta/models/gemini-2.5-flash:generateContent`;
-    const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`
-    };
-    
-    const data = {
-        contents: [
-            {
-                parts: [
-                    {
-                        text: prompt
-                    },
-                    {
-                        fileData: {
-                            mimeType: fileInfo.mime_type,
-                            fileUri: fileInfo.uri
-                        }
-                    }
-                ]
-            }
-        ],
-        generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.7
-        }
-    };
-    
-    try {
-        const response = await axios.post(url, data, { headers });
-        
-        if (response.status === 200) {
-            const result = response.data;
-            if (result.candidates && result.candidates.length > 0) {
-                const content = result.candidates[0].content;
-                if (content.parts && content.parts.length > 0) {
-                    return content.parts[0].text;
-                } else {
-                    return '没有返回分析内容';
-                }
-            } else {
-                return '没有生成候选分析结果';
-            }
-        } else {
-            return `分析请求失败: ${response.status} - ${response.statusText}`;
-        }
-        
-    } catch (error) {
-        return `分析过程中出错: ${error.response?.status} - ${error.response?.data || error.message}`;
-    }
-}
-
-// 使用示例
-(async () => {
-    try {
-        const videoPath = 'my_video.mp4';
-        
-        if (fs.existsSync(videoPath)) {
-            // 第1步：上传视频文件
-            console.log('正在上传视频文件...');
-            const fileInfo = await uploadLargeVideoFile(videoPath);
-            console.log(`上传成功，URI: ${fileInfo.uri}`);
-            
-            // 第2步：分析视频内容
-            console.log('正在分析视频内容...');
-            const analysis = await analyzeVideoWithFileApi(fileInfo, '请描述这个视频的主要内容');
-            console.log(`分析结果：${analysis}`);
-        } else {
-            console.log(`视频文件 ${videoPath} 不存在`);
-        }
-        
-    } catch (error) {
-        console.error('程序执行出错:', error.message);
-    }
-})();
 ```
 
 </CodeGroup>
@@ -1023,46 +305,6 @@ File API 上传成功后返回包含 `uri` 和 `mime_type` 的JSON格式：
 }
 ```
 
-### 使用优势
-- **支持大文件**: 突破100MB限制
-- **重复使用**: 一次上传，多次分析
-- **更稳定**: 避免base64编码的性能问题
-
-
-## Gemini多模态功能特点
-
-### 1. 支持的媒体格式
-
-#### 图片格式
-- **JPEG/JPG**: 最常用的图片格式
-- **PNG**: 支持透明背景
-- **GIF**: 静态和动态GIF
-- **WebP**: 现代高效格式
-- **BMP**: 位图格式
-
-#### 视频格式
-- **MP4**: H.264编码，最常用
-- **MOV**: QuickTime格式
-- **AVI**: 微软视频格式
-- **WebM**: 网络视频格式
-
-#### 音频格式
-- **MP3**: 最常用的音频格式
-- **WAV**: 无损音频格式
-- **FLAC**: 无损压缩格式
-- **M4A**: Apple音频格式
-
-### 2. 文件大小和时长限制
-- **图片**: 最大20MB
-- **视频**: 最大100MB，时长不超过10分钟
-- **音频**: 最大20MB，时长不超过30分钟
-
-### 3. 分析能力
-- **视觉理解**: 识别对象、场景、文字、图表等
-- **视频分析**: 动作识别、场景变化、时序理解
-- **音频处理**: 语音识别、音乐分析、环境音识别
-- **跨模态理解**: 结合多种媒体进行综合分析
-
 ## API格式说明
 
 ### 基本请求结构
@@ -1082,11 +324,7 @@ File API 上传成功后返回包含 `uri` 和 `mime_type` 的JSON格式：
         }
       ]
     }
-  ],
-  "generationConfig": {
-    "maxOutputTokens": 1000,
-    "temperature": 0.7
-  }
+  ]
 }
 ```
 
@@ -1116,89 +354,3 @@ File API 上传成功后返回包含 `uri` 和 `mime_type` 的JSON格式：
   ]
 }
 ```
-
-## 应用场景
-
-### 内容创作
-- **视频脚本**: 基于视频生成文字脚本
-- **图片描述**: 为图片生成SEO友好的描述
-- **多媒体故事**: 结合图片、视频创作故事
-
-### 教育培训
-- **课件分析**: 分析教学视频和图片内容
-- **学习辅助**: 解释图表、公式、实验视频
-- **多语言学习**: 识别和翻译多媒体内容中的文字
-
-### 商业应用
-- **产品展示**: 分析产品图片和演示视频
-- **市场调研**: 分析竞品的多媒体营销材料
-- **客户服务**: 理解客户提交的图片和视频问题
-
-### 技术应用
-- **内容审核**: 自动识别和分类多媒体内容
-- **数据提取**: 从图片、视频中提取结构化信息
-- **质量检测**: 评估多媒体内容的质量和规范性
-
-## 最佳实践
-
-### 1. 文件优化
-- **压缩**: 在保持质量的前提下压缩文件大小
-- **格式选择**: 选择最适合的文件格式
-- **清晰度**: 确保图片和视频足够清晰
-- **音质**: 保证音频清晰无杂音
-
-### 2. 提示词设计
-- **具体明确**: 明确指出分析的重点和要求
-- **结构化**: 使用标题和编号组织问题
-- **多维度**: 从不同角度提出分析要求
-- **输出格式**: 指定期望的输出格式和结构
-
-### 3. 性能优化
-- **批量处理**: 合理安排多文件分析的顺序
-- **缓存结果**: 对重复分析的内容进行缓存
-- **并发控制**: 避免同时发送过多请求
-- **错误重试**: 实现合理的重试机制
-
-## 进阶功能
-
-### 1. 时序视频分析
-```python
-def analyze_video_timeline(video_path):
-    prompt = """请按时间顺序分析这个视频：
-
-1. **开头部分** (0-30秒): 描述开场画面和内容
-2. **中间部分**: 主要内容和发展过程
-3. **结尾部分**: 总结和结束画面
-4. **关键时刻**: 识别重要的转折点
-5. **整体节奏**: 分析视频的节奏变化
-
-请提供详细的时序分析。"""
-
-    return gemini_multimodal_chat(prompt, [video_path], max_tokens=1500)
-```
-
-### 2. 跨模态内容生成
-```python
-def generate_multimedia_content(image_path, audio_path):
-    prompt = """基于这张图片和音频，创作一个完整的多媒体内容方案：
-
-1. **内容主题**: 确定统一的主题
-2. **视觉风格**: 基于图片确定视觉风格
-3. **音频风格**: 基于音频确定音乐风格
-4. **脚本创作**: 编写完整的内容脚本
-5. **制作建议**: 提供制作和编辑建议
-
-请创作一个专业的多媒体方案。"""
-
-    return gemini_multimodal_chat(prompt, [image_path, audio_path], temperature=0.8)
-```
-
-## 注意事项
-
-1. **文件大小**: 注意各种格式的大小限制
-2. **网络稳定**: 大文件上传需要稳定的网络
-3. **处理时间**: 视频和音频分析需要更长时间
-4. **费用控制**: 多模态功能费用较高，注意使用频率
-5. **隐私保护**: 不要上传敏感或私人内容
-6. **格式兼容**: 确保文件格式被支持
-7. **内容合规**: 确保多媒体内容符合使用政策

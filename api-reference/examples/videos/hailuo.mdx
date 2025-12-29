@@ -16,21 +16,10 @@ title: '海螺视频生成示例'
 ### 通用参数
 - **model**: 使用的模型名称
 - **prompt**: 视频描述文本（必需，最大2000字符，支持中英文）
-- **size** (string, 可选): 指定生成的视频分辨率档位
-  - **重要**: 海螺模型不支持自定义宽高比例，只支持预设的分辨率档位：768P、1080P
-  - **重要**: size 直接影响费用，费用 = 单价（基于分辨率档位）× 时长（秒）。同一模型：1080P > 768P，请在调用前确认模型价格
-  - **参数设置**: 可以传入具体尺寸，系统会自动映射到对应的分辨率档位
-  - **768P档位可选值**（默认）：
-    - `"1364x768"` (16:9)、`"1024x768"` (4:3)、`"768x768"` (1:1)
-    - `"768x1024"` (3:4)、`"768x1364"` (9:16)、`"1600x768"` (21:9)
-  - **1080P档位可选值**：
-    - `"1920x1080"` (16:9)、`"1440x1080"` (4:3)、`"1080x1080"` (1:1)
-    - `"1080x1440"` (3:4)、`"1080x1920"` (9:16)、`"2240x1080"` (21:9)
-  - **注意**: 实际输出的宽高比由模型根据内容自动确定，无法精确控制
 - **seconds** (string, 可选): 生成视频的时长，单位为秒
-  - **重要**: seconds直接影响费用。费用 = 单价（基于分辨率）× 时长（秒），请在调用前确认模型价格
-  - **MiniMax-Hailuo-2.3**: 可选值为"5"、"6"、"10"，默认值为"6"
-  - **MiniMax-Hailuo-02**: 可选值为"5"、"6"、"10"，默认值为"6"
+  - **重要**: seconds直接影响费用，请在调用前确认模型价格
+  - **MiniMax-Hailuo-2.3**: 可选值为"6"、"10"，默认值为"6"
+  - **MiniMax-Hailuo-02**: 可选值为"6"、"10"，默认值为"6"
   - 示例值："6"
 - **content.text** (string, 可选): 视频描述文本，用于指导视频生成的内容和风格
   - **使用说明**: 在使用 content 数组格式时，通过 text 类型的 content 元素来传递视频描述
@@ -47,7 +36,7 @@ title: '海螺视频生成示例'
   - **文件大小**: 建议不超过10MB
   - 示例值：https://example.com/input_image.jpg
 
-### 海螺扩展参数
+### 扩展参数
 
 - **prompt_optimizer** (boolean, 可选): 是否自动优化prompt，使用大模型对输入prompt进行智能优化
   - **true**: 默认值，开启智能优化，能显著提升生成质量
@@ -71,22 +60,8 @@ title: '海螺视频生成示例'
 
 | 模型名称 | 模型简介 | 输出视频规格 |
 |---------|----------|-------------|
-| **MiniMax-Hailuo-2.3** 🌟推荐 | **海螺2.3旗舰版**<br/>最新一代视频生成模型，画质和动态效果显著提升 | • 分辨率档位：768P、1080P<br/>• 视频时长：5秒、6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码)<br/>• **注意**: 不支持自定义宽高比 |
-| **MiniMax-Hailuo-02** 🌟推荐 | **海螺2.0专业版**<br/>成熟稳定的视频生成模型，综合性能优秀 | • 分辨率档位：720P、768P、1080P<br/>• 视频时长：5秒、6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码)<br/>• **注意**: 不支持自定义宽高比 |
-
-## 🚨 重要提醒：分辨率限制
-
-**海螺模型不支持精确的宽高比控制**，这是与其他模型（如通义万象）的重要区别：
-
-- ✅ **支持**: 设置分辨率档位（768P/1080P）
-- ❌ **不支持**: 自定义精确的宽高比例
-- 🤖 **自动处理**: 实际输出的宽高比由模型根据视频内容自动确定
-- 📝 **参数建议**: 可以传入具体尺寸参数（如"1364x768"），但系统会映射到对应档位，最终宽高比仍由模型决定
-
-**示例说明**：
-- 设置 `"size": "1364x768"` → 映射到768P档位
-- 设置 `"size": "1920x1080"` → 映射到1080P档位
-- 但最终生成的视频可能是16:9、4:3、1:1等任意比例
+| **MiniMax-Hailuo-2.3** 🌟推荐 | **海螺2.3旗舰版**<br/>最新一代视频生成模型，画质和动态效果显著提升 | • 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
+| **MiniMax-Hailuo-02** 🌟推荐 | **海螺2.0专业版**<br/>成熟稳定的视频生成模型，综合性能优秀 | • 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
 
 ## 步骤1：创建视频生成任务
 
@@ -94,19 +69,16 @@ title: '海螺视频生成示例'
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
     "model": "MiniMax-Hailuo-2.3",
     "prompt": "在未来科技城市的高楼天台上，一位身穿发光服装的女孩正在练习太极拳，城市的霓虹灯光在夜幕中闪烁，远处可见飞行汽车穿梭[缓慢推进][俯拍视角]",
-    "size": "1364x768",
     "seconds": "6",
-    "hailuo": {
-        "prompt_optimizer": true,
-        "fast_pretreatment": false,
-        "aigc_watermark": false
-    }
+    "prompt_optimizer": true,
+    "fast_pretreatment": false,
+    "aigc_watermark": false
   }'
 ```
 
@@ -115,17 +87,17 @@ import requests
 import time
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
 def create_hailuo_video(prompt, model="MiniMax-Hailuo-2.3", **kwargs):
     """
     创建海螺视频生成任务
-    
+
     Args:
         prompt: 视频描述文本
         model: 使用的模型名称
-        **kwargs: 其他参数（size, seconds, hailuo扩展参数）
-    
+        **kwargs: 其他参数（seconds, prompt_optimizer, fast_pretreatment, aigc_watermark）
+
     Returns:
         任务创建响应
     """
@@ -134,26 +106,17 @@ def create_hailuo_video(prompt, model="MiniMax-Hailuo-2.3", **kwargs):
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     # 构建请求数据
     data = {
         "model": model,
         "prompt": prompt
     }
-    
-    # 添加通用参数
-    for key in ["size", "seconds"]:
+
+    # 添加可选参数
+    for key in ["seconds", "prompt_optimizer", "fast_pretreatment", "aigc_watermark"]:
         if key in kwargs:
             data[key] = kwargs[key]
-    
-    # 添加海螺特有参数
-    hailuo_params = {}
-    for key in ["prompt_optimizer", "fast_pretreatment", "aigc_watermark"]:
-        if key in kwargs:
-            hailuo_params[key] = kwargs[key]
-    
-    if hailuo_params:
-        data["hailuo"] = hailuo_params
     
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -175,7 +138,6 @@ def create_hailuo_video(prompt, model="MiniMax-Hailuo-2.3", **kwargs):
 # 示例：创建任务
 result = create_hailuo_video(
     prompt="在未来科技城市的高楼天台上，一位身穿发光服装的女孩正在练习太极拳，城市的霓虹灯光在夜幕中闪烁，远处可见飞行汽车穿梭[缓慢推进][俯拍视角]",
-    size="1364x768",
     seconds="6",
     prompt_optimizer=True,
     fast_pretreatment=False,
@@ -187,35 +149,23 @@ result = create_hailuo_video(
 const axios = require('axios');
 
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
 async function createHailuoVideo(prompt, model = 'MiniMax-Hailuo-2.3', options = {}) {
     const url = `${BASE_URL}/videos`;
-    
+
     const data = {
         model: model,
         prompt: prompt
     };
-    
-    // 添加通用参数
-    ['size', 'seconds'].forEach(key => {
+
+    // 添加可选参数
+    ['seconds', 'prompt_optimizer', 'fast_pretreatment', 'aigc_watermark'].forEach(key => {
         if (options[key] !== undefined) {
             data[key] = options[key];
         }
     });
-    
-    // 添加海螺特有参数
-    const hailuoParams = {};
-    ['prompt_optimizer', 'fast_pretreatment', 'aigc_watermark'].forEach(key => {
-        if (options[key] !== undefined) {
-            hailuoParams[key] = options[key];
-        }
-    });
-    
-    if (Object.keys(hailuoParams).length > 0) {
-        data.hailuo = hailuoParams;
-    }
-    
+
     try {
         const response = await axios.post(url, data, {
             headers: {
@@ -240,7 +190,6 @@ const result = await createHailuoVideo(
     '在未来科技城市的高楼天台上，一位身穿发光服装的女孩正在练习太极拳，城市的霓虹灯光在夜幕中闪烁，远处可见飞行汽车穿梭[缓慢推进][俯拍视角]',
     'MiniMax-Hailuo-2.3',
     {
-        size: '1364x768',
         seconds: '6',
         prompt_optimizer: true,
         fast_pretreatment: false,
@@ -269,7 +218,7 @@ const result = await createHailuoVideo(
 
 ```bash cURL
 # 查询任务状态
-curl -X GET "https://api.tokenops.ai/v1/videos/hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx" \
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx" \
   --header 'Authorization: Bearer <API-KEY>'
 ```
 
@@ -375,7 +324,7 @@ const statusInfo = await checkHailuoVideoStatus(videoId);
 
 ```bash cURL
 # 下载视频文件
-curl -X GET "https://api.tokenops.ai/v1/videos/hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx/content" \
+curl -X GET "https://model-api.skyengine.com.cn/v1/videos/hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx/content" \
   --header 'Authorization: Bearer <API-KEY>' \
   --output hailuo_video.mp4
 ```
@@ -463,7 +412,7 @@ const success = await downloadHailuoVideo(videoId, 'hailuo_future_city_video.mp4
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -481,17 +430,14 @@ curl --request POST \
         "role": "first_frame"
       }
     ],
-    "size": "1364x768",
     "seconds": "6",
-    "hailuo": {
-      "prompt_optimizer": true,
-      "aigc_watermark": false
-    }
+    "prompt_optimizer": true,
+    "aigc_watermark": false
   }'
 
 # 使用 Base64 编码图片的示例
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -509,10 +455,7 @@ curl --request POST \
         "role": "first_frame"
       }
     ],
-    "size": "1364x768",
-    "hailuo": {
-      "prompt_optimizer": false
-    }
+    "prompt_optimizer": false
   }'
 ```
 
@@ -520,12 +463,12 @@ curl --request POST \
 def create_hailuo_image_to_video(prompt, image_url, **kwargs):
     """
     海螺图片到视频生成
-    
+
     Args:
         prompt: 视频描述文本
         image_url: 参考图片URL
         **kwargs: 其他参数
-    
+
     Returns:
         任务创建响应
     """
@@ -534,7 +477,7 @@ def create_hailuo_image_to_video(prompt, image_url, **kwargs):
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     data = {
         "model": "MiniMax-Hailuo-2.3",
         "content": [
@@ -543,7 +486,7 @@ def create_hailuo_image_to_video(prompt, image_url, **kwargs):
                 "text": prompt
             },
             {
-                "type": "image_url", 
+                "type": "image_url",
                 "image_url": {
                     "url": image_url
                 },
@@ -551,21 +494,12 @@ def create_hailuo_image_to_video(prompt, image_url, **kwargs):
             }
         ]
     }
-    
-    # 添加通用参数
-    for key in ["size", "seconds"]:
+
+    # 添加可选参数
+    for key in ["seconds", "prompt_optimizer", "fast_pretreatment", "aigc_watermark"]:
         if key in kwargs:
             data[key] = kwargs[key]
-    
-    # 添加海螺扩展参数
-    hailuo_params = {}
-    for key in ["prompt_optimizer", "fast_pretreatment", "aigc_watermark"]:
-        if key in kwargs:
-            hailuo_params[key] = kwargs[key]
-    
-    if hailuo_params:
-        data["hailuo"] = hailuo_params
-    
+
     try:
         response = requests.post(url, headers=headers, json=data)
         return response.json() if response.status_code == 200 else None
@@ -578,7 +512,6 @@ image_url = "https://cdn.hailuoai.com/prod/2024-09-18-16/user/multi_chat_file/9c
 result = create_hailuo_image_to_video(
     prompt="基于这张图片，让画面中的人物开始优雅地舞蹈，背景中的樱花花瓣随着微风轻柔飘舞，营造出诗意浪漫的氛围[缓慢旋转][梦幻滤镜]",
     image_url=image_url,
-    size="1364x768",
     seconds="6",
     prompt_optimizer=True,
     aigc_watermark=False
@@ -597,7 +530,7 @@ result = create_hailuo_image_to_video(
 
 ```bash cURL
 curl --request POST \
-  --url https://api.tokenops.ai/v1/videos \
+  --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
@@ -622,12 +555,9 @@ curl --request POST \
         "role": "last_frame"
       }
     ],
-    "size": "1364x768",
     "seconds": "6",
-    "hailuo": {
-      "prompt_optimizer": true,
-      "fast_pretreatment": false
-    }
+    "prompt_optimizer": true,
+    "fast_pretreatment": false
   }'
 ```
 
@@ -635,13 +565,13 @@ curl --request POST \
 def create_hailuo_keyframe_to_video(prompt, first_frame_url, last_frame_url, **kwargs):
     """
     海螺首尾帧生成视频
-    
+
     Args:
         prompt: 视频描述文本
         first_frame_url: 首帧图片URL
         last_frame_url: 尾帧图片URL
         **kwargs: 其他参数
-    
+
     Returns:
         任务创建响应
     """
@@ -650,7 +580,7 @@ def create_hailuo_keyframe_to_video(prompt, first_frame_url, last_frame_url, **k
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     data = {
         "model": "MiniMax-Hailuo-02",
         "content": [
@@ -674,21 +604,12 @@ def create_hailuo_keyframe_to_video(prompt, first_frame_url, last_frame_url, **k
             }
         ]
     }
-    
-    # 添加通用参数
-    for key in ["size", "seconds"]:
+
+    # 添加可选参数
+    for key in ["seconds", "prompt_optimizer", "fast_pretreatment", "aigc_watermark"]:
         if key in kwargs:
             data[key] = kwargs[key]
-    
-    # 添加海螺扩展参数
-    hailuo_params = {}
-    for key in ["prompt_optimizer", "fast_pretreatment", "aigc_watermark"]:
-        if key in kwargs:
-            hailuo_params[key] = kwargs[key]
-    
-    if hailuo_params:
-        data["hailuo"] = hailuo_params
-    
+
     try:
         response = requests.post(url, headers=headers, json=data)
         return response.json() if response.status_code == 200 else None
@@ -703,7 +624,6 @@ result = create_hailuo_keyframe_to_video(
     prompt="A little girl grow up.",
     first_frame_url=first_frame,
     last_frame_url=last_frame,
-    size="1364x768",
     seconds="6",
     prompt_optimizer=True,
     fast_pretreatment=False
@@ -713,7 +633,7 @@ result = create_hailuo_keyframe_to_video(
 ```javascript JavaScript/Node.js
 async function createHailuoKeyframeToVideo(prompt, firstFrameUrl, lastFrameUrl, options = {}) {
     const url = `${BASE_URL}/videos`;
-    
+
     const data = {
         model: 'MiniMax-Hailuo-02',
         content: [
@@ -737,26 +657,14 @@ async function createHailuoKeyframeToVideo(prompt, firstFrameUrl, lastFrameUrl, 
             }
         ]
     };
-    
-    // 添加通用参数
-    ['size', 'seconds'].forEach(key => {
+
+    // 添加可选参数
+    ['seconds', 'prompt_optimizer', 'fast_pretreatment', 'aigc_watermark'].forEach(key => {
         if (options[key] !== undefined) {
             data[key] = options[key];
         }
     });
-    
-    // 添加海螺扩展参数
-    const hailuoParams = {};
-    ['prompt_optimizer', 'fast_pretreatment', 'aigc_watermark'].forEach(key => {
-        if (options[key] !== undefined) {
-            hailuoParams[key] = options[key];
-        }
-    });
-    
-    if (Object.keys(hailuoParams).length > 0) {
-        data.hailuo = hailuoParams;
-    }
-    
+
     try {
         const response = await axios.post(url, data, {
             headers: {
@@ -764,11 +672,11 @@ async function createHailuoKeyframeToVideo(prompt, firstFrameUrl, lastFrameUrl, 
                 'Content-Type': 'application/json'
             }
         });
-        
+
         console.log('海螺首尾帧视频生成任务已创建');
         console.log(`任务ID: ${response.data.id}`);
         console.log(`状态: ${response.data.status}`);
-        
+
         return response.data;
     } catch (error) {
         console.error('任务创建失败:', error.response?.data || error.message);
@@ -784,7 +692,6 @@ const result = await createHailuoKeyframeToVideo(
     firstFrame,
     lastFrame,
     {
-        size: '1364x768',
         seconds: '6',
         prompt_optimizer: true,
         fast_pretreatment: false
@@ -914,7 +821,6 @@ def complete_hailuo_video_workflow(prompt, **kwargs):
 video_path = complete_hailuo_video_workflow(
     prompt="在森林深处的小溪边，一只优雅的白鹿正在静静饮水，阳光透过树叶形成斑驳的光影，蝴蝶在花丛中飞舞[缓慢推进][梦幻滤镜]",
     model="MiniMax-Hailuo-2.3",
-    size="1920x1080",
     seconds="6",
     prompt_optimizer=True,
     aigc_watermark=False
@@ -929,9 +835,8 @@ if video_path:
 ## 注意事项
 
 1. **模型选择**: 推荐使用 **MiniMax-Hailuo-2.3** 获得最佳效果
-2. **分辨率限制**: 🚨**海螺模型不支持自定义宽高比例**，只支持预设的分辨率档位（768P/1080P），实际输出宽高比由模型根据内容自动确定
-3. **Prompt优化**: 开启 `prompt_optimizer` 能显著提升生成质量
-4. **运镜控制**: 合理使用[指令]语法可以获得更精确的视觉效果
-5. **主体参考**: S2V-01模型的主体参考功能仅支持人物面部
-6. **费用控制**: 分辨率档位和时长直接影响费用，请根据需求合理设置
-7. **文件格式**: 生成的视频为MP4格式，H.264编码，25fps
+2. **Prompt优化**: 开启 `prompt_optimizer` 能显著提升生成质量
+3. **运镜控制**: 合理使用[指令]语法可以获得更精确的视觉效果
+4. **主体参考**: S2V-01模型的主体参考功能仅支持人物面部
+5. **费用控制**: 时长直接影响费用，请根据需求合理设置
+6. **文件格式**: 生成的视频为MP4格式，H.264编码，25fps

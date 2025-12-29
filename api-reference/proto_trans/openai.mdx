@@ -1,6 +1,6 @@
 # 协议转换
 
-TokenOPS.AI 提供了OpenAI协议的兼容层，使您能够使用OpenAI SDK来测试Claude和Gemini模型。通过少量代码更改，您可以快速评估不同模型的能力。
+ModelHub 提供了OpenAI协议的兼容层，使您能够使用OpenAI SDK来测试Claude和Gemini模型。通过少量代码更改，您可以快速评估不同模型的能力。
 
 ## 快速开始
 
@@ -8,8 +8,8 @@ TokenOPS.AI 提供了OpenAI协议的兼容层，使您能够使用OpenAI SDK来�
 
 1. 使用官方OpenAI SDK
 2. 更改以下配置：
-   - 更新base URL指向TokenOPS.AI API
-   - 使用您的TokenOPS.AI API密钥
+   - 更新base URL指向ModelHub API
+   - 使用您的ModelHub API密钥
    - 更新模型名称为Claude或Gemini模型
 
 ### 示例代码
@@ -18,8 +18,8 @@ TokenOPS.AI 提供了OpenAI协议的兼容层，使您能够使用OpenAI SDK来�
 from openai import OpenAI
 
 client = OpenAI(
-    api_key="YOUR_TOKENOPS_API_KEY",  # 您的TokenOPS.AI API密钥
-    base_url="https://api.tokenops.ai/v1/"  # TokenOPS.AI API端点
+    api_key="YOUR_TOKENOPS_API_KEY",  # 您的ModelHub API密钥
+    base_url="https://model-api.skyengine.com.cn/v1/"  # ModelHub API端点
 )
 
 # 使用Claude模型
@@ -138,7 +138,7 @@ response = client.chat.completions.create(
 
 ## 最佳实践
 
-1. **提示词优化**: 如果您的提示词针对OpenAI进行了大量调优，建议使用TokenOPS.AI控制台的提示词改进工具
+1. **提示词优化**: 如果您的提示词针对OpenAI进行了大量调优，建议使用ModelHub控制台的提示词改进工具
 2. **错误处理**: 仅将错误信息用于日志记录和调试，不要依赖具体的错误文本内容
 3. **功能测试**: 在生产环境使用前，请充分测试所需的功能特性
 4. **原生API**: 如需使用完整功能集（PDF处理、引用、扩展思考、提示缓存等），建议使用原生API

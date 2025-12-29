@@ -14,7 +14,7 @@ description: '使用Gemini API进行基础文本生成的完整示例代码'
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/gemini-2.5-flash:generateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -28,7 +28,7 @@ curl -X POST "https://api.tokenops.ai/v1beta/models/gemini-2.5-flash:generateCon
       }
     ],
     "generationConfig": {
-      "maxOutputTokens": 1000,
+      "maxOutputTokens": 3000,
       "temperature": 0.7
     }
   }'
@@ -40,7 +40,7 @@ import json
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
 def chat_with_gemini(message, model="gemini-2.5-flash"):
     url = f"{BASE_URL}/models/{model}:generateContent"
@@ -60,7 +60,7 @@ def chat_with_gemini(message, model="gemini-2.5-flash"):
             }
         ],
         "generationConfig": {
-            "maxOutputTokens": 1000,
+            "maxOutputTokens": 3000,
             "temperature": 0.7
         }
     }
@@ -85,7 +85,7 @@ const axios = require('axios');
 
 // 配置API密钥和基础URL
 const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1beta';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1beta';
 
 async function chatWithGemini(message, model = 'gemini-2.5-flash') {
     const url = `${BASE_URL}/models/${model}:generateContent`;
@@ -106,7 +106,7 @@ async function chatWithGemini(message, model = 'gemini-2.5-flash') {
             }
         ],
         generationConfig: {
-            maxOutputTokens: 1000,
+            maxOutputTokens: 3000,
             temperature: 0.7
         }
     };
@@ -140,7 +140,7 @@ import (
 
 const (
     APIKey  = "<API-KEY>"
-    BaseURL = "https://api.tokenops.ai/v1beta"
+    BaseURL = "https://model-api.skyengine.com.cn/v1beta"
 )
 
 type Part struct {
@@ -187,7 +187,7 @@ func chatWithGemini(message string, model string) (string, error) {
             },
         },
         GenerationConfig: GenerationConfig{
-            MaxOutputTokens: 1000,
+            MaxOutputTokens: 3000,
             Temperature:     0.7,
         },
     }
@@ -255,7 +255,7 @@ import java.util.Map;
 
 public class GeminiBasicChat {
     private static final String API_KEY = "<API-KEY>";
-    private static final String BASE_URL = "https://api.tokenops.ai/v1beta";
+    private static final String BASE_URL = "https://model-api.skyengine.com.cn/v1beta";
     
     public static String chatWithGemini(String message, String model) throws IOException, InterruptedException {
         if (model == null || model.isEmpty()) {
@@ -272,7 +272,7 @@ public class GeminiBasicChat {
                 ))
             ),
             "generationConfig", Map.of(
-                "maxOutputTokens", 1000,
+                "maxOutputTokens", 3000,
                 "temperature", 0.7
             )
         );
@@ -316,7 +316,7 @@ class GeminiBasicChat {
     private $apiKey;
     private $baseUrl;
     
-    public function __construct($apiKey, $baseUrl = 'https://api.tokenops.ai/v1beta') {
+    public function __construct($apiKey, $baseUrl = 'https://model-api.skyengine.com.cn/v1beta') {
         $this->apiKey = $apiKey;
         $this->baseUrl = $baseUrl;
     }
@@ -335,7 +335,7 @@ class GeminiBasicChat {
                 ]
             ],
             'generationConfig' => [
-                'maxOutputTokens' => 1000,
+                'maxOutputTokens' => 3000,
                 'temperature' => 0.7
             ]
         ];
@@ -462,42 +462,6 @@ echo "Gemini回复: " . $reply . "\n";
 - **generationConfig**: 生成配置
   - **maxOutputTokens**: 最大输出token数量
   - **temperature**: 控制输出随机性，0-2之间
-
-## 支持的模型
-
-- gemini-2.5-pro
-- gemini-2.5-flash
-- gemini-2.5-flash-lite
-- gemini-2.0-flash-lite-001
-- gemini-2.0-flash-001
-
-## Gemini API特点
-
-- **URL格式**: 模型名称包含在URL路径中
-- **响应结构**: 结果在 `candidates[0].content.parts[0].text` 中
-- **内容格式**: 使用 `contents` 和 `parts` 的嵌套结构
-- **配置灵活**: 支持丰富的生成配置选项
-
-## 高级配置选项
-
-```json
-{
-  "generationConfig": {
-    "maxOutputTokens": 1000,
-    "temperature": 0.7,
-    "topP": 0.95,
-    "topK": 40,
-    "stopSequences": ["END"],
-    "candidateCount": 1
-  },
-  "safetySettings": [
-    {
-      "category": "HARM_CATEGORY_HARASSMENT",
-      "threshold": "BLOCK_MEDIUM_AND_ABOVE"
-    }
-  ]
-}
-```
 
 ## 错误处理
 

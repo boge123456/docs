@@ -17,6 +17,16 @@ Gemini API 提供强大的原生图像生成能力，采用对话式方法。您
 
 > **提示**: nano-banana-pro 的参数基本与 nano-banana 一致，可以参考本文档的使用方法和示例。
 
+## nano-banana-pro 特性
+
+nano-banana-pro 是一款先进的图片生成和编辑模型，针对专业资源制作进行了优化：
+
+- **高分辨率输出**：内置 1K、2K 和 4K 视觉效果生成功能
+- **高级文字渲染**：能够为信息图表、菜单、图表和营销素材资源生成清晰易读的风格化文字
+- **使用 Google 搜索进行接地**：模型可以使用 Google 搜索作为工具来验证事实，并根据实时数据（例如当前天气地图、股票图表、近期活动）生成图像
+- **思考模式**：模型会利用"思考"过程来推理复杂的提示，生成临时"思维图像"以在生成最终的高质量输出之前优化构图
+- **最多 14 张参考图片**：您现在最多可以混合使用 14 张参考图片来生成最终图片
+
 ## 基础用法
 
 ### 文本生成图像
@@ -24,7 +34,7 @@ Gemini API 提供强大的原生图像生成能力，采用对话式方法。您
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.tokenops.ai/v1beta/models/nano-banana:generateContent" \
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/nano-banana-pro:generateContent" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
@@ -51,11 +61,11 @@ from PIL import Image
 from io import BytesIO
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
 def generate_image(prompt):
     """使用 Gemini 从文本生成图像"""
-    url = f"{BASE_URL}/models/nano-banana:generateContent"
+    url = f"{BASE_URL}/models/nano-banana-pro:generateContent"
 
     headers = {
         "Content-Type": "application/json",
@@ -98,59 +108,6 @@ prompt = "在高档餐厅中展示一道纳米香蕉菜肴，带有 Gemini 主�
 generate_image(prompt)
 ```
 
-```javascript JavaScript/Node.js
-const axios = require('axios');
-const fs = require('fs');
-
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1beta';
-
-async function generateImage(prompt) {
-    const url = `${BASE_URL}/models/nano-banana:generateContent`;
-
-    const data = {
-        contents: [
-            {
-                parts: [
-                    {
-                        text: prompt
-                    }
-                ]
-            }
-        ]
-    };
-
-    try {
-        const response = await axios.post(url, data, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_KEY}`
-            }
-        });
-
-        // 提取并保存图像
-        const candidates = response.data.candidates || [];
-        for (const candidate of candidates) {
-            const parts = candidate.content?.parts || [];
-            for (const part of parts) {
-                if (part.inlineData) {
-                    const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
-                    fs.writeFileSync('generated_image.png', imageBuffer);
-                    console.log('图像已保存为 generated_image.png');
-                    return;
-                }
-            }
-        }
-    } catch (error) {
-        console.error(`错误: ${error.response?.status} - ${error.response?.data || error.message}`);
-    }
-}
-
-// 使用示例
-const prompt = '在高档餐厅中展示一道纳米香蕉菜肴，带有 Gemini 主题';
-generateImage(prompt);
-```
-
 </CodeGroup>
 
 ![gemini-native-image](/images/examples/gemini-native-image.png)
@@ -173,7 +130,7 @@ fi
 IMG_BASE64=$(base64 "$B64FLAGS" "$IMG_PATH" 2>&1)
 
 curl -X POST \
-  "https://generativelanguage.googleapis.com/v1beta/models/nano-banana:generateContent" \
+  "https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro:generateContent" \
     -H "x-goog-api-key: <API-KEY> \
     -H 'Content-Type: application/json' \
     -d "{
@@ -202,11 +159,11 @@ from PIL import Image
 from io import BytesIO
 
 API_KEY = "<API-KEY>"
-BASE_URL = "https://api.tokenops.ai/v1beta"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
 
 def edit_image(image_path, prompt):
     """使用 Gemini 编辑图像"""
-    url = f"{BASE_URL}/models/nano-banana:generateContent"
+    url = f"{BASE_URL}/models/nano-banana-pro:generateContent"
 
     # 读取并编码图像
     with open(image_path, 'rb') as f:
@@ -264,145 +221,7 @@ def edit_image(image_path, prompt):
 edit_image("cat.jpg", "给这只猫加一顶小巫师帽")
 ```
 
-```javascript JavaScript/Node.js
-const axios = require('axios');
-const fs = require('fs');
-
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://api.tokenops.ai/v1beta';
-
-async function editImage(imagePath, prompt) {
-    const url = `${BASE_URL}/models/nano-banana:generateContent`;
-
-    // 读取并编码图像
-    const imageBuffer = fs.readFileSync(imagePath);
-    const imageBase64 = imageBuffer.toString('base64');
-
-    // 确定 MIME 类型
-    let mimeType = 'image/png';
-    if (imagePath.toLowerCase().endsWith('.jpg') || imagePath.toLowerCase().endsWith('.jpeg')) {
-        mimeType = 'image/jpeg';
-    } else if (imagePath.toLowerCase().endsWith('.webp')) {
-        mimeType = 'image/webp';
-    }
-
-    const data = {
-        contents: [
-            {
-                parts: [
-                    {
-                        text: prompt
-                    },
-                    {
-                        inlineData: {
-                            mimeType: mimeType,
-                            data: imageBase64
-                        }
-                    }
-                ]
-            }
-        ]
-    };
-
-    try {
-        const response = await axios.post(url, data, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_KEY}`
-            }
-        });
-
-        // 提取并保存编辑后的图像
-        const candidates = response.data.candidates || [];
-        for (const candidate of candidates) {
-            const parts = candidate.content?.parts || [];
-            for (const part of parts) {
-                if (part.inlineData) {
-                    const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
-                    fs.writeFileSync('edited_image.png', imageBuffer);
-                    console.log('编辑后的图像已保存为 edited_image.png');
-                    return;
-                }
-            }
-        }
-    } catch (error) {
-        console.error(`错误: ${error.response?.status} - ${error.response?.data || error.message}`);
-    }
-}
-
-// 使用示例
-editImage('cat.jpg', '给这只猫加一顶小巫师帽');
-```
-
 </CodeGroup>
-
-## 提示词工程策略
-
-为获得最佳效果，请遵循以下提示词编写策略：
-
-### 1. 描述场景，而非仅列关键词
-
-**不推荐**: "猫，帽子，巫师"
-
-**推荐**: "一只蓬松的橙色虎斑猫戴着一顶带有金色星星的小紫色巫师帽，坐在一张古董木桌上，窗户射入柔和的自然光线"
-
-### 2. 使用摄影术语创建真实照片
-
-对于照片级真实感图像，提及：
-- **镜头类型**: 广角镜、微距镜、长焦镜
-- **光线**: 黄金时段光线、柔光、戏剧性光线
-- **角度**: 俯视、仰视、眼平视角
-
-示例：
-```
-"一座古老的灯塔矗立在崎岖的海岸上，黄金时段光线，广角镜头，
-戏剧性的天空背景，专业风景摄影"
-```
-
-### 3. 为插图和贴纸指定风格细节
-
-明确说明艺术风格：
-- **艺术运动**: 印象派、极简主义、抽象
-- **媒介**: 水彩、油画、数字艺术
-- **情绪**: 俏皮、优雅、充满活力
-
-示例：
-```
-"水彩画风格的日落山景，柔和的色彩过渡，极简构图，平静的氛围"
-```
-
-### 4. 包含文本时要精确
-
-在图像中包含特定文本时，要明确具体：
-
-示例：
-```
-"复古风格海报，顶部用 art deco 字体显示"NANO BANANA CAFE"文字，
-金色字母，优雅边框"
-```
-
-### 5. 为产品样机描述环境细节
-
-对于产品展示，描述：
-- 表面和材质
-- 周围物品
-- 光线和阴影
-
-示例：
-```
-"在大理石台面上展示的护肤品瓶，周围摆放着新鲜绿叶，
-柔和的自然光从左侧射入"
-```
-
-### 6. 在极简设计中有效使用负空间
-
-明确说明空白区域和焦点：
-
-示例：
-```
-"极简标志设计，几何形状，大量负空间，居中对齐，
-现代简约风格"
-```
 
 ## 配置选项
 
@@ -452,34 +271,149 @@ data = {
 
 ### 可用的宽高比
 
-| 宽高比 | 分辨率 | 适用场景 |
-|--------|--------|----------|
-| 1:1 | 1024x1024 | 社交媒体头像、产品展示 |
-| 16:9 | 1344x768 | 视频封面、横幅广告 |
-| 9:16 | 768x1344 | 手机屏幕、竖屏视频 |
-| 3:2 | 1248x832 | 相机标准比例 |
-| 2:3 | 832x1248 | 竖版海报 |
-| 4:3 | 1184x864 | 传统显示器、演示文稿 |
-| 3:4 | 864x1184 | 海报、宣传单页 |
-| 5:4 | 1152x896 | 摄影打印 |
-| 4:5 | 896x1152 | Instagram 帖子 |
-| 21:9 | 1536x672 | 超宽屏幕、电影画面 |
+`1:1`、`16:9`、`9:16`、`3:2`、`2:3`、`4:3`、`3:4`、`5:4`、`4:5`、`21:9`
 
-## 迭代优化
+### 分辨率对照表
 
-Gemini 的对话式特性允许您通过多轮交互逐步完善图像。
+#### nano-banana
 
-示例流程：
+| 宽高比 | 分辨率 | 令牌 |
+|--------|--------|------|
+| 1:1 | 1024x1024 | 1290 |
+| 2:3 | 832x1248 | 1290 |
+| 3:2 | 1248x832 | 1290 |
+| 3:4 | 864x1184 | 1290 |
+| 4:3 | 1184x864 | 1290 |
+| 4:5 | 896x1152 | 1290 |
+| 5:4 | 1152x896 | 1290 |
+| 9:16 | 768x1344 | 1290 |
+| 16:9 | 1344x768 | 1290 |
+| 21:9 | 1536x672 | 1290 |
 
+#### nano-banana-pro
+
+| 宽高比 | 1K 分辨率 | 1K 令牌 | 2K 分辨率 | 2K 令牌 | 4K 分辨率 | 4K 令牌 |
+|--------|-----------|---------|-----------|---------|-----------|---------|
+| 1:1 | 1024x1024 | 1120 | 2048x2048 | 1120 | 4096x4096 | 2000 |
+| 2:3 | 848x1264 | 1120 | 1696x2528 | 1120 | 3392x5056 | 2000 |
+| 3:2 | 1264x848 | 1120 | 2528x1696 | 1120 | 5056x3392 | 2000 |
+| 3:4 | 896x1200 | 1120 | 1792x2400 | 1120 | 3584x4800 | 2000 |
+| 4:3 | 1200x896 | 1120 | 2400x1792 | 1120 | 4800x3584 | 2000 |
+| 4:5 | 928x1152 | 1120 | 1856x2304 | 1120 | 3712x4608 | 2000 |
+| 5:4 | 1152x928 | 1120 | 2304x1856 | 1120 | 4608x3712 | 2000 |
+| 9:16 | 768x1376 | 1120 | 1536x2752 | 1120 | 3072x5504 | 2000 |
+| 16:9 | 1376x768 | 1120 | 2752x1536 | 1120 | 5504x3072 | 2000 |
+| 21:9 | 1584x672 | 1120 | 3168x1344 | 1120 | 6336x2688 | 2000 |
+
+### 分辨率控制
+
+指定输出图像的分辨率，可选值：`1K`、`2K`、`4K`
+
+```python Python
+data = {
+    "contents": [
+        {
+            "parts": [
+                {
+                    "text": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格"
+                }
+            ]
+        }
+    ],
+    "generationConfig": {
+        "imageConfig": {
+            "aspectRatio": "1:1",
+            "imageSize": "4K"
+        }
+    }
+}
 ```
-第一轮: "创建一个极简的咖啡杯标志"
-→ 生成基础标志
 
-第二轮: "让蒸汽更明显一些"
-→ 增强蒸汽效果
+## 多轮图片修改
 
-第三轮: "改为暖色调配色"
-→ 调整配色方案
+Gemini 的对话式特性允许您通过多轮交互逐步完善图像。以下示例展示了一个完整的多轮对话流程：先生成初始图像，然后基于该图像进行修改。
+
+```python Python
+import requests
+import base64
+from PIL import Image
+from io import BytesIO
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
+
+def generate_content(prompt, inline_data=None):
+    """生成内容，支持纯文本或图像+文本输入
+
+    Args:
+        prompt: 文本提示
+        inline_data: 上一轮返回的 inlineData 对象（包含 mimeType 和 data）
+    """
+    url = f"{BASE_URL}/models/nano-banana-pro:generateContent"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    # 构建请求内容
+    parts = [{"text": prompt}]
+
+    # 如果提供了图像数据，添加到请求中
+    if inline_data:
+        parts.append({"inlineData": inline_data})
+
+    data = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": parts
+            }
+        ],
+        "generationConfig": {
+            "responseModalities": ["TEXT", "IMAGE"]
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        text_response = None
+        image = None
+        output_inline_data = None
+
+        for candidate in result.get('candidates', []):
+            for part in candidate.get('content', {}).get('parts', []):
+                if 'text' in part:
+                    text_response = part['text']
+                    print(f"文本响应: {text_response}")
+                if 'inlineData' in part:
+                    output_inline_data = part['inlineData']
+                    img_data = base64.b64decode(output_inline_data['data'])
+                    image = Image.open(BytesIO(img_data))
+
+        return text_response, image, output_inline_data
+    return None, None, None
+
+# ===== 第一轮：生成初始图像 =====
+prompt_turn1 = """创建一个生动的信息图，将光合作用解释为植物最喜欢的食物配方。
+展示"原料"（阳光、水、二氧化碳）和"成品"（糖/能量）。
+风格应该像一本色彩丰富的儿童烹饪书的一页，适合四年级学生阅读。
+图片中的文字使用英文。"""
+
+text1, image1, inline_data1 = generate_content(prompt_turn1)
+if image1:
+    image1.save("turn1_image.png")
+    print("第一轮图像已保存为 turn1_image.png")
+
+# ===== 第二轮：基于第一轮图像进行迭代编辑 =====
+prompt_turn2 = "生成一张新图片，将图片中的所有英文文字翻译成中文"
+
+text2, image2, inline_data2 = generate_content(prompt_turn2, inline_data1)
+if image2:
+    image2.save("turn2_image.png")
+    print("第二轮图像已保存为 turn2_image.png")
 ```
 
 ## 多图合成
@@ -519,64 +453,3 @@ data = {
 }
 ```
 
-## 使用限制
-
-- **语言支持**: 英语、西班牙语、日语、中文和印地语效果最佳
-- **输入限制**: 不支持音频或视频输入
-- **图像数量**: 建议最多提供 3 张输入图像
-- **水印**: 所有生成的图像均包含 SynthID 隐形水印
-- **地区限制**: 目前在欧洲经济区、瑞士和英国的儿童图像生成不可用
-
-## Gemini vs Imagen
-
-### 何时使用 Gemini 图像生成
-
-- **灵活性**: 需要对话式迭代优化
-- **上下文理解**: 需要理解复杂场景描述
-- **多模态输入**: 需要结合文本和图像输入
-- **快速迭代**: 需要在对话中快速调整
-
-### 何时考虑 Imagen
-
-- **最高图像质量**: 需要极致的照片级真实感
-- **专业排版**: 需要高质量的文本渲染
-- **纯图像生成**: 不需要对话式交互
-
-## 最佳实践
-
-### 1. 从简单开始，逐步细化
-
-不要试图在一次提示中包含所有细节。先生成基础图像，然后逐步添加细节。
-
-### 2. 具体而详细
-
-提供具体的描述而非模糊的概念。包括颜色、光线、角度、风格等细节。
-
-### 3. 使用参考术语
-
-使用行业术语（摄影、设计、艺术）来获得更专业的结果。
-
-### 4. 测试多个变体
-
-生成多个版本并选择最佳结果，或组合不同版本的优点。
-
-### 5. 利用迭代优化
-
-将图像生成视为对话过程，通过多轮交互达到理想效果。
-
-## 常见问题
-
-### Q: 生成一张图像需要多长时间？
-A: 通常需要 10-30 秒，具体取决于图像复杂度和服务器负载。
-
-### Q: 可以生成多少张图像？
-A: 单次请求生成一张图像，但您可以通过多次请求生成多张。
-
-### Q: 支持哪些图像格式？
-A: 输入支持 PNG、JPEG、WEBP，输出为 PNG 格式。
-
-### Q: 生成的图像有版权吗？
-A: 请参考服务条款了解图像使用权限和限制。
-
-### Q: 如何提高图像质量？
-A: 使用详细的提示词、明确的风格描述、适当的宽高比，并通过迭代优化改进结果。
