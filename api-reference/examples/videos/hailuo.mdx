@@ -14,12 +14,12 @@ title: '海螺视频生成示例'
 ## 支持的参数
 
 ### 通用参数
-- **model**: 使用的模型名称
+- **model**: 使用的模型名称（通过模型名称控制输出分辨率，详见下方模型列表）
 - **prompt**: 视频描述文本（必需，最大2000字符，支持中英文）
 - **seconds** (string, 可选): 生成视频的时长，单位为秒
   - **重要**: seconds直接影响费用，请在调用前确认模型价格
-  - **MiniMax-Hailuo-2.3**: 可选值为"6"、"10"，默认值为"6"
-  - **MiniMax-Hailuo-02**: 可选值为"6"、"10"，默认值为"6"
+  - **MiniMax-Hailuo-2.3-1080P / MiniMax-Hailuo-2.3-768P**: 可选值为"6"、"10"，默认值为"6"
+  - **MiniMax-Hailuo-2.0-1080P / MiniMax-Hailuo-2.0-768P**: 可选值为"6"、"10"，默认值为"6"
   - 示例值："6"
 - **content.text** (string, 可选): 视频描述文本，用于指导视频生成的内容和风格
   - **使用说明**: 在使用 content 数组格式时，通过 text 类型的 content 元素来传递视频描述
@@ -46,7 +46,7 @@ title: '海螺视频生成示例'
 - **fast_pretreatment** (boolean, 可选): 是否缩短prompt_optimizer的优化耗时
   - **false**: 默认值，使用标准优化流程，质量更佳
   - **true**: 快速优化模式，减少耗时但可能影响优化效果
-  - **注意**: 仅对MiniMax-Hailuo-2.3和MiniMax-Hailuo-02生效
+  - **注意**: 仅对海螺2.3和海螺2.0系列模型生效
   - 示例值：false
 
 - **aigc_watermark** (boolean, 可选): 是否在生成的视频中添加AI生成水印标识
@@ -58,10 +58,23 @@ title: '海螺视频生成示例'
 
 以下是海螺文生视频支持的各个模型及其规格说明：
 
+<Note>
+**分辨率选择说明**: 我们通过模型名称来控制输出视频的分辨率。例如，`MiniMax-Hailuo-2.3-1080P` 输出 1080P 分辨率视频，`MiniMax-Hailuo-2.3-768P` 输出 768P 分辨率视频。请根据您的需求选择合适的模型。
+</Note>
+
+### 海螺 2.3 系列
+
 | 模型名称 | 模型简介 | 输出视频规格 |
 |---------|----------|-------------|
-| **MiniMax-Hailuo-2.3** 🌟推荐 | **海螺2.3旗舰版**<br/>最新一代视频生成模型，画质和动态效果显著提升 | • 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
-| **MiniMax-Hailuo-02** 🌟推荐 | **海螺2.0专业版**<br/>成熟稳定的视频生成模型，综合性能优秀 | • 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
+| **MiniMax-Hailuo-2.3-1080P** 🌟推荐 | **海螺2.3旗舰版 (1080P)**<br/>最新一代视频生成模型，画质和动态效果显著提升 | • 分辨率：1920×1080 (1080P)<br/>• 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
+| **MiniMax-Hailuo-2.3-768P** | **海螺2.3旗舰版 (768P)**<br/>最新一代视频生成模型，适合对分辨率要求较低的场景 | • 分辨率：1280×768 (768P)<br/>• 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
+
+### 海螺 2.0 系列
+
+| 模型名称 | 模型简介 | 输出视频规格 |
+|---------|----------|-------------|
+| **MiniMax-Hailuo-2.0-1080P** 🌟推荐 | **海螺2.0专业版 (1080P)**<br/>成熟稳定的视频生成模型，综合性能优秀 | • 分辨率：1920×1080 (1080P)<br/>• 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
+| **MiniMax-Hailuo-2.0-768P** | **海螺2.0专业版 (768P)**<br/>成熟稳定的视频生成模型，适合对分辨率要求较低的场景 | • 分辨率：1280×768 (768P)<br/>• 视频时长：6秒、10秒<br/>• 固定规格：25fps、MP4 (H.264编码) |
 
 ## 步骤1：创建视频生成任务
 
@@ -73,7 +86,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "MiniMax-Hailuo-2.3",
+    "model": "MiniMax-Hailuo-2.3-1080P",
     "prompt": "在未来科技城市的高楼天台上，一位身穿发光服装的女孩正在练习太极拳，城市的霓虹灯光在夜幕中闪烁，远处可见飞行汽车穿梭[缓慢推进][俯拍视角]",
     "seconds": "6",
     "prompt_optimizer": true,
@@ -89,13 +102,13 @@ import time
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def create_hailuo_video(prompt, model="MiniMax-Hailuo-2.3", **kwargs):
+def create_hailuo_video(prompt, model="MiniMax-Hailuo-2.3-1080P", **kwargs):
     """
     创建海螺视频生成任务
 
     Args:
         prompt: 视频描述文本
-        model: 使用的模型名称
+        model: 使用的模型名称（通过模型名称控制分辨率，如 MiniMax-Hailuo-2.3-1080P 或 MiniMax-Hailuo-2.3-768P）
         **kwargs: 其他参数（seconds, prompt_optimizer, fast_pretreatment, aigc_watermark）
 
     Returns:
@@ -151,7 +164,7 @@ const axios = require('axios');
 const API_KEY = '<API-KEY>';
 const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
-async function createHailuoVideo(prompt, model = 'MiniMax-Hailuo-2.3', options = {}) {
+async function createHailuoVideo(prompt, model = 'MiniMax-Hailuo-2.3-1080P', options = {}) {
     const url = `${BASE_URL}/videos`;
 
     const data = {
@@ -188,7 +201,7 @@ async function createHailuoVideo(prompt, model = 'MiniMax-Hailuo-2.3', options =
 // 示例：创建任务
 const result = await createHailuoVideo(
     '在未来科技城市的高楼天台上，一位身穿发光服装的女孩正在练习太极拳，城市的霓虹灯光在夜幕中闪烁，远处可见飞行汽车穿梭[缓慢推进][俯拍视角]',
-    'MiniMax-Hailuo-2.3',
+    'MiniMax-Hailuo-2.3-1080P',
     {
         seconds: '6',
         prompt_optimizer: true,
@@ -205,9 +218,9 @@ const result = await createHailuoVideo(
 ```json
 {
   "id": "hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx",
-  "object": "video.generation", 
+  "object": "video.generation",
   "created_at": 1762776961,
-  "model": "MiniMax-Hailuo-2.3",
+  "model": "MiniMax-Hailuo-2.3-1080P",
   "status": "in_progress"
 }
 ```
@@ -291,7 +304,7 @@ const statusInfo = await checkHailuoVideoStatus(videoId);
 {
   "id": "hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx",
   "object": "video.generation",
-  "model": "MiniMax-Hailuo-2.3",
+  "model": "MiniMax-Hailuo-2.3-1080P",
   "status": "pending"
 }
 ```
@@ -301,7 +314,7 @@ const statusInfo = await checkHailuoVideoStatus(videoId);
 {
   "id": "hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx",
   "object": "video.generation",
-  "model": "MiniMax-Hailuo-2.3", 
+  "model": "MiniMax-Hailuo-2.3-1080P",
   "status": "in_progress"
 }
 ```
@@ -311,7 +324,7 @@ const statusInfo = await checkHailuoVideoStatus(videoId);
 {
   "id": "hailuo-task-eff1443c-ccab-4676-aad3-xxxxxx",
   "object": "video.generation",
-  "model": "MiniMax-Hailuo-2.3",
+  "model": "MiniMax-Hailuo-2.3-1080P",
   "status": "completed",
   "completed_at": 1762777061,
   "url": "https://file.minimaxi.com/video/xxx.mp4?token=xxx"
@@ -416,7 +429,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "MiniMax-Hailuo-2.3",
+    "model": "MiniMax-Hailuo-2.3-1080P",
     "content": [
       {
         "type": "text",
@@ -441,7 +454,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "MiniMax-Hailuo-2.3",
+    "model": "MiniMax-Hailuo-2.3-1080P",
     "content": [
       {
         "type": "text",
@@ -479,7 +492,7 @@ def create_hailuo_image_to_video(prompt, image_url, **kwargs):
     }
 
     data = {
-        "model": "MiniMax-Hailuo-2.3",
+        "model": "MiniMax-Hailuo-2.3-1080P",
         "content": [
             {
                 "type": "text",
@@ -522,7 +535,7 @@ result = create_hailuo_image_to_video(
 
 ## 图生视频-首尾帧示例
 
-**注意**: MiniMax-Hailuo-2.3 不支持首尾帧模式，请使用 MiniMax-Hailuo-02 模型。
+**注意**: MiniMax-Hailuo-2.3 系列不支持首尾帧模式，请使用 MiniMax-Hailuo-2.0 系列模型（如 `MiniMax-Hailuo-2.0-1080P` 或 `MiniMax-Hailuo-2.0-768P`）。
 
 海螺支持基于首帧和尾帧图片生成视频，以下是首尾帧生成视频的示例：
 
@@ -534,7 +547,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "MiniMax-Hailuo-02",
+    "model": "MiniMax-Hailuo-2.0-1080P",
     "content": [
       {
         "type": "text",
@@ -582,7 +595,7 @@ def create_hailuo_keyframe_to_video(prompt, first_frame_url, last_frame_url, **k
     }
 
     data = {
-        "model": "MiniMax-Hailuo-02",
+        "model": "MiniMax-Hailuo-2.0-1080P",
         "content": [
             {
                 "type": "text",
@@ -635,7 +648,7 @@ async function createHailuoKeyframeToVideo(prompt, firstFrameUrl, lastFrameUrl, 
     const url = `${BASE_URL}/videos`;
 
     const data = {
-        model: 'MiniMax-Hailuo-02',
+        model: 'MiniMax-Hailuo-2.0-1080P',
         content: [
             {
                 type: 'text',
@@ -820,7 +833,7 @@ def complete_hailuo_video_workflow(prompt, **kwargs):
 # 使用示例
 video_path = complete_hailuo_video_workflow(
     prompt="在森林深处的小溪边，一只优雅的白鹿正在静静饮水，阳光透过树叶形成斑驳的光影，蝴蝶在花丛中飞舞[缓慢推进][梦幻滤镜]",
-    model="MiniMax-Hailuo-2.3",
+    model="MiniMax-Hailuo-2.3-1080P",
     seconds="6",
     prompt_optimizer=True,
     aigc_watermark=False
@@ -834,9 +847,10 @@ if video_path:
 
 ## 注意事项
 
-1. **模型选择**: 推荐使用 **MiniMax-Hailuo-2.3** 获得最佳效果
-2. **Prompt优化**: 开启 `prompt_optimizer` 能显著提升生成质量
-3. **运镜控制**: 合理使用[指令]语法可以获得更精确的视觉效果
-4. **主体参考**: S2V-01模型的主体参考功能仅支持人物面部
-5. **费用控制**: 时长直接影响费用，请根据需求合理设置
-6. **文件格式**: 生成的视频为MP4格式，H.264编码，25fps
+1. **模型选择**: 推荐使用 **MiniMax-Hailuo-2.3-1080P** 获得最佳效果，如需更经济的方案可选择 768P 版本
+2. **分辨率控制**: 通过选择不同的模型名称来控制输出分辨率（1080P 或 768P）
+3. **Prompt优化**: 开启 `prompt_optimizer` 能显著提升生成质量
+4. **运镜控制**: 合理使用[指令]语法可以获得更精确的视觉效果
+5. **首尾帧限制**: 首尾帧模式仅支持海螺2.0系列模型（MiniMax-Hailuo-2.0-1080P / MiniMax-Hailuo-2.0-768P）
+6. **费用控制**: 时长和分辨率都会影响费用，请根据需求合理设置
+7. **文件格式**: 生成的视频为MP4格式，H.264编码，25fps
