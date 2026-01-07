@@ -1,11 +1,11 @@
 ---
 title: 'OpenAI 图片编辑示例'
-description: '使用OpenAI gpt-image-1 进行图片编辑和变体生成的完整示例代码'
+description: '使用OpenAI gpt-image-1 进行图片编辑的完整示例代码'
 ---
 
 # 图片编辑示例
 
-以下示例展示如何使用OpenAI兼容的图片编辑接口进行图片编辑和变体生成。
+以下示例展示如何使用OpenAI兼容的图片编辑接口进行图片编辑。
 
 ## 快速开始
 
@@ -13,7 +13,7 @@ description: '使用OpenAI gpt-image-1 进行图片编辑和变体生成的完�
 
 <CodeGroup>
 
-```bash cURL - 图片编辑
+```bash cURL
 curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
   -H "Authorization: Bearer <API-KEY>" \
   -F model="gpt-image-1" \
@@ -24,26 +24,16 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
   -F size="1024x1024"
 ```
 
-```bash cURL - 图片变体
-curl -X POST "https://model-api.skyengine.com.cn/v1/images/variations" \
-  -H "Authorization: Bearer <API-KEY>" \
-  -F image="@original.png" \
-  -F n=2 \
-  -F size="1024x1024"
-```
-
 ```python Python
 import requests
 import os
 from PIL import Image
-import io
-import base64
 
 # 配置API密钥和基础URL
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def edit_image(image_path, mask_path, prompt, n=1, size="1024x1024"):
+def edit_image(image_path, mask_path, prompt, model="gpt-image-1", n=1, size="1024x1024"):
     """
     编辑图片 - 根据遮罩和提示词修改图片的特定区域
 
@@ -51,6 +41,7 @@ def edit_image(image_path, mask_path, prompt, n=1, size="1024x1024"):
         image_path: 原始图片路径 (PNG格式，小于4MB)
         mask_path: 遮罩图片路径 (PNG格式，透明区域为要编辑的部分)
         prompt: 编辑提示词
+        model: 模型名称 (默认 gpt-image-1)
         n: 生成图片数量 (1-10)
         size: 图片尺寸 ("256x256", "512x512", "1024x1024")
     """
@@ -67,49 +58,11 @@ def edit_image(image_path, mask_path, prompt, n=1, size="1024x1024"):
             }
 
             data = {
+                'model': model,
                 'prompt': prompt,
                 'n': n,
                 'size': size,
                 'response_format': 'url'  # 或 'b64_json'
-            }
-
-            response = requests.post(url, headers=headers, files=files, data=data)
-
-            if response.status_code == 200:
-                result = response.json()
-                return result['data']
-            else:
-                return {"error": f"API错误: {response.status_code} - {response.text}"}
-
-    except FileNotFoundError as e:
-        return {"error": f"文件未找到: {e}"}
-    except Exception as e:
-        return {"error": f"请求失败: {e}"}
-
-def create_image_variations(image_path, n=2, size="1024x1024"):
-    """
-    生成图片变体 - 基于原图生成相似但不同的图片
-
-    Args:
-        image_path: 原始图片路径 (PNG格式，小于4MB)
-        n: 生成变体数量 (1-10)
-        size: 图片尺寸 ("256x256", "512x512", "1024x1024")
-    """
-    url = f"{BASE_URL}/images/variations"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}"
-    }
-
-    try:
-        with open(image_path, 'rb') as image_file:
-            files = {
-                'image': ('image.png', image_file, 'image/png')
-            }
-
-            data = {
-                'n': n,
-                'size': size,
-                'response_format': 'url'
             }
 
             response = requests.post(url, headers=headers, files=files, data=data)
@@ -182,9 +135,8 @@ if __name__ == "__main__":
 
     print("=== gpt-image-1 图片编辑示例 ===\n")
 
-    # 示例1: 图片编辑
     if os.path.exists(image_file):
-        print("1. 图片编辑示例:")
+        print("图片编辑示例:")
 
         # 如果没有遮罩，创建一个圆形遮罩
         if not os.path.exists(mask_file):
@@ -196,6 +148,7 @@ if __name__ == "__main__":
                 image_path=image_file,
                 mask_path=mask_file,
                 prompt="一朵美丽的花朵",
+                model="gpt-image-1",
                 n=1,
                 size="1024x1024"
             )
@@ -208,25 +161,6 @@ if __name__ == "__main__":
                     download_image(img_data['url'], f"edited_image_{i+1}.png")
             else:
                 print(f"编辑失败: {edit_result['error']}")
-
-        print("\n" + "="*50 + "\n")
-
-        # 示例2: 图片变体
-        print("2. 图片变体示例:")
-        variation_result = create_image_variations(
-            image_path=image_file,
-            n=2,
-            size="1024x1024"
-        )
-
-        if 'error' not in variation_result:
-            print("变体生成成功！")
-            for i, img_data in enumerate(variation_result):
-                print(f"- 变体图片 {i+1}: {img_data['url']}")
-                # 下载图片
-                download_image(img_data['url'], f"variation_{i+1}.png")
-        else:
-            print(f"变体生成失败: {variation_result['error']}")
 
     else:
         print(f"请先准备示例图片文件: {image_file}")
@@ -245,37 +179,15 @@ const fs = require('fs');
 const API_KEY = '<API-KEY>';
 const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
-async function editImage(imagePath, maskPath, prompt, n = 1, size = '1024x1024') {
+async function editImage(imagePath, maskPath, prompt, model = 'gpt-image-1', n = 1, size = '1024x1024') {
     const url = `${BASE_URL}/images/edits`;
 
     try {
         const formData = new FormData();
+        formData.append('model', model);
         formData.append('image', fs.createReadStream(imagePath));
         formData.append('mask', fs.createReadStream(maskPath));
         formData.append('prompt', prompt);
-        formData.append('n', n.toString());
-        formData.append('size', size);
-        formData.append('response_format', 'url');
-
-        const response = await axios.post(url, formData, {
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`,
-                ...formData.getHeaders()
-            }
-        });
-
-        return response.data.data;
-    } catch (error) {
-        return { error: `API错误: ${error.response?.status} - ${error.response?.data || error.message}` };
-    }
-}
-
-async function createImageVariations(imagePath, n = 2, size = '1024x1024') {
-    const url = `${BASE_URL}/images/variations`;
-
-    try {
-        const formData = new FormData();
-        formData.append('image', fs.createReadStream(imagePath));
         formData.append('n', n.toString());
         formData.append('size', size);
         formData.append('response_format', 'url');
@@ -321,47 +233,29 @@ async function downloadImage(url, savePath) {
         console.log('=== gpt-image-1 图片编辑示例 ===\n');
 
         // 检查文件是否存在
-        if (fs.existsSync(imageFile)) {
-            // 示例1: 图片编辑
-            if (fs.existsSync(maskFile)) {
-                console.log('1. 图片编辑示例:');
+        if (fs.existsSync(imageFile) && fs.existsSync(maskFile)) {
+            console.log('图片编辑示例:');
 
-                const editResult = await editImage(
-                    imageFile,
-                    maskFile,
-                    '一朵美丽的花朵',
-                    1,
-                    '1024x1024'
-                );
+            const editResult = await editImage(
+                imageFile,
+                maskFile,
+                '一朵美丽的花朵',
+                'gpt-image-1',
+                1,
+                '1024x1024'
+            );
 
-                if (!editResult.error) {
-                    console.log('编辑成功！生成的图片:');
-                    for (let i = 0; i < editResult.length; i++) {
-                        console.log(`- 编辑图片 ${i + 1}: ${editResult[i].url}`);
-                        await downloadImage(editResult[i].url, `edited_image_${i + 1}.png`);
-                    }
-                } else {
-                    console.log(`编辑失败: ${editResult.error}`);
-                }
-
-                console.log('\n' + '='.repeat(50) + '\n');
-            }
-
-            // 示例2: 图片变体
-            console.log('2. 图片变体示例:');
-            const variationResult = await createImageVariations(imageFile, 2, '1024x1024');
-
-            if (!variationResult.error) {
-                console.log('变体生成成功！');
-                for (let i = 0; i < variationResult.length; i++) {
-                    console.log(`- 变体图片 ${i + 1}: ${variationResult[i].url}`);
-                    await downloadImage(variationResult[i].url, `variation_${i + 1}.png`);
+            if (!editResult.error) {
+                console.log('编辑成功！生成的图片:');
+                for (let i = 0; i < editResult.length; i++) {
+                    console.log(`- 编辑图片 ${i + 1}: ${editResult[i].url}`);
+                    await downloadImage(editResult[i].url, `edited_image_${i + 1}.png`);
                 }
             } else {
-                console.log(`变体生成失败: ${variationResult.error}`);
+                console.log(`编辑失败: ${editResult.error}`);
             }
         } else {
-            console.log(`请先准备示例图片文件: ${imageFile}`);
+            console.log(`请先准备示例图片文件: ${imageFile} 和 ${maskFile}`);
             console.log('图片要求:');
             console.log('- 格式: PNG');
             console.log('- 大小: 小于4MB');
@@ -377,15 +271,9 @@ async function downloadImage(url, savePath) {
 
 ## 功能特点
 
-### 1. 图片编辑 (Image Edits)
 - **遮罩编辑**: 使用遮罩图片指定要编辑的区域
 - **提示词控制**: 通过文字描述指定编辑内容
 - **精确修改**: 只修改遮罩透明区域，保持其他部分不变
-
-### 2. 图片变体 (Image Variations)
-- **风格变化**: 保持主体内容，改变风格和细节
-- **多样性生成**: 一次生成多个不同的变体
-- **创意扩展**: 基于原图创造新的可能性
 
 ## 图片要求
 
@@ -405,9 +293,10 @@ async function downloadImage(url, savePath) {
 
 | 参数 | 类型 | 必需 | 说明 |
 |------|------|------|------|
+| `model` | string | 是 | 模型名称，如 `gpt-image-1` |
 | `image` | file | 是 | 原始图片文件 |
-| `mask` | file | 编辑时必需 | 遮罩图片文件 |
-| `prompt` | string | 编辑时必需 | 编辑描述文字 |
+| `mask` | file | 是 | 遮罩图片文件 |
+| `prompt` | string | 是 | 编辑描述文字 |
 | `n` | integer | 否 | 生成图片数量 (1-10，默认1) |
 | `size` | string | 否 | 输出尺寸 (默认1024x1024) |
 | `response_format` | string | 否 | 返回格式 (url或b64_json) |
@@ -421,7 +310,7 @@ async function downloadImage(url, savePath) {
 
 ### 内容创作
 - **社交媒体**: 创建多样化的内容素材
-- **广告设计**: 快速生成广告图片变体
+- **广告设计**: 快速生成广告图片
 - **品牌设计**: 创建品牌视觉的不同版本
 
 ### 图片修复

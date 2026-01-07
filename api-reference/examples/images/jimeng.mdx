@@ -1,0 +1,392 @@
+---
+title: '即梦图片生成示例'
+description: '使用即梦 API 进行图片生成的完整示例代码'
+---
+
+# 即梦图片生成示例
+
+以下示例展示如何使用即梦（Jimeng）API 生成高质量的图片。即梦是火山引擎旗下的AI绘画产品，支持文生图和图生图功能。
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
+    "model": "jimeng-3.0-t2i",
+    "size": "1328x1328",
+    "response_format": "url",
+    "watermark": true
+  }'
+```
+
+```python Python
+import requests
+import json
+import base64
+from PIL import Image
+from io import BytesIO
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def generate_image_jimeng(prompt, model="jimeng-3.0-t2i", size="1328x1328",
+                         watermark=True, response_format="url"):
+    """
+    使用即梦API生成图片
+
+    Args:
+        prompt: 图片描述文本
+        model: 模型名称，默认jimeng-3.0-t2i
+        size: 图片尺寸
+        watermark: 是否添加水印
+        response_format: 返回格式，url或b64_json
+    """
+    url = f"{BASE_URL}/images/generations"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    data = {
+        "prompt": prompt,
+        "model": model,
+        "size": size,
+        "response_format": response_format,
+        "watermark": watermark
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        images = []
+
+        # 显示响应信息
+        if 'created' in result:
+            print(f"生成时间: {result['created']}")
+        if 'generate_image' in result:
+            print(f"生成图片数量: {result['generate_image']}")
+
+        for i, img_data in enumerate(result['data']):
+            if response_format == "b64_json" and 'b64_json' in img_data:
+                # 处理base64格式
+                image_data = base64.b64decode(img_data['b64_json'])
+                image = Image.open(BytesIO(image_data))
+                filename = f"jimeng_generated_{i+1}.png"
+                image.save(filename)
+                images.append(filename)
+                print(f"图片已保存: {filename}")
+            elif 'url' in img_data:
+                # 处理URL格式（3天内有效）
+                print(f"图片URL: {img_data['url']}")
+                images.append(img_data['url'])
+
+        return images
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 基础使用示例
+if __name__ == "__main__":
+    prompt = "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格"
+    images = generate_image_jimeng(prompt)
+
+    if images:
+        print(f"成功生成 {len(images)} 张图片")
+```
+
+```python Python - 高级功能
+import requests
+import json
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def generate_image_jimeng_advanced(prompt, **kwargs):
+    """
+    即梦图片生成高级功能示例
+
+    支持的高级参数：
+    - seed: 随机种子，-1表示随机
+    - optimize_prompt_options: 提示词优化配置（开启文本扩写）
+    """
+    url = f"{BASE_URL}/images/generations"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    # 基础参数
+    data = {
+        "prompt": prompt,
+        "model": kwargs.get("model", "jimeng-3.0-t2i"),
+        "size": kwargs.get("size", "1328x1328"),
+        "response_format": kwargs.get("response_format", "url"),
+        "watermark": kwargs.get("watermark", True)
+    }
+
+    # 随机种子
+    if kwargs.get("seed"):
+        data["seed"] = kwargs["seed"]
+
+    # 提示词扩写（默认开启）
+    if kwargs.get("optimize_prompt") is not None:
+        data["optimize_prompt_options"] = {
+            "enable": kwargs["optimize_prompt"]
+        }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"生成时间: {result.get('created')}")
+
+        if result.get('generate_image'):
+            print(f"生成图片数量: {result['generate_image']}")
+
+        return result['data']
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 高级功能使用示例
+if __name__ == "__main__":
+    # 使用固定种子生成
+    print("=== 固定种子生成示例 ===")
+    images = generate_image_jimeng_advanced(
+        prompt="可爱的卡通小动物，清新风格",
+        seed=12345,
+        optimize_prompt=True
+    )
+
+    # 关闭提示词扩写
+    print("\n=== 关闭提示词扩写示例 ===")
+    images = generate_image_jimeng_advanced(
+        prompt="详细的提示词，无需扩写",
+        optimize_prompt=False
+    )
+```
+
+</CodeGroup>
+
+## 图生图示例
+
+即梦支持基于现有图片生成新图片的功能（图生图），通过 `/v1/images/edits` 接口实现：
+
+<CodeGroup>
+
+```bash cURL - 图生图
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -F "prompt=将图片改为水彩画风格" \
+  -F "model=jimeng-3.0-i2i" \
+  -F "size=1328x1328" \
+  -F "image=@/path/to/your/image.png"
+```
+
+```python Python - 图生图
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def edit_image_jimeng(image_path, prompt, model="jimeng-3.0-i2i", size="1328x1328"):
+    """
+    使用即梦API进行图生图
+
+    Args:
+        image_path: 本地图片路径
+        prompt: 生成描述
+        model: 模型名称，默认jimeng-3.0-i2i
+        size: 输出图片尺寸
+    """
+    url = f"{BASE_URL}/images/edits"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    with open(image_path, 'rb') as f:
+        files = {
+            'image': f
+        }
+        data = {
+            'prompt': prompt,
+            'model': model,
+            'size': size
+        }
+
+        response = requests.post(url, headers=headers, files=files, data=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"生成时间: {result.get('created')}")
+
+        if result.get('generate_image'):
+            print(f"生成图片数量: {result['generate_image']}")
+
+        for i, img_data in enumerate(result['data']):
+            if 'url' in img_data:
+                print(f"生成的图片URL: {img_data['url']}")
+                return img_data['url']
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+if __name__ == "__main__":
+    edited_image = edit_image_jimeng(
+        image_path="/path/to/your/image.png",
+        prompt="将图片改为动漫风格"
+    )
+```
+
+```python Python - 使用URL图生图
+import requests
+import json
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def edit_image_jimeng_with_url(image_url, prompt, model="jimeng-3.0-i2i", size="1328x1328"):
+    """
+    使用即梦API进行图生图（使用URL作为输入）
+
+    Args:
+        image_url: 图片URL
+        prompt: 生成描述
+        model: 模型名称
+        size: 输出图片尺寸
+    """
+    url = f"{BASE_URL}/images/edits"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    data = {
+        "prompt": prompt,
+        "model": model,
+        "size": size,
+        "image": image_url
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"生成时间: {result.get('created')}")
+
+        for i, img_data in enumerate(result['data']):
+            if 'url' in img_data:
+                print(f"生成的图片URL: {img_data['url']}")
+                return img_data['url']
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+if __name__ == "__main__":
+    base_image = "https://example.com/your-image.jpg"
+    edited_image = edit_image_jimeng_with_url(
+        image_url=base_image,
+        prompt="生成狗狗趴在草地上的近景画面"
+    )
+```
+
+</CodeGroup>
+
+## 支持的参数
+
+### 文生图参数（/v1/images/generations）
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| prompt | string | 是 | 图片描述文本 |
+| model | string | 是 | 模型名称，如 `jimeng-3.0-t2i` |
+| size | string | 否 | 图片尺寸，默认 `1328x1328`，详见下方尺寸说明 |
+| response_format | string | 否 | 返回格式（`url` 或 `b64_json`），默认 `url` |
+| seed | integer | 否 | 随机数种子，-1表示随机 |
+| watermark | boolean | 否 | 是否添加水印，默认 `true` |
+| optimize_prompt_options | object | 否 | 提示词优化配置，`{"enable": true/false}` |
+
+### 图片尺寸说明
+
+即梦支持自定义生成图像宽高，要求：
+- 宽高比在 **1:3 到 3:1** 之间
+- 宽高乘积在 **512×512 到 2048×2048** 之间
+- 默认生成 **1328×1328** 的图像
+
+**推荐尺寸：**
+
+| 分辨率 | 标清 1K | 高清 2K |
+|--------|---------|---------|
+| 1:1 | 1328×1328 | 2048×2048 |
+| 4:3 | 1472×1104 | 2304×1728 |
+| 3:2 | 1584×1056 | 2496×1664 |
+| 16:9 | 1664×936 | 2560×1440 |
+| 21:9 | 2016×864 | 3024×1296 |
+
+<Note>
+竖版图片可交换宽高值，如 1:1 比例的 1328×1328，4:3 比例的竖版为 1104×1472。
+</Note>
+
+### 图生图参数（/v1/images/edits）
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| prompt | string | 是 | 生成描述文本 |
+| model | string | 是 | 模型名称，如 `jimeng-3.0-i2i` |
+| image | file/string | 是 | 输入图片（文件或URL） |
+| size | string | 否 | 输出图片尺寸，默认 `1328x1328`，详见上方尺寸说明 |
+| seed | integer | 否 | 随机数种子，-1表示随机 |
+
+## 响应格式
+
+### 文生图响应
+
+```json
+{
+  "created": 1762841059,
+  "data": [
+    {
+      "url": "https://xxx.com/images/xxx.png"
+    }
+  ],
+  "generate_image": 1
+}
+```
+
+### 图生图响应
+
+```json
+{
+  "created": 1762841059,
+  "data": [
+    {
+      "url": "https://xxx.com/images/xxx.png"
+    }
+  ],
+  "generate_image": 1
+}
+```
+
+## 重要提示
+
+<Warning>
+**即梦API特性说明**：
+- 即梦使用异步任务机制，提交任务后会轮询获取结果
+- 图片生成时间可能较长（通常10-60秒），请耐心等待
+- 生成的图片URL有效期为3天
+</Warning>
+
+<Info>
+**提示词扩写功能**：
+- 即梦支持提示词扩写功能（use_pre_llm），默认开启
+- 通过 `optimize_prompt_options.enable` 参数可控制是否启用
+- 开启后会自动优化用户输入的提示词，生成更好的图片
+</Info>
