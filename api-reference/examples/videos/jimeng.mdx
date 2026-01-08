@@ -927,6 +927,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
+    "model": "OmniHuman_1.5",
     "req_key": "jimeng_realman_avatar_object_detection",
     "image_url": "https://example.com/portrait.jpg"
   }'
@@ -938,12 +939,13 @@ import requests
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def detect_subject(image_url, req_key="jimeng_realman_avatar_object_detection"):
+def detect_subject(image_url, model="OmniHuman_1.5", req_key="jimeng_realman_avatar_object_detection"):
     """
     主体检测 - 检测图片中的主体，返回 mask 图 URL 列表
 
     Args:
         image_url: 人像图片 URL
+        model: 模型名称
         req_key: 服务标识
 
     Returns:
@@ -956,6 +958,7 @@ def detect_subject(image_url, req_key="jimeng_realman_avatar_object_detection"):
     }
 
     data = {
+        "model": model,
         "req_key": req_key,
         "image_url": image_url
     }
@@ -989,11 +992,12 @@ const axios = require('axios');
 const API_KEY = '<API-KEY>';
 const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
-async function detectSubject(imageUrl, reqKey = 'jimeng_realman_avatar_object_detection') {
+async function detectSubject(imageUrl, model = 'OmniHuman_1.5', reqKey = 'jimeng_realman_avatar_object_detection') {
     const url = `${BASE_URL}/omnihuman/subject/detection`;
 
     try {
         const response = await axios.post(url, {
+            model: model,
             req_key: reqKey,
             image_url: imageUrl
         }, {
@@ -1038,6 +1042,7 @@ const (
 )
 
 type SubjectDetectionRequest struct {
+    Model    string `json:"model"`
     ReqKey   string `json:"req_key"`
     ImageURL string `json:"image_url"`
 }
@@ -1048,13 +1053,17 @@ type SubjectDetectionResponse struct {
     RequestID string   `json:"request_id,omitempty"`
 }
 
-func detectSubject(imageURL string, reqKey string) (*SubjectDetectionResponse, error) {
+func detectSubject(imageURL string, model string, reqKey string) (*SubjectDetectionResponse, error) {
+    if model == "" {
+        model = "OmniHuman_1.5"
+    }
     if reqKey == "" {
         reqKey = "jimeng_realman_avatar_object_detection"
     }
     url := fmt.Sprintf("%s/omnihuman/subject/detection", BaseURL)
 
     reqBody := SubjectDetectionRequest{
+        Model:    model,
         ReqKey:   reqKey,
         ImageURL: imageURL,
     }
@@ -1106,7 +1115,7 @@ func detectSubject(imageURL string, reqKey string) (*SubjectDetectionResponse, e
 
 // 示例：检测主体
 func main() {
-    result, err := detectSubject("https://example.com/portrait.jpg", "")
+    result, err := detectSubject("https://example.com/portrait.jpg", "", "")
     if err != nil {
         fmt.Printf("检测失败: %v\n", err)
         return
@@ -1139,6 +1148,7 @@ func main() {
 
 | 参数 | 类型 | 必选 | 说明 |
 |------|------|------|------|
+| **model** | String | 是 | 模型名称，如 `OmniHuman_1.5` |
 | **req_key** | String | 是 | 服务标识，如 `jimeng_realman_avatar_object_detection` |
 | **image_url** | String | 是 | 人像图片 URL 链接 |
 
@@ -1162,6 +1172,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
+    "model": "OmniHuman_1.5",
     "req_key": "jimeng_realman_avatar_picture_create_role_omni_v15",
     "image_url": "https://example.com/portrait.jpg"
   }'
@@ -1173,12 +1184,13 @@ import requests
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def recognize_subject(image_url, req_key="jimeng_realman_avatar_picture_create_role_omni_v15"):
+def recognize_subject(image_url, model="OmniHuman_1.5", req_key="jimeng_realman_avatar_picture_create_role_omni_v15"):
     """
     主体识别 - 识别图片中是否包含人/类人/拟人主体
 
     Args:
         image_url: 人像图片 URL
+        model: 模型名称
         req_key: 服务标识
 
     Returns:
@@ -1191,6 +1203,7 @@ def recognize_subject(image_url, req_key="jimeng_realman_avatar_picture_create_r
     }
 
     data = {
+        "model": model,
         "req_key": req_key,
         "image_url": image_url
     }
@@ -1221,11 +1234,12 @@ const axios = require('axios');
 const API_KEY = '<API-KEY>';
 const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
-async function recognizeSubject(imageUrl, reqKey = 'jimeng_realman_avatar_picture_create_role_omni_v15') {
+async function recognizeSubject(imageUrl, model = 'OmniHuman_1.5', reqKey = 'jimeng_realman_avatar_picture_create_role_omni_v15') {
     const url = `${BASE_URL}/omnihuman/subject/recognition`;
 
     try {
         const response = await axios.post(url, {
+            model: model,
             req_key: reqKey,
             image_url: imageUrl
         }, {
@@ -1261,6 +1275,7 @@ import (
 )
 
 type SubjectRecognitionRequest struct {
+    Model    string `json:"model"`
     ReqKey   string `json:"req_key"`
     ImageURL string `json:"image_url"`
 }
@@ -1271,13 +1286,17 @@ type SubjectRecognitionResponse struct {
     RequestID string `json:"request_id,omitempty"`
 }
 
-func recognizeSubject(imageURL string, reqKey string) (*SubjectRecognitionResponse, error) {
+func recognizeSubject(imageURL string, model string, reqKey string) (*SubjectRecognitionResponse, error) {
+    if model == "" {
+        model = "OmniHuman_1.5"
+    }
     if reqKey == "" {
         reqKey = "jimeng_realman_avatar_picture_create_role_omni_v15"
     }
     url := fmt.Sprintf("%s/omnihuman/subject/recognition", BaseURL)
 
     reqBody := SubjectRecognitionRequest{
+        Model:    model,
         ReqKey:   reqKey,
         ImageURL: imageURL,
     }
@@ -1328,7 +1347,7 @@ func recognizeSubject(imageURL string, reqKey string) (*SubjectRecognitionRespon
 
 // 示例：识别主体
 func main() {
-    result, err := recognizeSubject("https://example.com/portrait.jpg", "")
+    result, err := recognizeSubject("https://example.com/portrait.jpg", "", "")
     if err != nil {
         fmt.Printf("识别失败: %v\n", err)
         return
@@ -1355,6 +1374,7 @@ func main() {
 
 | 参数 | 类型 | 必选 | 说明 |
 |------|------|------|------|
+| **model** | String | 是 | 模型名称，如 `OmniHuman_1.5` |
 | **req_key** | String | 是 | 服务标识，如 `jimeng_realman_avatar_picture_create_role_omni_v15` |
 | **image_url** | String | 是 | 人像图片 URL 链接 |
 
@@ -1379,6 +1399,7 @@ curl --request POST \
   --header 'Content-Type: application/json' \
   --data '{
     "model": "OmniHuman_1.5",
+    "req_key": "jimeng_realman_avatar_picture_omni_v15",
     "prompt": "自然说话，面带微笑",
     "generation_type": "omni_human",
     "output_resolution": 1080,
@@ -1406,7 +1427,7 @@ import time
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def create_omnihuman_video(image_url, audio_url, prompt="", model="OmniHuman_1.5", **kwargs):
+def create_omnihuman_video(image_url, audio_url, prompt="", model="OmniHuman_1.5", req_key="jimeng_realman_avatar_picture_omni_v15", **kwargs):
     """
     创建 OmniHuman 数字人视频生成任务
 
@@ -1415,6 +1436,7 @@ def create_omnihuman_video(image_url, audio_url, prompt="", model="OmniHuman_1.5
         audio_url: 音频 URL（时长必须小于60秒）
         prompt: 提示词（可选，建议长度≤300字符）
         model: 数字人模型名称
+        req_key: 服务标识
         **kwargs: 其他可选参数（mask_urls, output_resolution, pe_fast_mode, seed）
 
     Returns:
@@ -1429,6 +1451,7 @@ def create_omnihuman_video(image_url, audio_url, prompt="", model="OmniHuman_1.5
     # 构建请求数据
     data = {
         "model": model,
+        "req_key": req_key,
         "prompt": prompt,
         "generation_type": "omni_human",
         "content": [
@@ -1490,11 +1513,12 @@ const axios = require('axios');
 const API_KEY = '<API-KEY>';
 const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
 
-async function createOmniHumanVideo(imageUrl, audioUrl, prompt = '', model = 'OmniHuman_1.5', options = {}) {
+async function createOmniHumanVideo(imageUrl, audioUrl, prompt = '', model = 'OmniHuman_1.5', reqKey = 'jimeng_realman_avatar_picture_omni_v15', options = {}) {
     const url = `${BASE_URL}/videos`;
 
     const data = {
         model: model,
+        req_key: reqKey,
         prompt: prompt,
         generation_type: 'omni_human',
         content: [
@@ -1539,6 +1563,7 @@ const result = await createOmniHumanVideo(
     'https://example.com/speech.mp3',
     '自然说话，面带微笑',
     'OmniHuman_1.5',
+    'jimeng_realman_avatar_picture_omni_v15',
     {
         output_resolution: 1080,
         pe_fast_mode: false
@@ -1559,6 +1584,7 @@ import (
 
 type OmniHumanVideoRequest struct {
     Model            string         `json:"model"`
+    ReqKey           string         `json:"req_key"`
     Prompt           string         `json:"prompt,omitempty"`
     GenerationType   string         `json:"generation_type"`
     Content          []InputContent `json:"content"`
@@ -1585,11 +1611,16 @@ type VideoResponse struct {
     Status    string `json:"status"`
 }
 
-func createOmniHumanVideo(imageURL, audioURL, prompt, model string, outputResolution int, peFastMode bool) (*VideoResponse, error) {
+func createOmniHumanVideo(imageURL, audioURL, prompt, model, reqKey string, outputResolution int, peFastMode bool) (*VideoResponse, error) {
     url := fmt.Sprintf("%s/videos", BaseURL)
+
+    if reqKey == "" {
+        reqKey = "jimeng_realman_avatar_picture_omni_v15"
+    }
 
     reqBody := OmniHumanVideoRequest{
         Model:            model,
+        ReqKey:           reqKey,
         Prompt:           prompt,
         GenerationType:   "omni_human",
         OutputResolution: outputResolution,
@@ -1654,6 +1685,7 @@ func main() {
         "https://example.com/speech.mp3",
         "自然说话，面带微笑",
         "OmniHuman_1.5",
+        "",  // req_key, 使用默认值
         1080,
         false,
     )
@@ -1683,6 +1715,7 @@ func main() {
 | 参数 | 类型 | 必选 | 说明 |
 |------|------|------|------|
 | **model** | String | 是 | 数字人模型名称，如 `OmniHuman_1.5` |
+| **req_key** | String | 是 | 服务标识，如 `jimeng_realman_avatar_picture_omni_v15` |
 | **generation_type** | String | 是 | 生成类型，数字人场景必须设置为 `"omni_human"` |
 | **content** | Array | 是 | 内容数组，必须包含 `image_url` 和 `audio_url` |
 | **prompt** | String | 否 | 提示词，建议长度 ≤ 300 字符 |
@@ -1772,7 +1805,7 @@ def complete_omnihuman_video_generation(image_url, audio_url, prompt=""):
     detect_resp = requests.post(
         f"{BASE_URL}/omnihuman/subject/detection",
         headers=headers,
-        json={"image_url": image_url}
+        json={"model": "OmniHuman_1.5", "req_key": "jimeng_realman_avatar_object_detection", "image_url": image_url}
     )
 
     mask_urls = []
@@ -1787,6 +1820,7 @@ def complete_omnihuman_video_generation(image_url, audio_url, prompt=""):
     print("\n步骤2: 创建视频生成任务...")
     video_data = {
         "model": "OmniHuman_1.5",
+        "req_key": "jimeng_realman_avatar_picture_omni_v15",
         "prompt": prompt,
         "generation_type": "omni_human",
         "output_resolution": 1080,
@@ -1893,7 +1927,7 @@ async function completeOmniHumanVideoGeneration(imageUrl, audioUrl, prompt = '')
         try {
             const detectResp = await axios.post(
                 `${BASE_URL}/omnihuman/subject/detection`,
-                { image_url: imageUrl },
+                { model: 'OmniHuman_1.5', req_key: 'jimeng_realman_avatar_object_detection', image_url: imageUrl },
                 { headers }
             );
             console.log(`主体检测完成: status=${detectResp.data.status}`);
@@ -1909,7 +1943,9 @@ async function completeOmniHumanVideoGeneration(imageUrl, audioUrl, prompt = '')
         console.log('\n步骤2: 创建视频生成任务...');
         const videoData = {
             model: 'OmniHuman_1.5',
+            req_key: 'jimeng_realman_avatar_picture_omni_v15',
             prompt: prompt,
+            generation_type: 'omni_human',
             content: [
                 { type: 'image_url', image_url: { url: imageUrl } },
                 { type: 'audio_url', audio_url: { url: audioUrl } }
