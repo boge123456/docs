@@ -1,0 +1,226 @@
+---
+title: "Codex CLI 接入指南"
+---
+
+Codex CLI 是 OpenAI 推出的轻量级编码代理，可以在终端中直接与 AI 进行交互式对话，完成代码编写、文件操作等任务。ModelHub 平台已完成对 Codex CLI 的兼容，您可通过下列方式安装使用。
+
+> 适用于 macOS / Linux / Windows
+> 国内网络已给出镜像方案，5 分钟搞定。
+
+### 准备工作
+
+1. 获取 ModelHub 平台的 API-Key
+   获取方式：登陆平台 → 点击 API 密钥 → 创建密钥 → 点击复制即可获取 API-Key
+
+### 前置条件
+
+| 项目      | 最低要求                                           |
+|-----------|---------------------------------------------------|
+| Node.js   | ≥ 22.x （LTS 即可）                               |
+| 系统      | macOS 10.15+ / Ubuntu 20.04+ / Win10+             |
+| 网络      | 能访问 npm 或国内镜像                             |
+
+**检查命令**
+
+```bash
+node -v        # 需返回 v22.x.x
+npm -v         # 10.x 以上即可
+```
+
+### 安装方式
+
+**官方推荐命令**
+
+```bash
+npm install -g @openai/codex
+```
+
+### macOS/Linux 配置指南
+
+#### 步骤一：安装 Codex CLI
+
+首先，使用 npm 在您的系统上全局安装 Codex CLI。打开终端并运行以下命令：
+
+```bash
+npm install -g @openai/codex
+```
+
+安装完成后，您就可以在终端的任何位置使用 `codex` 命令了。
+
+#### 步骤二：配置 API 接入点和 API Key
+
+Codex CLI 使用配置文件来连接 ModelHub 服务。配置文件位于 `~/.codex/config.toml`。
+
+**创建配置目录和文件：**
+
+```bash
+mkdir -p ~/.codex
+vim ~/.codex/config.toml
+```
+
+**添加以下配置内容：**
+
+```toml
+model = "gpt-5-2025-08-07"
+model_provider = "azure"
+
+[model_providers.azure]
+name = "azure"
+base_url = "https://model-api.skyengine.com.cn/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+stream_max_retries = 5
+request_max_retries = 5
+```
+
+**设置环境变量：**
+
+将以下命令添加到您的 shell 配置文件中（例如 `~/.zshrc`、`~/.bashrc` 或 `~/.bash_profile`）：
+
+```bash
+vim ~/.bash_profile
+```
+
+添加以下内容：
+
+```bash
+# ModelHub Codex CLI 配置
+export OPENAI_API_KEY="ak-xxxxxxxxxxxxxxxx"  # 替换为您的实际 API Key
+```
+
+激活环境变量：
+
+```bash
+source ~/.bash_profile
+```
+
+#### 步骤三：启动 Codex CLI
+
+现在，您可以在终端中启动 Codex CLI：
+
+```bash
+codex
+```
+
+### Windows 用户配置指南
+
+#### 步骤一：安装 Node.js
+
+访问 **[https://nodejs.org/](https://nodejs.org/)** 下载并安装 LTS 版本的 Node.js（≥ 22.x）。
+
+#### 步骤二：安装 Codex CLI
+
+打开 PowerShell 或 CMD，运行以下命令：
+
+```bash
+npm install -g @openai/codex
+```
+
+#### 步骤三：创建配置文件
+
+在用户目录下创建 `.codex` 文件夹和 `config.toml` 配置文件：
+
+**PowerShell 命令：**
+
+```powershell
+mkdir $env:USERPROFILE\.codex -Force
+notepad $env:USERPROFILE\.codex\config.toml
+```
+
+**在打开的记事本中添加以下配置：**
+
+```toml
+model = "gpt-5-2025-08-07"
+model_provider = "azure"
+
+[model_providers.azure]
+name = "azure"
+base_url = "https://model-api.skyengine.com.cn/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+stream_max_retries = 5
+request_max_retries = 5
+```
+
+保存并关闭记事本。
+
+#### 步骤四：设置环境变量
+
+##### 方式一：通过系统设置
+
+1. 右键"此电脑" → "属性" → "高级系统设置"
+2. 点击"环境变量"按钮
+3. 在"用户变量"中点击"新建"，添加以下变量：
+
+**变量名：** `OPENAI_API_KEY`
+**变量值：** `ak-xxxxxxxxxxxxxxxx` （替换为您的实际 API Key）
+
+> **重要提醒：** 设置完环境变量后，请关闭并重新打开 PowerShell 或 CMD，确保环境变量生效。
+
+##### 方式二：通过 PowerShell 临时设置
+
+```powershell
+$env:OPENAI_API_KEY = "ak-xxxxxxxxxxxxxxxx"
+```
+
+##### 验证环境变量设置
+
+在 PowerShell 中运行以下命令验证：
+
+```powershell
+echo $env:OPENAI_API_KEY
+```
+
+在 CMD 中验证：
+
+```cmd
+echo %OPENAI_API_KEY%
+```
+
+#### 步骤五：开始使用
+
+现在您可以在 PowerShell 或 CMD 中启动 Codex CLI：
+
+```bash
+codex
+```
+
+### 配置说明
+
+| 配置项 | 说明 |
+|--------|------|
+| `model` | 使用的模型名称，如 `gpt-5-2025-08-07` |
+| `model_provider` | 模型提供商标识，设置为 `azure` |
+| `base_url` | API 接入点地址 |
+| `env_key` | 存储 API Key 的环境变量名称 |
+| `wire_api` | API 协议类型，设置为 `responses` |
+| `stream_max_retries` | 流式请求最大重试次数 |
+| `request_max_retries` | 普通请求最大重试次数 |
+
+### 常用命令
+
+```bash
+# 启动交互式会话
+codex
+
+# 直接执行任务
+codex "帮我创建一个 hello world 程序"
+
+# 查看帮助
+codex --help
+```
+
+### 开始使用
+
+恭喜您！所有配置都已完成。Codex CLI 会启动一个交互式会话，您可以直接开始提问和交互。由于我们已经配置好了 API 接入点和 Key，它现在完全通过 ModelHub 平台运行。
+
+在项目目录中使用 Codex CLI：
+
+```bash
+# 进入您的项目目录
+cd /path/to/your/project
+# 启动 Codex CLI
+codex
+```
+
+尽情享受由 ModelHub 驱动的强大编码体验吧！

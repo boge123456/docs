@@ -18,11 +18,11 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -d '{
     "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
     "model": "qwen-image-plus",
-    "size": "1328x1328",
+    "size": "1328*1328",
     "n": 1,
     "response_format": "url",
-    "optimize_prompt_options": {
-      "enable": true,
+    "qwen": {
+      "prompt_extend": true,
       "negative_prompt": "低分辨率、错误、最差质量"
     }
   }'
@@ -38,16 +38,16 @@ from io import BytesIO
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def generate_image_qwen(prompt, model="qwen-image-plus", size="1328x1328",
-                       enable_optimize=True, negative_prompt=None, response_format="url"):
+def generate_image_qwen(prompt, model="qwen-image-plus", size="1328*1328",
+                       prompt_extend=True, negative_prompt=None, response_format="url"):
     """
     使用千问API生成图片
-
+    
     Args:
         prompt: 图片描述文本
         model: 模型名称，可选qwen-image-plus或qwen-image
         size: 图片尺寸
-        enable_optimize: 是否开启智能改写
+        prompt_extend: 是否开启智能改写
         negative_prompt: 反向提示词
         response_format: 返回格式，url或b64_json
     """
@@ -56,19 +56,19 @@ def generate_image_qwen(prompt, model="qwen-image-plus", size="1328x1328",
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}"
     }
-
+    
     data = {
         "prompt": prompt,
         "model": model,
         "size": size,
         "response_format": response_format,
-        "optimize_prompt_options": {
-            "enable": enable_optimize
+        "qwen": {
+            "prompt_extend": prompt_extend
         }
     }
-
+    
     if negative_prompt:
-        data["optimize_prompt_options"]["negative_prompt"] = negative_prompt
+        data["qwen"]["negative_prompt"] = negative_prompt
     
     response = requests.post(url, headers=headers, json=data)
     
@@ -119,9 +119,9 @@ BASE_URL = "https://model-api.skyengine.com.cn/v1"
 def generate_image_qwen_advanced(prompt, **kwargs):
     """
     千问图片生成高级功能示例
-
+    
     支持的高级参数：
-    - enable_optimize: 智能改写功能
+    - prompt_extend: 智能改写功能
     - negative_prompt: 反向提示词
     - seed: 随机数种子
     - watermark: 水印设置
@@ -131,25 +131,25 @@ def generate_image_qwen_advanced(prompt, **kwargs):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}"
     }
-
+    
     # 基础参数
     data = {
         "prompt": prompt,
         "model": kwargs.get("model", "qwen-image-plus"),
-        "size": kwargs.get("size", "1328x1328"),
+        "size": kwargs.get("size", "1328*1328"),
         "response_format": kwargs.get("response_format", "url")
     }
-
-    # 提示词优化配置
-    optimize_options = {}
-    if kwargs.get("enable_optimize") is not None:
-        optimize_options["enable"] = kwargs["enable_optimize"]
+    
+    # 千问专用参数
+    qwen_params = {}
+    if kwargs.get("prompt_extend") is not None:
+        qwen_params["prompt_extend"] = kwargs["prompt_extend"]
     if kwargs.get("negative_prompt"):
-        optimize_options["negative_prompt"] = kwargs["negative_prompt"]
-
-    if optimize_options:
-        data["optimize_prompt_options"] = optimize_options
-
+        qwen_params["negative_prompt"] = kwargs["negative_prompt"]
+    
+    if qwen_params:
+        data["qwen"] = qwen_params
+    
     # 其他参数
     if kwargs.get("seed"):
         data["seed"] = kwargs["seed"]
@@ -178,20 +178,20 @@ if __name__ == "__main__":
     result = generate_image_qwen_advanced(
         prompt="可爱的动物园场景，小熊猫在竹林中嬉戏",
         model="qwen-image-plus",
-        size="1664x928",  # 16:9 宽屏
-        enable_optimize=True,
+        size="1664*928",  # 16:9 宽屏
+        prompt_extend=True,
         negative_prompt="模糊、低质量、变形、噪点",
         seed=12345,
         watermark=False
     )
-
+    
     # 2. 高质量艺术创作
     print("\n=== 高质量艺术创作示例 ===")
     result = generate_image_qwen_advanced(
         prompt="中式古典园林，小桥流水，亭台楼阁，春意盎然，工笔画风格",
         model="qwen-image-plus",
-        size="1140x1472",  # 3:4 竖版
-        enable_optimize=True,
+        size="1140*1472",  # 3:4 竖版
+        prompt_extend=True,
         negative_prompt="西式建筑、现代元素、工业风格"
     )
 ```
@@ -208,13 +208,13 @@ if __name__ == "__main__":
   - `qwen-image-edit`：仅支持输出1张图片
   - 其他模型（如`qwen-image-plus`等）：固定输出1张图片
 - 随机数种子范围：[0,2147483647]
-- **尺寸限制**：只支持特定尺寸，使用 x 作为分隔符（如 1024x1024），系统会自动转换为千问要求的格式
+- **尺寸限制**：只支持特定尺寸，必须使用星号(*)作为分隔符，不能使用x
 </Warning>
 
 <Info>
 **千问专用功能**：
-- `optimize_prompt_options.enable` 智能改写功能可显著提升生成质量，建议开启
-- `optimize_prompt_options.negative_prompt` 反向提示词有效控制不想要的元素
+- `prompt_extend` 智能改写功能可显著提升生成质量，建议开启
+- `negative_prompt` 反向提示词有效控制不想要的元素
 - 支持多种分辨率比例，适应不同应用场景
 </Info>
 
@@ -227,17 +227,17 @@ if __name__ == "__main__":
   - `qwen-image-edit-plus`、`qwen-image-edit-plus-2025-10-30`：可选择输出1-6张图片
   - `qwen-image-edit`：仅支持输出1张图片
   - 其他模型：固定输出1张图片
-- **size**: 图片尺寸，使用 x 作为分隔符，**必须精确匹配**以下允许的尺寸：
-  - `1664x928` (16:9)
-  - `1472x1140` (4:3)
-  - `1328x1328` (1:1，默认)
-  - `1140x1472` (3:4)
-  - `928x1664` (9:16)
+- **size**: 图片尺寸，**必须精确匹配**以下允许的尺寸：
+  - `1664*928` (16:9) - 注意使用星号分隔符
+  - `1472*1140` (4:3) - 注意使用星号分隔符
+  - `1328*1328` (1:1，默认) - 注意使用星号分隔符
+  - `1140*1472` (3:4) - 注意使用星号分隔符
+  - `928*1664` (9:16) - 注意使用星号分隔符
 - **response_format**: 返回格式（`url` 或 `b64_json`）
 
 ### 千问专用参数
-- **optimize_prompt_options.enable**: 是否开启智能改写，默认 `true`
-- **optimize_prompt_options.negative_prompt**: 反向提示词，长度不超过500字符
+- **qwen.prompt_extend**: 是否开启智能改写，默认 `true`
+- **qwen.negative_prompt**: 反向提示词，长度不超过500字符
 
 ### 其他参数
 - **seed**: 随机数种子，范围[0,2147483647]
@@ -256,17 +256,17 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
   -d '{
     "prompt": "生成一张符合深度图的图像，遵循以下描述：一辆红色的破旧的自行车停在一条泥泞的小路上，背景是茂密的原始森林",
     "model": "qwen-image-edit-plus",
-    "size": "1328x1328",
+    "size": "1328*1328",
     "image": [
       "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/fpakfo/image36.webp"
     ],
     "n": 1,
     "response_format": "url",
-    "optimize_prompt_options": {
-      "enable": true,
-      "negative_prompt": "低分辨率、错误、最差质量"
-    },
-    "watermark": false
+    "qwen": {
+      "prompt_extend": true,
+      "negative_prompt": "低分辨率、错误、最差质量",
+      "watermark": false
+    }
   }'
 ```
 
@@ -282,7 +282,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
       "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/iclsnx/input2.png",
       "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/gborgw/input3.png"
     ],
-    "size": "1328x1328",
+    "size": "1328*1328",
     "watermark": true
   }'
 ```

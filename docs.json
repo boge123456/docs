@@ -27,7 +27,8 @@
                       "userguide/aiclient/chatbox",
                       "userguide/aiclient/cherrystudio",
                       "userguide/aiclient/maxkb",
-                      "userguide/aiclient/claudecode"
+                      "userguide/aiclient/claudecode",
+                      "userguide/aiclient/codex"
                     ]
                   }
                 ]
@@ -152,8 +153,7 @@
                       "api-reference/examples/images/dalle-edit",
                       "api-reference/examples/images/douao",
                       "api-reference/examples/images/qwen",
-                      "api-reference/examples/images/nanobanana",
-                      "api-reference/examples/images/jimeng"
+                      "api-reference/examples/images/nanobanana"
                     ]
                   },
                   {
