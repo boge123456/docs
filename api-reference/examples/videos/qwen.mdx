@@ -875,7 +875,7 @@ const result = await createKeyframeToVideo(
 ```bash cURL
 curl --request POST \
   --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
     "model": "wan2.2-animate-move",
@@ -1454,7 +1454,7 @@ const result = await createMultiReferenceVideo(
 ```bash cURL
 curl --request POST \
   --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
 	"model": "wanx2.1-vace-plus",
@@ -1646,7 +1646,7 @@ const result = await createVideoRepainting(
 ```bash cURL
 curl --request POST \
   --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
  "model": "wanx2.1-vace-plus",
@@ -1874,7 +1874,7 @@ const result = await createVideoLocalEdit(
 # 使用视频URL的示例
 curl --request POST \
   --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer ak-vjvhF1mTLwNTitVc5bAgmnCkkIo1TzgX' \
+  --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
     "model": "wanx2.1-vace-plus",
