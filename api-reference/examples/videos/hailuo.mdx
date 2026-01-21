@@ -764,43 +764,157 @@ const result = await createHailuoKeyframeToVideo(
 import time
 import requests
 
+# ============ 配置 ============
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+# ============ 步骤1: 创建视频生成任务 ============
+def create_hailuo_video(prompt, model="MiniMax-Hailuo-2.3-1080P", **kwargs):
+    """
+    创建海螺视频生成任务
+
+    Args:
+        prompt: 视频描述文本
+        model: 使用的模型名称
+        **kwargs: 其他参数（seconds, prompt_optimizer, fast_pretreatment, aigc_watermark）
+
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": model,
+        "prompt": prompt
+    }
+
+    # 添加可选参数
+    for key in ["seconds", "prompt_optimizer", "fast_pretreatment", "aigc_watermark"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"海螺视频生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# ============ 步骤2: 查询任务状态 ============
+def check_hailuo_video_status(video_id):
+    """
+    检查海螺视频生成状态
+
+    Args:
+        video_id: 视频任务ID
+
+    Returns:
+        任务状态信息
+    """
+    url = f"{BASE_URL}/videos/{video_id}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            result = response.json()
+            return result
+        else:
+            print(f"查询失败: {response.status_code} - {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# ============ 步骤3: 下载生成的视频 ============
+def download_hailuo_video(video_id, output_path="hailuo_video.mp4"):
+    """
+    下载生成的海螺视频
+
+    Args:
+        video_id: 视频任务ID
+        output_path: 输出文件路径
+
+    Returns:
+        是否下载成功
+    """
+    url = f"{BASE_URL}/videos/{video_id}/content"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+            print(f"视频已保存: {output_path}")
+            return True
+        else:
+            print(f"下载失败: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        print(f"下载失败: {e}")
+        return False
+
+# ============ 完整工作流 ============
 def complete_hailuo_video_workflow(prompt, **kwargs):
     """
     海螺视频生成完整工作流
-    
+
     Args:
         prompt: 视频描述
         **kwargs: 其他参数
-    
+
     Returns:
         视频文件路径
     """
     print("🎬 开始海螺视频生成流程...")
-    
+
     # 步骤1: 创建任务
     print("📝 创建视频生成任务...")
     task_result = create_hailuo_video(prompt, **kwargs)
     if not task_result:
         print("❌ 任务创建失败")
         return None
-    
+
     task_id = task_result['id']
     print(f"✅ 任务创建成功，ID: {task_id}")
-    
+
     # 步骤2: 等待完成
     print("⏳ 等待视频生成完成...")
     max_attempts = 60  # 最多等待10分钟
     attempt = 0
-    
+
     while attempt < max_attempts:
         status_result = check_hailuo_video_status(task_id)
         if not status_result:
             print("❌ 状态查询失败")
             return None
-        
+
         status = status_result.get('status')
         print(f"📊 当前状态: {status}")
-        
+
         if status == 'completed':
             print("🎉 视频生成完成!")
             break
@@ -809,20 +923,20 @@ def complete_hailuo_video_workflow(prompt, **kwargs):
             error = status_result.get('error', {})
             print(f"错误信息: {error.get('message', '未知错误')}")
             return None
-        
+
         # 等待10秒后再次查询
         time.sleep(10)
         attempt += 1
-    
+
     if attempt >= max_attempts:
         print("⏰ 等待超时")
         return None
-    
+
     # 步骤3: 下载视频
     print("📥 下载视频文件...")
     output_path = f"hailuo_video_{int(time.time())}.mp4"
     success = download_hailuo_video(task_id, output_path)
-    
+
     if success:
         print(f"✅ 视频下载成功: {output_path}")
         return output_path
@@ -830,17 +944,18 @@ def complete_hailuo_video_workflow(prompt, **kwargs):
         print("❌ 视频下载失败")
         return None
 
-# 使用示例
-video_path = complete_hailuo_video_workflow(
-    prompt="在森林深处的小溪边，一只优雅的白鹿正在静静饮水，阳光透过树叶形成斑驳的光影，蝴蝶在花丛中飞舞[缓慢推进][梦幻滤镜]",
-    model="MiniMax-Hailuo-2.3-1080P",
-    seconds="6",
-    prompt_optimizer=True,
-    aigc_watermark=False
-)
+# ============ 使用示例 ============
+if __name__ == "__main__":
+    video_path = complete_hailuo_video_workflow(
+        prompt="在森林深处的小溪边，一只优雅的白鹿正在静静饮水，阳光透过树叶形成斑驳的光影，蝴蝶在花丛中飞舞[缓慢推进][梦幻滤镜]",
+        model="MiniMax-Hailuo-2.3-1080P",
+        seconds="6",
+        prompt_optimizer=True,
+        aigc_watermark=False
+    )
 
-if video_path:
-    print(f"🎊 海螺视频生成完整流程成功完成！视频保存在: {video_path}")
+    if video_path:
+        print(f"🎊 海螺视频生成完整流程成功完成！视频保存在: {video_path}")
 ```
 
 </CodeGroup>
