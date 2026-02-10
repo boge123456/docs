@@ -331,7 +331,7 @@
           {
             "lang": "curl",
             "label": "cURL",
-            "source": "curl https://api.openai.com/v1/responses \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer $OPENAI_API_KEY\" \\\n  -d '{\n    \"model\": \"gpt-4.1\",\n    \"input\": \"给我讲一个关于独角兽的三句话睡前故事。\"\n  }'"
+            "source": "curl https://model-api.skyengine.com.cn/v1/responses \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer $API_KEY\" \\\n  -d '{\n    \"model\": \"gpt-4.1\",\n    \"input\": \"给我讲一个关于独角兽的三句话睡前故事。\"\n  }'"
           },
           {
             "lang": "javascript",
@@ -1517,6 +1517,72 @@
                       "mime_type": "video/mp4"
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/upload_url": {
+      "post": {
+        "summary": "获取文件上传URL",
+        "description": "获取一个预签名的文件上传 URL，客户端可以直接使用该 URL 将文件上传到对象存储服务（如 COS、GCS）。适用于大文件上传或客户端直传场景，避免文件数据经过应用服务器中转。返回的 upload_url 包含签名信息，客户端需使用指定的 HTTP method 将文件 PUT/POST 到该 URL。",
+        "operationId": "getUploadURL",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "获取上传 URL 的请求参数，需指定文件上传路径，可选指定存储提供商和区域。",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetUploadURLRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "获取上传URL成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetUploadURLResponse"
+                },
+                "examples": {
+                  "cos_example": {
+                    "summary": "COS 存储上传URL",
+                    "value": {
+                      "upload_url": "https://bucket.cos.ap-guangzhou.myqcloud.com/example/test.mp4?sign=xxx",
+                      "method": "PUT",
+                      "path": "cos://bucket.cos.ap-guangzhou.myqcloud.com/example/test.mp4",
+                      "visit_url": "https://bucket.cos.ap-guangzhou.myqcloud.com/example/test.mp4"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API Key 认证失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -8606,6 +8672,55 @@
             "type": "string",
             "description": "系统检测到的文件 MIME 类型",
             "example": "video/mp4"
+          }
+        }
+      },
+      "GetUploadURLRequest": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "文件上传路径，不能超过 255 个字符",
+            "maxLength": 255,
+            "example": "my_files/test.mp4"
+          },
+          "storage_provider": {
+            "type": "string",
+            "description": "存储提供商，默认为 COS（腾讯云对象存储）",
+            "default": "COS",
+            "example": "COS"
+          },
+          "region": {
+            "type": "string",
+            "description": "存储区域，可选参数。COS 默认为 ap-guangzhou",
+            "example": "ap-guangzhou"
+          }
+        }
+      },
+      "GetUploadURLResponse": {
+        "type": "object",
+        "required": ["upload_url", "method", "path", "visit_url"],
+        "properties": {
+          "upload_url": {
+            "type": "string",
+            "description": "预签名的文件上传 URL，客户端使用该 URL 直接上传文件到对象存储。URL 包含签名信息，有效期有限",
+            "example": "https://bucket.cos.ap-guangzhou.myqcloud.com/my_files/test.mp4?sign=xxx"
+          },
+          "method": {
+            "type": "string",
+            "description": "上传文件时使用的 HTTP 方法",
+            "example": "PUT"
+          },
+          "path": {
+            "type": "string",
+            "description": "文件的存储路径标识，COS 使用 cos:// 协议前缀，GCS 使用 tokenops:// 协议前缀",
+            "example": "cos://bucket.cos.ap-guangzhou.myqcloud.com/my_files/test.mp4"
+          },
+          "visit_url": {
+            "type": "string",
+            "description": "文件上传成功后的访问 URL",
+            "example": "https://bucket.cos.ap-guangzhou.myqcloud.com/my_files/test.mp4"
           }
         }
       },

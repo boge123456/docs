@@ -1,0 +1,278 @@
+---
+title: '/v1/files/upload_url'
+openapi: 'POST /v1/files/upload_url'
+---
+
+## 使用指南
+
+通过预签名 URL 上传文件分为两步：先获取上传 URL，再使用该 URL 直接上传文件到对象存储。
+
+### 第一步：获取预签名上传 URL
+
+调用 `/v1/files/upload_url` 接口，传入文件路径，获取带签名的上传 URL。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/files/upload_url" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "my_files/test.mp4",
+    "storage_provider": "COS"
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def get_upload_url(file_path, storage_provider="COS"):
+    """
+    第一步：获取预签名上传 URL
+    """
+    url = f"{BASE_URL}/files/upload_url"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "path": file_path,
+        "storage_provider": storage_provider
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code == 200:
+        result = response.json()
+        print(f"上传URL: {result['upload_url']}")
+        print(f"HTTP方法: {result['method']}")
+        print(f"文件路径: {result['path']}")
+        print(f"访问URL: {result['visit_url']}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+```
+
+```javascript JavaScript
+const API_KEY = "<API-KEY>";
+const BASE_URL = "https://model-api.skyengine.com.cn/v1";
+
+async function getUploadUrl(filePath, storageProvider = "COS") {
+  const response = await fetch(`${BASE_URL}/files/upload_url`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      path: filePath,
+      storage_provider: storageProvider
+    })
+  });
+
+  if (response.ok) {
+    const result = await response.json();
+    console.log("上传URL:", result.upload_url);
+    console.log("HTTP方法:", result.method);
+    console.log("文件路径:", result.path);
+    console.log("访问URL:", result.visit_url);
+    return result;
+  } else {
+    console.error("错误:", response.status, await response.text());
+    return null;
+  }
+}
+```
+
+```go Go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+const (
+	apiKey  = "<API-KEY>"
+	baseURL = "https://model-api.skyengine.com.cn/v1"
+)
+
+type UploadURLRequest struct {
+	Path            string `json:"path"`
+	StorageProvider string `json:"storage_provider"`
+}
+
+type UploadURLResponse struct {
+	UploadURL string `json:"upload_url"`
+	Method    string `json:"method"`
+	Path      string `json:"path"`
+	VisitURL  string `json:"visit_url"`
+}
+
+func getUploadURL(filePath, storageProvider string) (*UploadURLResponse, error) {
+	reqBody, _ := json.Marshal(UploadURLRequest{
+		Path:            filePath,
+		StorageProvider: storageProvider,
+	})
+
+	req, _ := http.NewRequest("POST", baseURL+"/files/upload_url", bytes.NewReader(reqBody))
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var result UploadURLResponse
+	json.Unmarshal(body, &result)
+
+	fmt.Printf("上传URL: %s\n", result.UploadURL)
+	fmt.Printf("HTTP方法: %s\n", result.Method)
+	return &result, nil
+}
+```
+
+</CodeGroup>
+
+**返回示例：**
+
+```json
+{
+  "upload_url": "https://bucket.cos.ap-guangzhou.myqcloud.com/my_files/test.mp4?sign=xxx",
+  "method": "PUT",
+  "path": "cos://bucket.cos.ap-guangzhou.myqcloud.com/my_files/test.mp4",
+  "visit_url": "https://bucket.cos.ap-guangzhou.myqcloud.com/my_files/test.mp4"
+}
+```
+
+### 第二步：使用预签名 URL 上传文件
+
+拿到 `upload_url` 和 `method` 后，使用对应的 HTTP 方法将文件内容直接上传到该 URL。
+
+<CodeGroup>
+
+```bash cURL
+# 使用第一步返回的 upload_url 和 method 上传文件
+curl -X PUT "<upload_url>" \
+  --upload-file ./test.mp4
+```
+
+```python Python
+def upload_file(local_file_path, upload_url, method="PUT"):
+    """
+    第二步：使用预签名 URL 上传文件
+    """
+    with open(local_file_path, "rb") as f:
+        file_data = f.read()
+
+    response = requests.request(method, upload_url, data=file_data)
+
+    if response.status_code in [200, 201]:
+        print("文件上传成功！")
+        return True
+    else:
+        print(f"上传失败: {response.status_code} - {response.text}")
+        return False
+
+
+# 完整流程示例
+if __name__ == "__main__":
+    # 第一步：获取上传 URL
+    result = get_upload_url("my_files/test.mp4")
+
+    if result:
+        # 第二步：上传文件
+        upload_file("./test.mp4", result["upload_url"], result["method"])
+        print(f"文件访问地址: {result['visit_url']}")
+```
+
+```javascript JavaScript
+async function uploadFile(localFilePath, uploadUrl, method = "PUT") {
+  const fs = require("fs");
+  const fileData = fs.readFileSync(localFilePath);
+
+  const response = await fetch(uploadUrl, {
+    method: method,
+    body: fileData
+  });
+
+  if (response.ok) {
+    console.log("文件上传成功！");
+    return true;
+  } else {
+    console.error("上传失败:", response.status, await response.text());
+    return false;
+  }
+}
+
+// 完整流程示例
+async function main() {
+  // 第一步：获取上传 URL
+  const result = await getUploadUrl("my_files/test.mp4");
+
+  if (result) {
+    // 第二步：上传文件
+    await uploadFile("./test.mp4", result.upload_url, result.method);
+    console.log("文件访问地址:", result.visit_url);
+  }
+}
+
+main();
+```
+
+```go Go
+func uploadFile(localFilePath, uploadURL, method string) error {
+	fileData, err := os.ReadFile(localFilePath)
+	if err != nil {
+		return fmt.Errorf("读取文件失败: %v", err)
+	}
+
+	req, _ := http.NewRequest(method, uploadURL, bytes.NewReader(fileData))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("上传失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 200 || resp.StatusCode == 201 {
+		fmt.Println("文件上传成功！")
+		return nil
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	return fmt.Errorf("上传失败: %d - %s", resp.StatusCode, string(body))
+}
+
+func main() {
+	// 第一步：获取上传 URL
+	result, err := getUploadURL("my_files/test.mp4", "COS")
+	if err != nil {
+		fmt.Println("获取上传URL失败:", err)
+		return
+	}
+
+	// 第二步：上传文件
+	err = uploadFile("./test.mp4", result.UploadURL, result.Method)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("文件访问地址: %s\n", result.VisitURL)
+}
+```
+
+</CodeGroup>
+
+<Note>
+  预签名 URL 有时效限制，获取后请尽快完成文件上传。上传完成后，可通过返回的 `visit_url` 访问文件，或使用 `path` 字段在其他 API 中引用该文件。
+</Note>

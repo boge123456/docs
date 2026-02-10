@@ -87,7 +87,8 @@
                   {
                     "group": "File API",
                     "pages": [
-                      "api-reference/endpoint/files-upload"
+                      "api-reference/endpoint/files-upload",
+                      "api-reference/endpoint/files-upload-url"
                     ]
                   }
                 ]
