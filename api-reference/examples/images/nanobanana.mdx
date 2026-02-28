@@ -130,8 +130,8 @@ fi
 IMG_BASE64=$(base64 "$B64FLAGS" "$IMG_PATH" 2>&1)
 
 curl -X POST \
-  "https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro:generateContent" \
-    -H "x-goog-api-key: <API-KEY> \
+  "https://model-api.skyengine.com.cn/v1beta/models/nano-banana-pro:generateContent" \
+    -H "Authorization: Bearer <API-KEY>" \
     -H 'Content-Type: application/json' \
     -d "{
       \"contents\": [{
