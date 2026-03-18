@@ -262,6 +262,115 @@ if __name__ == "__main__":
 
 </CodeGroup>
 
+## Seedream 5.0 lite 新特性
+
+Seedream 5.0 lite（`doubao-seedream-5-0-260128`）相比 4.0 版本新增了以下能力：
+
+### 指定输出格式（output_format）
+
+5.0 lite 支持 `png` 和 `jpeg` 两种输出格式（4.0/4.5 仅支持 jpeg）。
+
+<CodeGroup>
+
+```bash cURL - 指定 PNG 格式输出
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚",
+    "model": "doubao-seedream-5-0-260128",
+    "size": "2048x2048",
+    "output_format": "png",
+    "response_format": "url"
+  }'
+```
+
+```python Python - 指定 PNG 格式输出
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+response = requests.post(
+    f"{BASE_URL}/images/generations",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    },
+    json={
+        "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚",
+        "model": "doubao-seedream-5-0-260128",
+        "size": "2048x2048",
+        "output_format": "png",
+        "response_format": "url"
+    }
+)
+
+result = response.json()
+print(result["data"][0]["url"])
+```
+
+</CodeGroup>
+
+### 联网搜索（web_search）
+
+5.0 lite 支持联网搜索工具，模型会根据提示词自主判断是否需要搜索互联网内容，提升生成图片的时效性。通过 `tools` 参数开启。
+
+<CodeGroup>
+
+```bash cURL - 联网搜索生图
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "prompt": "上海今日天气预报，天气可视化信息图",
+    "model": "doubao-seedream-5-0-260128",
+    "size": "2048x2048",
+    "tools": [{"type": "web_search"}],
+    "response_format": "url"
+  }'
+```
+
+```python Python - 联网搜索生图
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+response = requests.post(
+    f"{BASE_URL}/images/generations",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    },
+    json={
+        "prompt": "上海今日天气预报，天气可视化信息图",
+        "model": "doubao-seedream-5-0-260128",
+        "size": "2048x2048",
+        "tools": [{"type": "web_search"}],
+        "response_format": "url"
+    }
+)
+
+result = response.json()
+print(result["data"][0]["url"])
+
+# 查看是否实际触发了联网搜索
+usage = result.get("usage", {})
+tool_usage = usage.get("tool_usage", {})
+print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
+```
+
+</CodeGroup>
+
+<Info>
+**联网搜索说明**：
+- 开启后模型会根据提示词**自主判断**是否需要搜索，不一定每次都会触发
+- 实际搜索次数可通过响应中的 `usage.tool_usage.web_search` 字段查看
+- 联网搜索会增加一定的响应时延
+- 仅 Seedream 5.0 lite 支持，4.0/4.5 不支持
+</Info>
+
 ## 重要提示
 
 <Warning>
@@ -277,26 +386,72 @@ if __name__ == "__main__":
 - 不同功能需要使用对应的模型（详见各功能示例）
 </Info>
 
+## 支持的模型
+
+| 模型 | Model ID | 分辨率 | 输出格式 | 联网搜索 |
+|------|----------|--------|----------|----------|
+| Seedream 5.0 lite | `doubao-seedream-5-0-260128` | 2K, 3K | png, jpeg | 支持 |
+| Seedream 4.5 | `doubao-seedream-4-5-251128` | 2K, 4K | jpeg | 不支持 |
+| Seedream 4.0 | `doubao-seedream-4-0-250828` | 1K, 2K, 4K | jpeg | 不支持 |
+
+## 支持的分辨率
+
+`size` 参数支持两种设置方式（不可混用）：
+
+**方式 1：分辨率等级**（如 `"2K"`、`"3K"`），由模型根据提示词决定宽高比。
+
+**方式 2：精确像素值**（如 `"2048x2048"`），推荐值如下：
+
+### Seedream 5.0 lite
+
+**2K 分辨率：**
+
+| 宽高比 | 像素 |
+|--------|------|
+| 1:1 | 2048x2048 |
+| 3:4 | 1728x2304 |
+| 4:3 | 2304x1728 |
+| 16:9 | 2848x1600 |
+| 9:16 | 1600x2848 |
+| 3:2 | 2496x1664 |
+| 2:3 | 1664x2496 |
+| 21:9 | 3136x1344 |
+
+**3K 分辨率：**
+
+| 宽高比 | 像素 |
+|--------|------|
+| 1:1 | 3072x3072 |
+| 3:4 | 2592x3456 |
+| 4:3 | 3456x2592 |
+| 16:9 | 4096x2304 |
+| 9:16 | 2304x4096 |
+| 2:3 | 2496x3744 |
+| 3:2 | 3744x2496 |
+| 21:9 | 4704x2016 |
+
 ## 支持的参数
 
 ### 基础参数
-- **prompt**: 图片描述文本（必需）
-- **model**: 模型名称，默认 `doubao-seedream-4-0-250828`
-- **size**: 图片尺寸（如：256x256, 512x512, 1024x1024）
+- **prompt**: 图片描述文本（必需），建议不超过 300 汉字或 600 英文单词
+- **model**: 模型名称
+- **size**: 图片尺寸，分辨率等级（`"2K"`、`"3K"`）或精确像素值（`"2048x2048"`）
 - **response_format**: 返回格式（`url` 或 `b64_json`）
-- **seed**: 随机数种子，-1表示随机（⚠️ 注意：doubao-seedream-4-0-250828模型可以传入此参数但不生效）
+- **output_format**: 输出图片格式（`png` 或 `jpeg`），仅 5.0 lite 支持 png
+- **seed**: 随机数种子，-1 表示随机
 
 ### 画质控制参数
 - **watermark**: 是否添加水印，默认 `true`
 
 ### 高级功能参数
 - **stream**: 是否启用流式输出，默认 `false`
-- **sequential_image_generation**: 组图功能控制（`enabled` 或 `disabled`）
+- **tools**: 工具列表，如 `[{"type": "web_search"}]` 开启联网搜索（仅 5.0 lite）
+- **sequential_image_generation**: 组图功能控制（`auto` 或 `disabled`）
 - **sequential_image_generation_options**: 组图功能配置
-  - **max_num**: 最大图片数量
+  - **max_images**: 最大图片数量
 - **optimize_prompt_options**: 提示词优化配置
-  - **enable**: 是否启用提示词优化
-- **image**: 基础图片，支持URL或Base64编码（用于图片编辑）
+  - **mode**: 优化模式（`standard`）
+- **image**: 基础图片，支持 URL 或 Base64 编码（用于图片编辑），最多 14 张
 
 ## 图片到图片生成示例
 

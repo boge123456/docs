@@ -28,7 +28,8 @@
                       "userguide/aiclient/cherrystudio",
                       "userguide/aiclient/maxkb",
                       "userguide/aiclient/claudecode",
-                      "userguide/aiclient/codex"
+                      "userguide/aiclient/codex",
+                      "userguide/aiclient/openclaw"
                     ]
                   }
                 ]

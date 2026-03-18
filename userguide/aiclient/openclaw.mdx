@@ -1,0 +1,188 @@
+---
+title: "OpenClaw 配置指南"
+---
+
+OpenClaw 是一个功能强大的 AI 助手平台，支持多种模型提供商接入。本文档介绍如何在 OpenClaw 中配置 ModelHub 平台的模型。
+
+> 适用于 Windows / macOS / Linux
+
+### 一、安装 OpenClaw
+
+```bash
+# 全局安装 OpenClaw
+npm install -g openclaw
+
+# 验证安装
+openclaw --version
+```
+
+### 二、获取 API Key
+
+1. 登录 ModelHub 平台
+2. 进入 **API 密钥** 页面
+3. 创建新密钥并复制保存
+
+### 三、配置 TokenOPS 模型
+
+OpenClaw 的配置文件位于 `~/.openclaw/openclaw.json`。
+
+#### 3.1 Claude 系列模型配置
+
+```json
+{
+  "models": {
+    "providers": {
+      "tokenops": {
+        "baseUrl": "https://model-api.skyengine.com.cn/v1",
+        "apiKey": "ak-xxxxxxxxxxxxxxxx",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-opus-4-6",
+            "name": "Claude Opus 4.6",
+            "api": "anthropic-messages",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "contextWindow": 200000,
+            "maxTokens": 200000
+          },
+          {
+            "id": "claude-sonnet-4-6",
+            "name": "Claude Sonnet 4.6",
+            "api": "anthropic-messages",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "contextWindow": 200000,
+            "maxTokens": 190000
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "tokenops/claude-opus-4-6"
+      }
+    }
+  }
+}
+```
+
+#### 3.2 其他模型配置示例
+
+**Gemini 系列（Google 协议）：**
+
+```json
+{
+  "models": {
+    "providers": {
+      "tokenops": {
+        "baseUrl": "https://model-api.skyengine.com.cn/v1",
+        "apiKey": "ak-xxxxxxxxxxxxxxxx",
+        "api": "google-generative-ai",
+        "models": [
+          {
+            "id": "gemini-2.5-flash",
+            "name": "Gemini 2.5 Flash",
+            "api": "google-generative-ai",
+            "input": ["text", "image"],
+            "contextWindow": 1000000,
+            "maxTokens": 65536
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+**OpenAI GPT-5.4（Responses 协议）：**
+
+```json
+{
+  "models": {
+    "providers": {
+      "tokenops": {
+        "baseUrl": "https://model-api.skyengine.com.cn/v1",
+        "apiKey": "ak-xxxxxxxxxxxxxxxx",
+        "api": "openai-responses",
+        "models": [
+          {
+            "id": "gpt-5.4-2026-03-05",
+            "name": "GPT-5.4 (2026-03-05)",
+            "api": "openai-responses",
+            "reasoning": true,
+            "input": ["text", "image"],
+            "contextWindow": 400000,
+            "maxTokens": 128000
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+### 四、配置方式
+
+#### 方式一：直接编辑配置文件
+
+```bash
+# Windows (PowerShell)
+notepad $env:USERPROFILE\.openclaw\openclaw.json
+
+# macOS / Linux
+vim ~/.openclaw/openclaw.json
+```
+
+#### 方式二：使用 CLI 命令
+
+```bash
+# 设置主模型
+openclaw models set tokenops/claude-opus-4-6
+
+# 查看当前模型状态
+openclaw models status
+
+# 列出可用模型
+openclaw models list
+```
+
+#### 方式三：使用交互式向导
+
+```bash
+# 启动配置向导
+openclaw onboard
+
+# 或仅配置模型
+openclaw configure
+```
+
+### 五、验证配置
+
+```bash
+# 检查配置状态
+openclaw status
+
+# 诊断配置问题
+openclaw doctor
+
+# 查看 Gateway 日志
+openclaw logs
+```
+
+### 七、协议类型说明
+
+| 协议类型 | 适用模型 |
+|----------|----------|
+| `anthropic-messages` | Claude 系列 (Opus, Sonnet, Haiku) |
+| `openai-responses` | OpenAI GPT-5.x 系列 (Responses API) |
+| `openai-completions` | OpenAI 兼容模型 (GPT-4.x, GPT-3.5 等) |
+| `google-generative-ai` | Google Gemini 系列 |
+
+### 相关资源
+
+- [ModelHub 平台](https://model.skyengine.com.cn)
+- [OpenClaw 官方文档](https://docs.openclaw.ai)
+- [模型广场](https://model.skyengine.com.cn/model-square)
