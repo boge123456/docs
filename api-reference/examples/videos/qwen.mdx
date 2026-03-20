@@ -2519,3 +2519,229 @@ const result = await createVideoFaceSwap(
 2. **参考视频**: 包含动作和场景的原始视频
 
 模型将自动将输入图片中的人物面部特征融合到参考视频的动作中，生成新的换人视频。
+
+## 参考视频生成(v2v)示例
+
+通义万象支持基于参考视频生成新视频，通过 `wan2.6-v2v` 模型，用户可以提供1-3个参考视频和文本描述，生成融合参考视频风格和内容的新视频。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "wan2.6-v2v",
+    "content": [
+      {
+        "type": "text",
+        "text": "两个人在海边散步，夕阳西下，画面唯美"
+      },
+      {
+        "type": "video_url",
+        "video_url": {
+          "url": "https://example.com/char1.mp4"
+        },
+        "role": "reference_video"
+      },
+      {
+        "type": "video_url",
+        "video_url": {
+          "url": "https://example.com/char2.mp4"
+        },
+        "role": "reference_video"
+      }
+    ],
+    "size": "1280x720",
+    "seconds": "5",
+    "shot_type": "multi"
+  }'
+```
+
+```python Python
+def create_reference_video(prompt, reference_video_urls, **kwargs):
+    """
+    参考视频生成(v2v)
+
+    Args:
+        prompt: 视频描述文本
+        reference_video_urls: 参考视频URL列表（1-3个）
+        **kwargs: 其他参数
+
+    Returns:
+        任务创建响应
+    """
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    # 构建content数组
+    content = [
+        {
+            "type": "text",
+            "text": prompt
+        }
+    ]
+
+    # 添加参考视频
+    for video_url in reference_video_urls:
+        content.append({
+            "type": "video_url",
+            "video_url": {
+                "url": video_url
+            },
+            "role": "reference_video"
+        })
+
+    data = {
+        "model": "wan2.6-v2v",
+        "content": content
+    }
+
+    # 添加通用参数
+    for key in ["size", "seconds"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+
+    # 添加扩展参数
+    for key in ["shot_type", "prompt_extend", "audio", "watermark"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"参考视频生成任务已创建")
+            print(f"任务ID: {result.get('id')}")
+            print(f"状态: {result.get('status')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+reference_videos = [
+    "https://example.com/char1.mp4",
+    "https://example.com/char2.mp4"
+]
+result = create_reference_video(
+    prompt="两个人在海边散步，夕阳西下，画面唯美",
+    reference_video_urls=reference_videos,
+    size="1280x720",
+    seconds="5",
+    shot_type="multi"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createReferenceVideo(prompt, referenceVideoUrls, options = {}) {
+    const url = `${BASE_URL}/videos`;
+
+    // 构建content数组
+    const content = [
+        {
+            type: 'text',
+            text: prompt
+        }
+    ];
+
+    // 添加参考视频
+    referenceVideoUrls.forEach(videoUrl => {
+        content.push({
+            type: 'video_url',
+            video_url: {
+                url: videoUrl
+            },
+            role: 'reference_video'
+        });
+    });
+
+    const data = {
+        model: 'wan2.6-v2v',
+        content: content
+    };
+
+    // 添加通用参数
+    ['size', 'seconds'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+
+    // 添加扩展参数
+    ['shot_type', 'prompt_extend', 'audio', 'watermark'].forEach(key => {
+        if (options[key] !== undefined) {
+            data[key] = options[key];
+        }
+    });
+
+    try {
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('参考视频生成任务已创建');
+        console.log(`任务ID: ${response.data.id}`);
+        console.log(`状态: ${response.data.status}`);
+
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const referenceVideos = [
+    'https://example.com/char1.mp4',
+    'https://example.com/char2.mp4'
+];
+const result = await createReferenceVideo(
+    '两个人在海边散步，夕阳西下，画面唯美',
+    referenceVideos,
+    {
+        size: '1280x720',
+        seconds: '5',
+        shot_type: 'multi'
+    }
+);
+```
+
+</CodeGroup>
+
+### 参考视频生成参数
+
+- **content.role** (string, 必需): 参考视频的角色标识，必须设置为 `"reference_video"`
+  - 每个请求支持1-3个参考视频
+  - 参考视频通过 `video_url` 类型的 content 元素传递
+
+- **shot_type** (string, 可选): 镜头类型，控制生成视频的镜头风格
+  - **multi**（默认值）: 多镜头模式，生成包含多个镜头切换的视频
+  - **single**: 单镜头模式，生成单一连续镜头的视频
+  - 示例值："multi"
+
+### 参考视频生成模型说明
+
+| 模型名称 | 模型简介 | 功能特点 |
+|---------|----------|----------|
+| **wan2.6-v2v** | **万相2.6参考视频生成模型** | • 基于1-3个参考视频和文本描述生成新视频<br/>• 支持单镜头和多镜头模式<br/>• 适用于视频风格迁移和内容融合场景 |
+
+### 使用说明
+
+参考视频生成功能需要提供：
+1. **文本描述**: 描述目标视频的内容和风格
+2. **参考视频**: 1-3个参考视频，通过 `role: "reference_video"` 标识
+
+模型将根据参考视频的内容特征和文本描述，生成融合了参考视频风格的新视频。
