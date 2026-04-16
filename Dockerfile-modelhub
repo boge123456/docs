@@ -1,5 +1,6 @@
-FROM cr.ttyuyin.com/zt/model-service-mintlify:v0.0.1
-# FROM cr.ttyuyin.com/public/node:22
+FROM cr.ttyuyin.com/public/node:22
+
+RUN npm i -g mint
 
 COPY services/mintlify /docs/
 
@@ -13,8 +14,16 @@ RUN find /docs/ -type f -exec sed -i 's|TokenOPS\.AI|ModelHub|g' {} +
 RUN find /docs/ -type f -exec sed -i 's|tokenopsai.svg|modelhub.png|g' {} +
 RUN find /docs/ -type f -exec sed -i 's|tokenopsai-d.svg|modelhub-d.png|g' {} +
 
-WORKDIR /docs/
+# 删除"隐私&条款"菜单（私有化不需要）
+RUN node -e "\
+const fs = require('fs');\
+const f = '/docs/docs.json';\
+const d = JSON.parse(fs.readFileSync(f, 'utf8'));\
+d.navigation.versions.forEach(v => {\
+  v.tabs = v.tabs.filter(t => t.tab !== '隐私&条款');\
+});\
+fs.writeFileSync(f, JSON.stringify(d, null, 2));"
 
-# RUN npm i -g mint
+WORKDIR /docs/
 
 CMD ["mint", "dev", "--port", "8080"]

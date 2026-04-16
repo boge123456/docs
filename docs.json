@@ -20,7 +20,7 @@
                 "group": "入门",
                 "pages": [
                   "userguide/introduction",
-                  "userguide/quckstart",
+              "userguide/quckstart",
                   {
                     "group": "AI客户端使用",
                     "pages": [
@@ -88,7 +88,6 @@
                   {
                     "group": "File API",
                     "pages": [
-                      "api-reference/endpoint/files-upload",
                       "api-reference/endpoint/files-upload-url"
                     ]
                   }
@@ -178,12 +177,6 @@
                       "api-reference/examples/multimodal/claude-vision",
                       "api-reference/examples/multimodal/gemini-vision"
                     ]
-                  },
-                  {
-                    "group": "扩展参数(model_extra)",
-                    "pages": [
-                      "api-reference/examples/model_extra/model_extra"
-                    ]
                   }
                 ]
               }
@@ -217,12 +210,6 @@
               "legals/user-terms",
               "legals/privacy-policy",
               "legals/recharge-policy"
-            ]
-          },
-          {
-            "tab": "更新公告",
-            "pages": [
-              "changelogs/overview"
             ]
           }
         ]

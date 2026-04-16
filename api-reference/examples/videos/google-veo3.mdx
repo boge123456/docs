@@ -26,15 +26,16 @@ curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/veo-3.0-generate-
       "aspectRatio": "16:9",
       "durationSeconds": 4,
       "enhancePrompt": true,
-      "resolution": "1080p",
+      "resolution": "720p",
       "sampleCount": 1,
       "seed": 12345,
       "compressionQuality": "OPTIMIZED"
     }
   }'
 
-# 2. 查询任务状态（使用返回的 name 字段作为 OPERATION_NAME）
-curl -X GET "https://model-api.skyengine.com.cn/v1beta/{OPERATION_NAME}" \
+# 2. 查询任务状态（使用返回的 name 字段作为完整路径）
+# name 格式: projects/{project}/locations/{location}/publishers/{publisher}/models/{model}/operations/{operation_id}
+curl -X GET "https://model-api.skyengine.com.cn/v1beta/{name}" \
   -H "Authorization: Bearer <API-KEY>"
 ```
 
@@ -279,7 +280,7 @@ def generate_with_reference_image(prompt, image_path, parameters=None):
     elif image_path.lower().endswith('.webp'):
         mime_type = "image/webp"
     
-    url = f"{BASE_URL}/models/veo-3.0-generate-001:predictLongRunning"
+    url = f"{BASE_URL}/models/veo-3.1-generate-001:predictLongRunning"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}"
@@ -402,6 +403,382 @@ if __name__ == "__main__":
 - **negativePrompt**: 负向提示词，描述不希望在视频中出现的内容
 - **personGeneration**: 控制人物的生成。文生视频和扩展功能仅限"allow_all"，图生视频、插帧和参考图片仅限"allow_adult"
 
+## 图片参考生成
+
+Veo 支持多种图片参考方式来引导视频生成：
+
+### 图片参数类型
+
+| 参数 | 说明 | 限制 |
+|------|------|------|
+| `image` | 首帧动画 - 将静态图片作为视频起点 | 支持各种时长 |
+| `lastFrame` | 结束帧插值 - 定义视频最后一帧 | 必须配合 `image` 使用，时长必须为8秒 |
+| `referenceImages` | 风格参考图 - 引导视频内容风格 | 最多3张，时长必须为8秒，仅支持16:9和720p |
+
+### 多参考图片示例
+
+使用 `referenceImages` 参数可以传入最多 3 张参考图片来引导视频生成的风格和内容：
+
+<CodeGroup>
+
+```bash cURL
+# 多参考图片功能建议使用 veo-3.1-generate-001
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/veo-3.1-generate-001:predictLongRunning" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "instances": [
+      {
+        "prompt": "一只小猫在花园里玩耍，保持参考图片的风格和氛围",
+        "referenceImages": [
+          {
+            "image": {
+              "bytesBase64Encoded": "<BASE64_IMAGE_1>",
+              "mimeType": "image/jpeg"
+            },
+            "referenceType": "START"
+          },
+          {
+            "image": {
+              "bytesBase64Encoded": "<BASE64_IMAGE_2>",
+              "mimeType": "image/jpeg"
+            },
+            "referenceType": "START"
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "resolution": "720p",
+      "enhancePrompt": true
+    }
+  }'
+```
+
+```python Python
+def generate_with_multiple_references(prompt, image_paths, parameters=None):
+    """
+    使用多张参考图片引导视频生成（最多3张）
+
+    Args:
+        prompt: 视频描述文本
+        image_paths: 参考图片路径列表（最多3张）
+        parameters: 额外的视频生成参数
+
+    Returns:
+        任务操作信息
+    """
+    # 限制最多3张参考图
+    image_paths = image_paths[:3]
+
+    reference_images = []
+    for path in image_paths:
+        if not Path(path).exists():
+            print(f"参考图片不存在: {path}")
+            continue
+
+        with open(path, "rb") as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+
+        # 获取图片MIME类型
+        mime_type = "image/jpeg"
+        if path.lower().endswith('.png'):
+            mime_type = "image/png"
+        elif path.lower().endswith('.webp'):
+            mime_type = "image/webp"
+
+        reference_images.append({
+            "image": {
+                "bytesBase64Encoded": image_data,
+                "mimeType": mime_type
+            },
+            "referenceType": "START"
+        })
+
+    if not reference_images:
+        print("没有有效的参考图片")
+        return None
+
+    url = f"{BASE_URL}/models/veo-3.1-generate-001:predictLongRunning"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    # referenceImages 模式的固定参数
+    default_parameters = {
+        "aspectRatio": "16:9",
+        "durationSeconds": 8,  # 必须为8秒
+        "resolution": "720p",   # 仅支持720p
+        "enhancePrompt": True
+    }
+
+    if parameters:
+        # 注意：使用referenceImages时部分参数受限
+        default_parameters.update(parameters)
+
+    data = {
+        "instances": [{
+            "prompt": prompt,
+            "referenceImages": reference_images
+        }],
+        "parameters": default_parameters
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"多参考图片视频生成任务已启动")
+            print(f"参考图片数量: {len(reference_images)}")
+            print(f"操作名称: {result.get('name', 'N/A')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例
+if __name__ == "__main__":
+    # 多参考图片生成
+    prompt = "一只小猫在花园里玩耍，保持参考图片的风格和温馨氛围"
+    image_paths = ["style_ref_1.jpg", "style_ref_2.jpg", "style_ref_3.jpg"]
+
+    result = generate_with_multiple_references(prompt, image_paths)
+    if result:
+        # 使用 generate_veo3_video_complete 完成后续流程
+        operation_name = result.get('name')
+        video_path = generate_veo3_video_complete(prompt, {"durationSeconds": 8})
+```
+
+</CodeGroup>
+
+### 首尾帧插值示例
+
+使用 `image`（首帧）和 `lastFrame`（尾帧）参数可以精确控制视频的开始和结束画面：
+
+<CodeGroup>
+
+```bash cURL
+# 步骤1: 提交首尾帧插值任务
+curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/veo-3.1-generate-001:predictLongRunning" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "instances": [
+      {
+        "prompt": "镜头从海边日出缓缓过渡到日落，描绘一天的时间流逝",
+        "image": {
+          "bytesBase64Encoded": "<BASE64_FIRST_FRAME>",
+          "mimeType": "image/png"
+        },
+        "lastFrame": {
+          "bytesBase64Encoded": "<BASE64_LAST_FRAME>",
+          "mimeType": "image/png"
+        }
+      }
+    ],
+    "parameters": {
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "resolution": "720p",
+      "enhancePrompt": true
+    }
+  }'
+
+# 步骤2: 轮询任务状态（使用返回的 name 字段）
+# 返回示例: {"name": "projects/xxx/locations/global/publishers/google/models/veo-3.1-generate-001/operations/abc123"}
+curl -X GET "https://model-api.skyengine.com.cn/v1beta/{name}" \
+  -H "Authorization: Bearer <API-KEY>"
+# 返回示例: {"name": "projects/xxx/locations/us-central1/operations/abc123"}
+curl -X GET "https://model-api.skyengine.com.cn/v1beta/projects/xxx/locations/us-central1/operations/abc123" \
+  -H "Authorization: Bearer <API-KEY>"
+
+# 步骤3: 当 done=true 时，从 response.generatedVideos[0].video 中获取视频数据
+```
+
+```python Python
+def generate_with_frame_interpolation(prompt, first_frame_path, last_frame_path, parameters=None):
+    """
+    首尾帧插值生成视频 - 定义视频的开始和结束画面
+
+    Args:
+        prompt: 视频描述文本
+        first_frame_path: 首帧图片路径（视频开始画面）
+        last_frame_path: 尾帧图片路径（视频结束画面）
+        parameters: 额外的视频生成参数
+
+    Returns:
+        任务操作信息
+    """
+    # 检查图片是否存在
+    if not Path(first_frame_path).exists():
+        print(f"首帧图片不存在: {first_frame_path}")
+        return None
+    if not Path(last_frame_path).exists():
+        print(f"尾帧图片不存在: {last_frame_path}")
+        return None
+
+    # 编码首帧
+    with open(first_frame_path, "rb") as f:
+        first_frame_data = base64.b64encode(f.read()).decode('utf-8')
+
+    # 编码尾帧
+    with open(last_frame_path, "rb") as f:
+        last_frame_data = base64.b64encode(f.read()).decode('utf-8')
+
+    # 获取MIME类型
+    def get_mime_type(path):
+        if path.lower().endswith('.png'):
+            return "image/png"
+        elif path.lower().endswith('.webp'):
+            return "image/webp"
+        return "image/jpeg"
+
+    first_mime = get_mime_type(first_frame_path)
+    last_mime = get_mime_type(last_frame_path)
+
+    url = f"{BASE_URL}/models/veo-3.1-generate-001:predictLongRunning"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    # 插值模式的固定参数
+    default_parameters = {
+        "aspectRatio": "16:9",
+        "durationSeconds": 8,  # 插值必须为8秒
+        "resolution": "720p",
+        "enhancePrompt": True
+    }
+
+    if parameters:
+        default_parameters.update(parameters)
+
+    data = {
+        "instances": [{
+            "prompt": prompt,
+            "image": {
+                "bytesBase64Encoded": first_frame_data,
+                "mimeType": first_mime
+            },
+            "lastFrame": {
+                "bytesBase64Encoded": last_frame_data,
+                "mimeType": last_mime
+            }
+        }],
+        "parameters": default_parameters
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"首尾帧插值视频生成任务已启动")
+            print(f"首帧: {first_frame_path}")
+            print(f"尾帧: {last_frame_path}")
+            print(f"操作名称: {result.get('name', 'N/A')}")
+            return result
+        else:
+            print(f"错误: {response.status_code} - {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 使用示例 - 完整流程
+if __name__ == "__main__":
+    # 首尾帧插值生成 - 完整三步流程
+    prompt = "镜头从海边日出缓缓过渡到日落，描绘一天的时间流逝，光线从温暖的金色逐渐变为柔和的橙红色"
+    first_frame = "sunrise.png"   # 日出画面
+    last_frame = "sunset.png"     # 日落画面
+
+    # 步骤1: 提交任务
+    result = generate_with_frame_interpolation(prompt, first_frame, last_frame)
+    if not result:
+        print("任务提交失败")
+        exit(1)
+
+    operation_name = result.get('name')
+    print(f"任务已提交，operation_name: {operation_name}")
+
+    # 步骤2: 轮询等待完成（建议每15秒查询一次）
+    print("等待视频生成...")
+    max_wait = 600  # 最大等待10分钟
+    start_time = time.time()
+
+    while time.time() - start_time < max_wait:
+        status = check_veo3_operation_status(operation_name)
+
+        if status and status.get('done'):
+            if 'error' in status:
+                print(f"生成失败: {status['error']}")
+                exit(1)
+
+            # 步骤3: 获取视频数据并下载
+            response = status.get('response', {})
+            videos = response.get('generatedVideos', [])
+            if videos:
+                video_data = videos[0].get('video', {})
+                video_uri = video_data.get('uri') or f"data:video/mp4;base64,{video_data.get('videoBytes')}"
+                download_veo3_video(video_uri, "frame_interpolation_output.mp4")
+                print("视频已保存: frame_interpolation_output.mp4")
+            break
+
+        time.sleep(15)  # 每15秒轮询一次
+    else:
+        print("超时，视频生成未完成")
+```
+
+</CodeGroup>
+
+### 轮询接口说明
+
+**路径格式**：
+```
+GET /v1beta/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}/operations/{operation_id}
+```
+
+**注意**：提交任务返回的 `name` 字段即为完整的轮询路径，可直接使用。
+
+| 步骤 | 接口 | 说明 |
+|------|------|------|
+| 提交任务 | `POST /v1beta/models/{model}:predictLongRunning` | 需要 `Content-Type: application/json` |
+| 查询状态 | `GET /v1beta/{name}` | **不需要** Content-Type 头，仅需 Authorization |
+| 获取视频 | 从状态响应的 `response.generatedVideos` 中提取 | 支持 `uri` 或 `videoBytes` (base64) |
+
+**重要提示**：GET 查询请求不要带 `Content-Type: application/json` 头，否则会导致错误 2005 "parse request param fail"。
+
+```python
+# 正确的请求头配置
+headers_post = {
+    'Authorization': 'Bearer <API-KEY>',
+    'Content-Type': 'application/json'  # POST 提交任务需要
+}
+headers_get = {
+    'Authorization': 'Bearer <API-KEY>'  # GET 查询状态不需要 Content-Type
+}
+```
+
+**建议轮询间隔**: 15秒，视频生成通常需要 30秒-5分钟。
+
+### 图片参考使用限制
+
+| 功能 | durationSeconds | aspectRatio | resolution |
+|------|-----------------|-------------|------------|
+| 文本生成视频 | 4, 6, 8 | 16:9, 9:16 | 720p, 1080p |
+| 首帧动画 (image) | 4, 6, 8 | 16:9, 9:16 | 720p, 1080p |
+| 首尾帧插值 (image + lastFrame) | **仅 8** | 16:9, 9:16 | 720p, 1080p |
+| 多参考图片 (referenceImages) | **仅 8** | **仅 16:9** | **仅 720p** |
+
 ## 视频生成流程
 
 1. **提交任务**: 发送predictLongRunning请求，获得操作名称
@@ -435,7 +812,7 @@ if __name__ == "__main__":
       {
         "video": {
           "mimeType": "video/mp4",
-          "uri": "xxxxxx",
+          "uri": "https://example.com/video.mp4",
           "videoBytes": "<base64>"
         }
       }
