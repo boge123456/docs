@@ -394,14 +394,48 @@ if __name__ == "__main__":
 
 ## 支持的参数
 
+### Instance 参数
+
+| 参数 | 说明 | 版本限制 |
+|------|------|---------|
+| `prompt` | 文本描述，支持音频提示词（对话、音效、环境音） | 所有版本 |
+| `image` | 首帧动画，将静态图片作为视频起点 | 所有版本 |
+| `lastFrame` | 结束帧插值，定义视频最后一帧 | Veo 3.1+ |
+| `video` | 源视频扩展，延长已有视频（最长20次） | Veo 3.1/Fast（Lite不支持） |
+| `referenceImages` | 参考图片数组，引导内容风格（最多3张） | Veo 3.1 only |
+
+### Configuration 参数
+
 - **aspectRatio**: 视频宽高比（"16:9" 默认、"9:16"）
-- **durationSeconds**: 生成的视频的时长（"4"、"6"、"8"）。使用扩展或插值时必须为"8"（同时支持16:9和9:16），使用referenceImages时必须为"8"（仅支持16:9）
-- **enhancePrompt**: 是否增强提示词（建议设为true）
-- **resolution**: 视频分辨率（"720p" 默认、"1080p" 仅支持8秒时长）
-- **seed**: 随机种子（用于可重复生成）
-- **generateAudio**: 是否生成音频（true/false）
-- **negativePrompt**: 负向提示词，描述不希望在视频中出现的内容
-- **personGeneration**: 控制人物的生成。文生视频和扩展功能仅限"allow_all"，图生视频、插帧和参考图片仅限"allow_adult"
+- **durationSeconds**: 视频时长（4、6、8秒）。使用1080p/4k、扩展或参考图片时必须为8秒
+- **resolution**: 视频分辨率（"720p" 默认、"1080p"、"4k"）。4k不支持Lite版本；扩展功能仅支持720p
+- **sampleCount**: 生成视频数量（1-4）
+- **seed**: 随机种子（0-4,294,967,295），用于可重复生成
+- **enhancePrompt**: 是否使用 Gemini 优化提示词（默认true，建议保持）
+- **generateAudio**: 是否生成音频（true/false）。Veo 3 特色，支持同步对话和音效
+- **negativePrompt**: 负向提示词，描述不希望出现的内容
+- **compressionQuality**: 压缩质量（"optimized" 默认、"lossless"）
+- **personGeneration**: 人物生成控制。文生视频和扩展支持"allow_all"，图生视频、插帧和参考图片仅支持"allow_adult"
+
+### 音频提示词示例
+
+Veo 3 支持在 prompt 中描述音频内容：
+
+```json
+{
+  "prompt": "一位年轻女性在海边笑着说：'今天天气真好！'，海浪声作为背景音"
+}
+```
+
+### 各版本功能差异
+
+| 功能 | Veo 3.1 | Veo 3.1 Fast | Veo 3.1 Lite | Veo 3 | Veo 2 |
+|------|---------|--------------|--------------|-------|-------|
+| 视频扩展 | ✓ | ✓ | ❌ | ✓ | ✓ |
+| 首尾帧插值 | ✓ | ✓ | ✓ | ✓ | ❌ |
+| 多参考图片 | ✓ | ✓ | ❌ | ❌ | ❌ |
+| 4K分辨率 | ✓ | ✓ | ❌ | ❌ | ❌ |
+| 原生音频 | ✓ | ✓ | ✓ | ✓ | ❌ |
 
 ## 图片参考生成
 
