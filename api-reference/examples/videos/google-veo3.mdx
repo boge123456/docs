@@ -447,7 +447,13 @@ Veo 支持多种图片参考方式来引导视频生成：
 |------|------|------|
 | `image` | 首帧动画 - 将静态图片作为视频起点 | 支持各种时长 |
 | `lastFrame` | 结束帧插值 - 定义视频最后一帧 | 必须配合 `image` 使用，时长必须为8秒 |
-| `referenceImages` | 风格参考图 - 引导视频内容风格 | 最多3张，时长必须为8秒，仅支持16:9和720p |
+| `referenceImages` | 参考图数组 - 引导视频内容和风格 | 最多3张，时长必须为8秒，仅支持16:9和720p |
+
+**referenceType 可选值**：
+- `ASSET` - 提供资产（场景、物体、角色等），视频会参考图片中的内容
+- `STYLE` - 提供风格（颜色、光照、纹理等），视频会参考图片的视觉风格
+
+**重要限制**：ASSET 和 STYLE 不能在同一请求中同时使用，只能选择一种类型。
 
 ### 多参考图片示例
 
@@ -470,14 +476,14 @@ curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/veo-3.1-generate-
               "bytesBase64Encoded": "<BASE64_IMAGE_1>",
               "mimeType": "image/jpeg"
             },
-            "referenceType": "START"
+            "referenceType": "ASSET"
           },
           {
             "image": {
               "bytesBase64Encoded": "<BASE64_IMAGE_2>",
               "mimeType": "image/jpeg"
             },
-            "referenceType": "START"
+            "referenceType": "ASSET"
           }
         ]
       }
@@ -528,7 +534,7 @@ def generate_with_multiple_references(prompt, image_paths, parameters=None):
                 "bytesBase64Encoded": image_data,
                 "mimeType": mime_type
             },
-            "referenceType": "START"
+            "referenceType": "ASSET"
         })
 
     if not reference_images:
