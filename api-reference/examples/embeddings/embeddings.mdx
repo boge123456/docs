@@ -1,0 +1,391 @@
+---
+title: '向量嵌入（Embedding）示例'
+description: '使用 Doubao、Qwen、Azure、BGE 四家 provider 生成文本和多模态向量的完整示例'
+---
+
+# 向量嵌入示例
+
+以下示例展示如何通过统一接口将文本、图片、视频转换为向量表示（embedding），适用于语义检索、相似度比对、聚类、RAG 等场景。平台统一聚合了 **Doubao（豆包）**、**Qwen（千问）**、**Azure OpenAI**、**BGE（开源私有化部署）** 四家 provider，OpenAI 兼容格式。
+
+- **文本 embedding** 统一走 `POST /v1/embeddings`
+- **多模态 embedding**（文本 + 图片 / 视频）统一走 `POST /v1/embeddings/multimodal`
+
+Base URL：`https://model-api.skyengine.com.cn/v1`
+
+## Provider 能力对比
+
+| 能力 | Doubao | Qwen | Azure | BGE |
+| --- | :---: | :---: | :---: | :---: |
+| 文本 embedding | ✅ | ✅ | ✅ | ✅ |
+| 多模态（文本 + 图片） | ✅ | ✅ | ❌ | ❌ |
+| 多模态（视频） | ✅ | ✅ | ❌ | ❌ |
+
+## 通用请求 / 响应结构
+
+**请求（OpenAI 兼容）**
+
+```json
+{
+  "model": "<model-name>",
+  "input": "<string | string[] | object[]>",
+  "encoding_format": "float",
+  "dimensions": 1024,
+  "user": "optional-user-id"
+}
+```
+
+**标准响应**
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "object": "embedding", "embedding": [0.01, -0.02, ...], "index": 0 }
+  ],
+  "model": "<model-name>",
+  "usage": { "prompt_tokens": 4, "total_tokens": 4 }
+}
+```
+
+**多模态响应**（`data` 为单对象，附带 `id` / `created` / `prompt_tokens_details`）
+
+```json
+{
+  "id": "embd-1764820175",
+  "created": 1764820175,
+  "object": "embedding",
+  "data": { "object": "embedding", "embedding": [0.01, ...], "index": 0 },
+  "model": "<model-name>",
+  "usage": {
+    "prompt_tokens": 46,
+    "total_tokens": 46,
+    "prompt_tokens_details": { "text_tokens": 8, "image_tokens": 38 }
+  }
+}
+```
+
+## Doubao 文本 Embedding
+
+模型示例：`doubao-embedding-large-text-250515`。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/embeddings" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "doubao-embedding-large-text-250515",
+    "input": ["你好世界", "向量化示例文本"],
+    "encoding_format": "float"
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def doubao_text_embedding(texts, model="doubao-embedding-large-text-250515"):
+    resp = requests.post(
+        f"{BASE_URL}/embeddings",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}",
+        },
+        json={"model": model, "input": texts, "encoding_format": "float"},
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    for item in result["data"]:
+        print(f"index={item['index']}, dim={len(item['embedding'])}, head={item['embedding'][:4]}")
+    print(f"usage: {result['usage']}")
+    return result
+
+if __name__ == "__main__":
+    doubao_text_embedding(["你好世界", "向量化示例文本"])
+```
+
+</CodeGroup>
+
+## Doubao 多模态 Embedding
+
+模型示例：`doubao-embedding-vision-250615`。支持 `text` / `image_url` / `video_url` 三种输入类型混合，可同时传多条内容共同生成一个向量。具体参数取值范围请以 Doubao 官方文档为准。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/embeddings/multimodal" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "doubao-embedding-vision-250615",
+    "input": [
+      { "type": "text", "text": "夕阳下奔跑的柴犬" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/dog.jpg" } }
+    ],
+    "dimensions": 2048,
+    "encoding_format": "float"
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def doubao_multimodal_embedding(contents, model="doubao-embedding-vision-250615", dimensions=2048):
+    resp = requests.post(
+        f"{BASE_URL}/embeddings/multimodal",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}",
+        },
+        json={
+            "model": model,
+            "input": contents,
+            "dimensions": dimensions,
+            "encoding_format": "float",
+        },
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    vector = result["data"]["embedding"]
+    print(f"id={result['id']}, dim={len(vector)}")
+    print(f"usage: {result['usage']}")
+    return vector
+
+if __name__ == "__main__":
+    doubao_multimodal_embedding([
+        {"type": "text", "text": "夕阳下奔跑的柴犬"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/dog.jpg"}},
+    ])
+```
+
+</CodeGroup>
+
+示例响应：
+
+```json
+{
+  "id": "embd-1764820175",
+  "created": 1764820175,
+  "object": "embedding",
+  "data": {
+    "object": "embedding",
+    "embedding": [0.0123, -0.0456, 0.0789, ...],
+    "index": 0
+  },
+  "model": "doubao-embedding-vision-250615",
+  "usage": {
+    "prompt_tokens": 46,
+    "total_tokens": 46,
+    "prompt_tokens_details": { "text_tokens": 8, "image_tokens": 38 }
+  }
+}
+```
+
+## Qwen 文本 Embedding
+
+模型示例：`text-embedding-v4`。`input` 支持字符串或字符串数组。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/embeddings" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "text-embedding-v4",
+    "input": ["风急天高猿啸哀", "无边落木萧萧下"],
+    "dimensions": 1024
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def qwen_text_embedding(texts, model="text-embedding-v4", dimensions=1024):
+    resp = requests.post(
+        f"{BASE_URL}/embeddings",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}",
+        },
+        json={"model": model, "input": texts, "dimensions": dimensions},
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    for item in result["data"]:
+        print(f"index={item['index']}, dim={len(item['embedding'])}")
+    print(f"usage: {result['usage']}")
+    return result
+
+if __name__ == "__main__":
+    qwen_text_embedding(["风急天高猿啸哀", "无边落木萧萧下"])
+```
+
+</CodeGroup>
+
+## Qwen 多模态 Embedding
+
+模型示例：`multimodal-embedding-v1`。支持文本、图片、视频混合输入。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/embeddings/multimodal" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "multimodal-embedding-v1",
+    "input": [
+      { "type": "text", "text": "一只白色的小猫" },
+      { "type": "image_url", "image_url": { "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/cat.png" } },
+      { "type": "video_url", "video_url": { "url": "https://example.com/clip.mp4" } }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def qwen_multimodal_embedding(contents, model="multimodal-embedding-v1"):
+    resp = requests.post(
+        f"{BASE_URL}/embeddings/multimodal",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}",
+        },
+        json={"model": model, "input": contents},
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    vector = result["data"]["embedding"]
+    print(f"id={result['id']}, dim={len(vector)}")
+    print(f"usage: {result['usage']}")
+    return vector
+
+if __name__ == "__main__":
+    qwen_multimodal_embedding([
+        {"type": "text", "text": "一只白色的小猫"},
+        {"type": "image_url", "image_url": {
+            "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/cat.png"
+        }},
+    ])
+```
+
+</CodeGroup>
+
+## Azure OpenAI Embedding
+
+模型示例：`text-embedding-ada-002`。Azure 仅支持文本 embedding，不支持多模态。ada-002 向量维度固定为 1536，不支持自定义 `dimensions`；如果使用 `text-embedding-3-*` 系列模型则可通过 `dimensions` 截断维度以节省存储。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/embeddings" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "text-embedding-ada-002",
+    "input": "The quick brown fox jumps over the lazy dog",
+    "encoding_format": "float"
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def azure_text_embedding(text, model="text-embedding-ada-002"):
+    resp = requests.post(
+        f"{BASE_URL}/embeddings",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}",
+        },
+        json={"model": model, "input": text, "encoding_format": "float"},
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    vector = result["data"][0]["embedding"]
+    print(f"model={result['model']}, dim={len(vector)}, usage={result['usage']}")
+    return vector
+
+if __name__ == "__main__":
+    azure_text_embedding("The quick brown fox jumps over the lazy dog")
+```
+
+</CodeGroup>
+
+## BGE Embedding
+
+模型示例：`bge-m3`。开源 embedding 模型，向量维度 1024，仅支持文本 embedding，调用方式与 OpenAI 兼容。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/embeddings" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "bge-m3",
+    "input": ["你好世界", "向量化示例文本"]
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def bge_text_embedding(texts, model="bge-m3"):
+    resp = requests.post(
+        f"{BASE_URL}/embeddings",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}",
+        },
+        json={"model": model, "input": texts},
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    for item in result["data"]:
+        print(f"index={item['index']}, dim={len(item['embedding'])}")
+    print(f"usage: {result['usage']}")
+    return result
+
+if __name__ == "__main__":
+    bge_text_embedding(["你好世界", "向量化示例文本"])
+```
+
+</CodeGroup>
+
+## 参数说明
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `model` | string | 模型名称。 |
+| `input` | string / string[] / object[] | 文本 embedding 接受 string 或 string[]；多模态 embedding 接受 `{type, text \| image_url \| video_url}` 对象数组。 |
+| `encoding_format` | string | 可选，`float` 或 `base64`。默认 `float`。 |
+| `dimensions` | int | 可选，返回向量维度。不同模型的可选值不同，请以各模型官方文档为准。 |
+| `user` | string | 可选，用户标识。 |
+
+## 注意事项
+
+<Info>
+- **Azure** 不支持多模态 embedding；图片/视频向量化请选择 Doubao 或 Qwen。
+- **计费** 按照 `usage.prompt_tokens` 累积，embedding 没有输出 token。
+</Info>

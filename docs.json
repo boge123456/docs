@@ -177,6 +177,12 @@
                       "api-reference/examples/multimodal/claude-vision",
                       "api-reference/examples/multimodal/gemini-vision"
                     ]
+                  },
+                  {
+                    "group": "向量嵌入",
+                    "pages": [
+                      "api-reference/examples/embeddings/embeddings"
+                    ]
                   }
                 ]
               }
