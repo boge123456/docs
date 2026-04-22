@@ -150,8 +150,7 @@
                   {
                     "group": "图片生成",
                     "pages": [
-                      "api-reference/examples/images/dalle-generation",
-                      "api-reference/examples/images/dalle-edit",
+                      "api-reference/examples/images/openai-image",
                       "api-reference/examples/images/douao",
                       "api-reference/examples/images/qwen",
                       "api-reference/examples/images/nanobanana",
@@ -176,12 +175,6 @@
                       "api-reference/examples/multimodal/openai-vision",
                       "api-reference/examples/multimodal/claude-vision",
                       "api-reference/examples/multimodal/gemini-vision"
-                    ]
-                  },
-                  {
-                    "group": "向量嵌入",
-                    "pages": [
-                      "api-reference/examples/embeddings/embeddings"
                     ]
                   }
                 ]
