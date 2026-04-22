@@ -16,6 +16,10 @@ description: '使用 OpenAI 兼容接口（gpt-image-2 / gpt-image-1 系列）�
 
 **Content-Type 仅支持 `application/json`**。`multipart/form-data` 会被拒绝。
 
+<Tip>
+**本接口也能做图生图**：在 body 里加 `image` 字段（URL 或 base64 字符串数组）即可，平台会自动等效转发到 `/v1/images/edits`。适合业务方用一个接口统一管理所有图片生成能力（不想区分"文生图 / 图生图"两个 endpoint 时）。仅 `gpt-image-1` / `gpt-image-2` 家族生效。详见下方 [图片编辑 - 方式 C](#方式-c%EF%BC%9Av1-images-generations--image-字段平台扩展)。
+</Tip>
+
 ### 快速开始
 
 只需替换 `<API-KEY>` 为你的实际 API Key。
@@ -322,6 +326,71 @@ await editImageJson([b64], "换成油画风格");
 
 </CodeGroup>
 
+### 方式 C：`/v1/images/generations` + `image` 字段（平台扩展）
+
+和方式 B 效果完全等价，但 endpoint 是 `/v1/images/generations`。用途是**让业务方用同一个 endpoint 覆盖"文生图 + 图生图"两种用法**（参考 `doubao-seedream` 的接口风格）：传 `image` 字段就是图生图，不传就是文生图。平台会在 provider 层自动把带 `image` 的 generations 请求转发到 edits 实现。
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2-2026-04-21",
+    "prompt": "把苹果变成蓝色",
+    "size": "1024x1024",
+    "quality": "low",
+    "image": [
+      "https://example.com/apple.png"
+    ]
+  }'
+```
+
+```python Python
+import requests, base64
+
+API_KEY = "<API-KEY>"
+
+# URL 方式
+r = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/generations",
+    headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+    json={
+        "model": "gpt-image-2-2026-04-21",
+        "prompt": "把苹果变成蓝色",
+        "image": ["https://example.com/apple.png"],
+        "size": "1024x1024",
+        "quality": "low",
+    },
+)
+print(r.json())
+
+# base64 方式
+with open("apple.png", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+r = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/generations",
+    headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+    json={
+        "model": "gpt-image-2-2026-04-21",
+        "prompt": "把苹果变成蓝色",
+        "image": [b64],   # 注意：不要带 "data:image/png;base64," 前缀
+        "size": "1024x1024",
+        "quality": "low",
+    },
+)
+```
+
+</CodeGroup>
+
+<Warning>
+**方式 C 的限制**：
+- 仅 `gpt-image-1` / `gpt-image-1-mini` / `gpt-image-1.5` / `gpt-image-2` + 各自日期快照生效，其他模型（如 `dall-e-3`）传 `image` 会被上游直接忽略，退化为纯文生图。
+- **不支持 mask**：`/v1/images/generations` 请求体没有 mask 字段。需要用 mask 精修的场景请用方式 A 或 B。
+- 用量计费和方式 B 一致（`input_tokens_details.image_tokens` 会出现），不会因为换了 endpoint 就免费。
+</Warning>
+
 ## 支持的参数
 
 ### 共用参数（generations / edits）
@@ -336,12 +405,12 @@ await editImageJson([b64], "换成油画风格");
 | `response_format` | string | `b64_json`（默认）或 `url`。后者会把图转存到云存储并返回签名 URL |
 | `user` | string | 业务方用户标识，便于审计 |
 
-### `/v1/images/edits` 特有参数
+### 图片输入参数（`edits` 必用；`generations` 的方式 C 也支持 `image`）
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `image` | file / file[]（form-data）<br/>string / string[]（JSON，URL 或 base64） | 参考图。JSON 下多图就是数组；form-data 下同名字段重复即可多图 |
-| `mask` | file（form-data）<br/>string（JSON，URL 或 base64） | 可选 PNG mask（alpha 通道透明区域表示"编辑此处"），尺寸必须与 `image` 一致 |
+| `image` | file / file[]（form-data）<br/>string / string[]（JSON，URL 或 base64） | 参考图。JSON 下多图就是数组；form-data 下同名字段重复即可多图。`gpt-image-1/2` 家族在 `/v1/images/generations` 也支持此字段（见方式 C） |
+| `mask` | file（form-data）<br/>string（JSON，URL 或 base64） | 可选 PNG mask（alpha 通道透明区域表示"编辑此处"），尺寸必须与 `image` 一致。**仅 `/v1/images/edits` 支持**，方式 C 不支持 |
 
 **JSON body 下 base64 字符串约定**：直接放 base64 内容即可，**不要**带 `data:image/png;base64,` 前缀。
 
