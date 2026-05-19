@@ -71,6 +71,40 @@ title: '通义万象视频生成示例'
 - **seed** (integer, 可选): 随机数种子，取值范围为[0, 2147483647]。未指定时，系统自动生成随机种子。若需提升生成结果的可复现性，建议固定seed值。请注意，由于模型生成具有概率性，即使使用相同 seed，也不能保证每次生成结果完全一致
   - 示例值：12345
 
+- **content.role** (string, 可选): 指定 content 元素的角色，用于区分不同场景下的输入。仅HappyHorse模型支持
+  - **HappyHorse i2v**：`"first_frame"`（默认值），仅1张首帧图像
+  - **HappyHorse r2v**：`"reference_image"`，1~9张参考图像
+  - **HappyHorse video-edit**：`"video"`（必传1个）+ `"reference_image"`（0~5个）
+  - 示例值："first_frame"
+
+- **content.video_url.url** (string, 可选): 输入视频的公网可访问的HTTP/HTTPS链接。仅HappyHorse video-edit支持
+  - **格式**: MP4、MOV（建议H.264编码）
+  - **时长**: 3~60秒
+  - **文件大小**: 不超过100MB
+  - 示例值：https://example.com/input.mp4
+
+### HappyHorse 扩展参数
+
+以下参数仅适用于 **happyhorse-\\*** 系列模型：
+
+- **ratio** (string, 可选): 生成视频的宽高比。仅 **t2v**、**r2v** 支持
+  - t2v 可选值：`16:9`（默认）、`9:16`、`1:1`、`4:3`、`3:4`、`4:5`、`5:4`
+  - r2v 可选值：`16:9`（默认）、`9:16`、`3:4`、`4:3`、`4:5`、`5:4`、`1:1`
+  - i2v、video-edit 不支持，宽高比由输入图像/视频决定
+  - 示例值："16:9"
+
+- **audio_setting** (string, 可选): 声音控制。仅 **happyhorse-1.0-video-edit** 支持
+  - **auto**：默认值，由模型自行控制
+  - **origin**：保留输入视频的原始声音
+  - 示例值："origin"
+
+- **watermark** (boolean, 可选): 是否添加水印标识。HappyHorse模型水印文案为"Happy Horse"
+  - **true**：默认值，添加水印
+  - **false**：不添加水印
+  - 示例值：false
+
+- **seconds** (string, 可选): 生成视频的时长，单位为秒。HappyHorse t2v/i2v/r2v 支持 3~15 秒，默认5秒。video-edit 不支持
+
 ## 文生视频模型介绍
 
 以下是通义万象文生视频支持的各个模型及其规格说明：
@@ -2745,3 +2779,544 @@ const result = await createReferenceVideo(
 2. **参考视频**: 1-3个参考视频，通过 `role: "reference_video"` 标识
 
 模型将根据参考视频的内容特征和文本描述，生成融合了参考视频风格的新视频。
+
+## HappyHorse 视频生成模型
+
+HappyHorse 是阿里云百炼的轻量级视频生成模型，提供文生视频、图生视频、参考生视频、视频编辑四种能力。
+
+### HappyHorse 模型列表
+
+| 模型名称 | 场景 | 功能简介 |
+|---------|------|----------|
+| **happyhorse-1.0-t2v** | 文生视频 | 输入文本提示词，生成物理真实、运动流畅的视频 |
+| **happyhorse-1.0-i2v** | 图生视频（首帧） | 以首帧图片为基础，通过文本描述引导，生成视频 |
+| **happyhorse-1.0-r2v** | 参考生视频 | 传入多张参考图像，将图像中的主体角色融合生成视频 |
+| **happyhorse-1.0-video-edit** | 视频编辑 | 输入视频与参考图，结合文本指令完成风格变换、局部替换等编辑任务 |
+
+### HappyHorse 通用说明
+
+- **输出分辨率**: 720P、1080P（默认1080P）
+- **输出时长**: 3~15秒（t2v/i2v/r2v），video-edit 由输入视频决定
+- **输出格式**: MP4 (H.264 编码)
+- **水印**: 默认添加 "Happy Horse" 水印
+- **API端点**: `POST /api/v1/services/aigc/video-generation/video-synthesis`
+- **调用方式**: 异步（必须设置 `X-DashScope-Async: enable`）
+
+### 参数场景对照表
+
+| 参数 | t2v | i2v | r2v | video-edit |
+|------|:---:|:---:|:---:|:---:|
+| prompt | 必选 | 可选 | 必选 | 必选 |
+| content.image_url (first_frame) | - | 必选 | - | - |
+| content.image_url (reference_image) | - | - | 1~9张 | 0~5张 |
+| content.video_url (video) | - | - | - | 必选1个 |
+| resolution (size) | 支持 | 支持 | 支持 | 支持 |
+| duration (seconds) | 3~15s | 3~15s | 3~15s | - |
+| ratio | 支持 | - | 支持 | - |
+| audio_setting | - | - | - | auto/origin |
+| watermark | 支持 | 支持 | 支持 | 支持 |
+| seed | 支持 | 支持 | 支持 | 支持 |
+
+---
+
+## HappyHorse 文生视频 (t2v) 示例
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "happyhorse-1.0-t2v",
+    "prompt": "一座由硬纸板和瓶盖搭建的微型城市，在夜晚焕发出生机。一列硬纸板火车缓缓驶过，小灯点缀其间，照亮前路。",
+    "size": "1280x720",
+    "ratio": "16:9",
+    "seconds": "5",
+    "watermark": false,
+    "seed": 42
+  }'
+```
+
+```python Python
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+def create_happyhorse_t2v(prompt, **kwargs):
+    """HappyHorse 文生视频"""
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": "happyhorse-1.0-t2v",
+        "prompt": prompt
+    }
+
+    for key in ["size", "seconds", "ratio", "watermark", "seed"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        result = response.json()
+        print(f"任务ID: {result.get('id')}, 状态: {result.get('status')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+result = create_happyhorse_t2v(
+    prompt="一座由硬纸板和瓶盖搭建的微型城市，在夜晚焕发出生机",
+    size="1280x720",
+    ratio="16:9",
+    seconds="5",
+    watermark=False,
+    seed=42
+)
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
+
+async function createHappyhorseT2V(prompt, options = {}) {
+    const data = {
+        model: 'happyhorse-1.0-t2v',
+        prompt: prompt
+    };
+
+    ['size', 'seconds', 'ratio', 'watermark', 'seed'].forEach(key => {
+        if (options[key] !== undefined) data[key] = options[key];
+    });
+
+    try {
+        const response = await axios.post(`${BASE_URL}/videos`, data, {
+            headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
+        });
+        console.log(`任务ID: ${response.data.id}, 状态: ${response.data.status}`);
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const result = await createHappyhorseT2V(
+    '一座由硬纸板和瓶盖搭建的微型城市，在夜晚焕发出生机',
+    { size: '1280x720', ratio: '16:9', seconds: '5', watermark: false, seed: 42 }
+);
+```
+
+</CodeGroup>
+
+---
+
+## HappyHorse 图生视频-首帧 (i2v) 示例
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "happyhorse-1.0-i2v",
+    "content": [
+      {
+        "type": "text",
+        "text": "一只猫在草地上奔跑"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://cdn.translate.alibaba.com/r/wanx-demo-1.png"
+        },
+        "role": "first_frame"
+      }
+    ],
+    "size": "1920x1080",
+    "seconds": "5",
+    "watermark": false
+  }'
+```
+
+```python Python
+def create_happyhorse_i2v(prompt, image_url, **kwargs):
+    """HappyHorse 图生视频（首帧）"""
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": "happyhorse-1.0-i2v",
+        "content": [
+            {"type": "text", "text": prompt},
+            {
+                "type": "image_url",
+                "image_url": {"url": image_url},
+                "role": "first_frame"
+            }
+        ]
+    }
+
+    for key in ["size", "seconds", "watermark", "seed"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        result = response.json()
+        print(f"任务ID: {result.get('id')}, 状态: {result.get('status')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+result = create_happyhorse_i2v(
+    prompt="一只猫在草地上奔跑",
+    image_url="https://cdn.translate.alibaba.com/r/wanx-demo-1.png",
+    size="1920x1080",
+    seconds="5"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createHappyhorseI2V(prompt, imageUrl, options = {}) {
+    const data = {
+        model: 'happyhorse-1.0-i2v',
+        content: [
+            { type: 'text', text: prompt },
+            {
+                type: 'image_url',
+                image_url: { url: imageUrl },
+                role: 'first_frame'
+            }
+        ]
+    };
+
+    ['size', 'seconds', 'watermark', 'seed'].forEach(key => {
+        if (options[key] !== undefined) data[key] = options[key];
+    });
+
+    try {
+        const response = await axios.post(`${BASE_URL}/videos`, data, {
+            headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
+        });
+        console.log(`任务ID: ${response.data.id}, 状态: ${response.data.status}`);
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const result = await createHappyhorseI2V(
+    '一只猫在草地上奔跑',
+    'https://cdn.translate.alibaba.com/r/wanx-demo-1.png',
+    { size: '1920x1080', seconds: '5' }
+);
+```
+
+</CodeGroup>
+
+> **说明**: i2v 不支持 `ratio` 参数，输出视频宽高比自动跟随输入首帧图像。`role` 可省略，默认为 `"first_frame"`。
+
+---
+
+## HappyHorse 参考生视频 (r2v) 示例
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "happyhorse-1.0-r2v",
+    "content": [
+      {
+        "type": "text",
+        "text": "[Image 1]中身着红色旗袍的女性，镜头先以侧面中景勾勒旗袍修身剪裁，随即切换至低角度仰拍，捕捉她轻抬玉手展开[Image 2]中的折扇"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/mvzfud/hh-v2v-girl.jpg"
+        },
+        "role": "reference_image"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/fvuihk/hh-v2v2-folding-fan.jpg"
+        },
+        "role": "reference_image"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/imerii/hh-v2v-earrings.jpg"
+        },
+        "role": "reference_image"
+      }
+    ],
+    "size": "1280x720",
+    "ratio": "16:9",
+    "seconds": "5",
+    "watermark": false
+  }'
+```
+
+```python Python
+def create_happyhorse_r2v(prompt, reference_images, **kwargs):
+    """HappyHorse 参考生视频（多图）"""
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    content = [{"type": "text", "text": prompt}]
+    for img_url in reference_images:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": img_url},
+            "role": "reference_image"
+        })
+
+    data = {
+        "model": "happyhorse-1.0-r2v",
+        "content": content
+    }
+
+    for key in ["size", "seconds", "ratio", "watermark", "seed"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        result = response.json()
+        print(f"任务ID: {result.get('id')}, 状态: {result.get('status')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+reference_images = [
+    "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/mvzfud/hh-v2v-girl.jpg",
+    "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/fvuihk/hh-v2v2-folding-fan.jpg",
+    "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/imerii/hh-v2v-earrings.jpg"
+]
+result = create_happyhorse_r2v(
+    prompt="[Image 1]中身着红色旗袍的女性，镜头先以侧面中景勾勒旗袍修身剪裁，随即切换至低角度仰拍，捕捉她轻抬玉手展开[Image 2]中的折扇",
+    reference_images=reference_images,
+    size="1280x720",
+    ratio="16:9",
+    seconds="5"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createHappyhorseR2V(prompt, referenceImages, options = {}) {
+    const content = [{ type: 'text', text: prompt }];
+    referenceImages.forEach(url => {
+        content.push({
+            type: 'image_url',
+            image_url: { url: url },
+            role: 'reference_image'
+        });
+    });
+
+    const data = { model: 'happyhorse-1.0-r2v', content: content };
+
+    ['size', 'seconds', 'ratio', 'watermark', 'seed'].forEach(key => {
+        if (options[key] !== undefined) data[key] = options[key];
+    });
+
+    try {
+        const response = await axios.post(`${BASE_URL}/videos`, data, {
+            headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
+        });
+        console.log(`任务ID: ${response.data.id}, 状态: ${response.data.status}`);
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const referenceImages = [
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/mvzfud/hh-v2v-girl.jpg',
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/fvuihk/hh-v2v2-folding-fan.jpg',
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260424/imerii/hh-v2v-earrings.jpg'
+];
+const result = await createHappyhorseR2V(
+    '[Image 1]中身着红色旗袍的女性，镜头先以侧面中景勾勒旗袍修身剪裁，随即切换至低角度仰拍，捕捉她轻抬玉手展开[Image 2]中的折扇',
+    referenceImages,
+    { size: '1280x720', ratio: '16:9', seconds: '5' }
+);
+```
+
+</CodeGroup>
+
+> **说明**: 参考图像数量为 1~9 张。prompt 中通过 `[Image 1]`、`[Image 2]` 指代 media 数组中对应位置的参考图像。`[Image 1]` 对应第一个 `reference_image`，以此类推。
+
+---
+
+## HappyHorse 视频编辑 (video-edit) 示例
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "happyhorse-1.0-video-edit",
+    "content": [
+      {
+        "type": "text",
+        "text": "让视频中的马头人身角色穿上图片中的条纹毛衣"
+      },
+      {
+        "type": "video_url",
+        "video_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260409/dozxak/Wan_Video_Edit_33_1.mp4"
+        },
+        "role": "video"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260415/hynnff/wan-video-edit-clothes.webp"
+        },
+        "role": "reference_image"
+      }
+    ],
+    "size": "1280x720",
+    "audio_setting": "origin",
+    "watermark": false
+  }'
+```
+
+```python Python
+def create_happyhorse_video_edit(prompt, video_url, reference_images=None, **kwargs):
+    """HappyHorse 视频编辑"""
+    url = f"{BASE_URL}/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    content = [
+        {"type": "text", "text": prompt},
+        {
+            "type": "video_url",
+            "video_url": {"url": video_url},
+            "role": "video"
+        }
+    ]
+
+    # 可选参考图 0~5张
+    if reference_images:
+        for img_url in reference_images:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": img_url},
+                "role": "reference_image"
+            })
+
+    data = {
+        "model": "happyhorse-1.0-video-edit",
+        "content": content
+    }
+
+    for key in ["size", "audio_setting", "watermark", "seed"]:
+        if key in kwargs:
+            data[key] = kwargs[key]
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        result = response.json()
+        print(f"任务ID: {result.get('id')}, 状态: {result.get('status')}")
+        return result
+    else:
+        print(f"错误: {response.status_code} - {response.text}")
+        return None
+
+# 使用示例
+result = create_happyhorse_video_edit(
+    prompt="让视频中的马头人身角色穿上图片中的条纹毛衣",
+    video_url="https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260409/dozxak/Wan_Video_Edit_33_1.mp4",
+    reference_images=[
+        "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260415/hynnff/wan-video-edit-clothes.webp"
+    ],
+    size="1280x720",
+    audio_setting="origin"
+)
+```
+
+```javascript JavaScript/Node.js
+async function createHappyhorseVideoEdit(prompt, videoUrl, referenceImages = [], options = {}) {
+    const content = [
+        { type: 'text', text: prompt },
+        { type: 'video_url', video_url: { url: videoUrl }, role: 'video' }
+    ];
+
+    referenceImages.forEach(url => {
+        content.push({
+            type: 'image_url',
+            image_url: { url: url },
+            role: 'reference_image'
+        });
+    });
+
+    const data = { model: 'happyhorse-1.0-video-edit', content: content };
+
+    ['size', 'audio_setting', 'watermark', 'seed'].forEach(key => {
+        if (options[key] !== undefined) data[key] = options[key];
+    });
+
+    try {
+        const response = await axios.post(`${BASE_URL}/videos`, data, {
+            headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
+        });
+        console.log(`任务ID: ${response.data.id}, 状态: ${response.data.status}`);
+        return response.data;
+    } catch (error) {
+        console.error('任务创建失败:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 使用示例
+const result = await createHappyhorseVideoEdit(
+    '让视频中的马头人身角色穿上图片中的条纹毛衣',
+    'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260409/dozxak/Wan_Video_Edit_33_1.mp4',
+    ['https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260415/hynnff/wan-video-edit-clothes.webp'],
+    { size: '1280x720', audio_setting: 'origin' }
+);
+```
+
+</CodeGroup>
+
+> **说明**: video-edit 不支持 `seconds`（输出时长由输入视频决定）和 `ratio`（宽高比由输入视频决定）。`audio_setting` 可选 `"auto"`（默认，模型自行控制）或 `"origin"`（保留原始声音）。参考图像 0~5 张可选。
