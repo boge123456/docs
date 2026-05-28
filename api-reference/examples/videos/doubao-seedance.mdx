@@ -11,10 +11,12 @@ description: '调用豆包 Seedance 视频生成模型的完整示例代码'
 
 | 模型 ID | 能力 | 时长 | 分辨率 | 帧率 |
 |---------|------|------|--------|------|
+| **doubao-seedance-2-0-260128** | 联网搜索、音画同生、图生视频、文生视频 | 5 秒 | 480p, 720p, 1080p | 24 fps |
 | **doubao-seedance-1-5-pro-251215** | 音画同生（有声视频）、图生视频-首尾帧、图生视频-首帧、文生视频 | 4~12 秒 | 480p, 720p, 1080p | 24 fps |
 | **doubao-seedance-1-0-pro-250528** | 图生视频-首尾帧、图生视频-首帧、文生视频 | 2~12 秒 | 480p, 720p, 1080p | 24 fps |
 
-> **注意**: `doubao-seedance-1-5-pro-251215` 支持生成带音频的有声视频，通过 `generate_audio` 参数启用。
+> **注意**: 所有 seedance 模型的参数（ratio, duration, resolution, watermark 等）统一通过请求字段传递，不要在文本中使用 `--ratio 16:9` 命令格式。
+> `doubao-seedance-1-5-pro-251215` 和 `doubao-seedance-2-0-260128` 支持生成带音频的有声视频，通过 `generate_audio` 参数启用。
 
 豆包视频生成分为三个步骤：
 1. **创建视频生成任务** - 提交生成请求，获得任务ID
@@ -32,13 +34,17 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "doubao-seedance-1.0-pro-250528",
+    "model": "doubao-seedance-2-0-260128",
     "content": [
         {
             "type": "text",
-            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
+            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。"
         }
-    ]
+    ],
+    "ratio": "16:9",
+    "seconds": "5",
+    "watermark": false,
+    "tools": [{"type": "web_search"}]
   }'
 
 # 有声视频（doubao-seedance-1-5-pro-251215）
@@ -51,7 +57,12 @@ curl --request POST \
     "content": [
         {
             "type": "text",
-            "text": "一位音乐家在舞台上演奏小提琴，观众席上掌声雷动 --ratio 16:9 --duration 8"
+            "text": "一位音乐家在舞台上演奏小提琴，观众席上掌声雷动"
+        }
+    ],
+    "ratio": "16:9",
+    "seconds": "8",
+    "generate_audio": true
         }
     ],
     "generate_audio": true
@@ -115,7 +126,7 @@ def create_doubao_video(content, model="doubao-seedance-1.0-pro-250528", **kwarg
 text_content = [
     {
         "type": "text",
-        "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
+        "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。"
     }
 ]
 
@@ -160,7 +171,7 @@ async function createDoubaoVideo(content, model = 'doubao-seedance-1.0-pro-25052
 const textContent = [
     {
         type: 'text',
-        text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9'
+        text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。'
     }
 ];
 
@@ -198,12 +209,19 @@ type DoubaoVideoRequest struct {
     Model           string          `json:"model"`
     Content         []DoubaoContent `json:"content"`
     Size            string          `json:"size,omitempty"`            // 视频尺寸，如 "1920x1088"，自动转换为宽高比
-    Ratio           string          `json:"ratio,omitempty"`           // 宽高比：16:9, 4:3, 1:1, 3:4, 9:16, 21:9, keep_ratio, adaptive
-    Seconds         string          `json:"seconds,omitempty"`         // 时长（秒）：2~12秒
+    Ratio           string          `json:"ratio,omitempty"`           // 宽高比：16:9, 4:3, 1:1, 3:4, 9:16, 21:9
+    Seconds         string          `json:"seconds,omitempty"`         // 时长（秒）
     FramesPerSecond *int            `json:"framespersecond,omitempty"` // 帧率：24
     CameraFixed     *bool           `json:"camerafixed,omitempty"`     // 是否固定摄像头
     Watermark       *bool           `json:"watermark,omitempty"`       // 是否包含水印
     ReturnLastFrame *bool           `json:"return_last_frame,omitempty"` // 是否返回生成视频的尾帧图像
+    GenerateAudio   *bool           `json:"generate_audio,omitempty"`  // 是否生成有声视频（Seedance 1.5/2.0）
+    ServiceTier     string          `json:"service_tier,omitempty"`    // 服务等级（Seedance 2.0）
+    Tools           []DoubaoTool    `json:"tools,omitempty"`           // 工具列表（Seedance 2.0）
+}
+
+type DoubaoTool struct {
+    Type string `json:"type"` // 工具类型，如 "web_search"
 }
 
 type DoubaoVideoResponse struct {
@@ -268,7 +286,7 @@ func main() {
         Content: []DoubaoContent{
             {
                 Type: "text",
-                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9",
+                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。",
             },
         },
     }
@@ -659,7 +677,7 @@ if __name__ == "__main__":
     text_content = [
         {
             "type": "text",
-            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9"
+            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。"
         }
     ]
     
@@ -739,7 +757,7 @@ async function completeDoubaoVideoGeneration(content, options = {}) {
     const textContent = [
         {
             type: 'text',
-            text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9'
+            text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。'
         }
     ];
     
@@ -813,7 +831,7 @@ func main() {
         Content: []DoubaoContent{
             {
                 Type: "text",
-                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。 --ratio 16:9",
+                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。",
             },
         },
     }
@@ -855,12 +873,17 @@ func main() {
 |--------|------|------|------|
 | **size** | String | 否 | 视频尺寸，格式为 `宽x高`（如 `1920x1088`），系统会自动转换为对应的宽高比 |
 | **ratio** | String | 否 | 宽高比，可选值：`16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`keep_ratio`、`adaptive`。可通过 size 参数自动推导 |
-| **seconds** | String | 否 | 视频时长（秒），范围取决于模型：`doubao-seedance-1-0-pro-250528` 支持 2~12秒，`doubao-seedance-1-5-pro-251215` 支持 4~12秒 |
+| **resolution** | String | 否 | 分辨率等级：`480p`、`720p`、`1080p`（仅 Seedance 2.0 支持，由 size 自动映射） |
+| **seconds** | String | 否 | 视频时长（秒），范围取决于模型：Seedance 2.0 支持 5 秒，1.0 支持 2~12秒，1.5 支持 4~12秒 |
 | **framespersecond** | Integer | 否 | 帧率，支持值：`24` |
 | **camerafixed** | Boolean | 否 | 是否固定摄像头 |
 | **watermark** | Boolean | 否 | 是否包含水印 |
 | **return_last_frame** | Boolean | 否 | 是否返回生成视频的尾帧图像 |
-| **generate_audio** | Boolean | 否 | 是否生成有声视频（仅 `doubao-seedance-1-5-pro-251215` 支持） |
+| **generate_audio** | Boolean | 否 | 是否生成有声视频（仅 Seedance 1.5/2.0 支持） |
+| **tools** | Array | 否 | 工具列表，如联网搜索：`[{"type": "web_search"}]`（仅 Seedance 2.0 支持） |
+| **service_tier** | String | 否 | 服务等级，如 `premium`（仅 Seedance 2.0 支持） |
+
+> **参数传递方式**: 所有 seedance 模型的参数（ratio, resolution, duration 等）统一通过请求字段传递，不要在文本中追加 `--ratio 16:9` 命令。
 
 ### Size 参数映射表
 
@@ -940,15 +963,35 @@ func main() {
 
 ## 内容格式示例
 
-### 纯文本输入（使用命令参数）
+### 文生视频（请求字段传递参数）
 ```json
 {
+  "model": "doubao-seedance-2-0-260128",
   "content": [
     {
       "type": "text",
-      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨 --ratio 16:9 --duration 6"
+      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨"
     }
-  ]
+  ],
+  "ratio": "16:9",
+  "seconds": "5",
+  "watermark": false
+}
+```
+> 所有 seedance 模型的参数通过请求字段传递，**不要**在文本中追加 `--` 命令参数
+
+### 联网搜索（web_search）
+```json
+{
+  "model": "doubao-seedance-2-0-260128",
+  "content": [
+    {
+      "type": "text",
+      "text": "根据最新新闻生成一段关于科技发展的视频"
+    }
+  ],
+  "ratio": "16:9",
+  "tools": [{"type": "web_search"}]
 }
 ```
 
@@ -1016,7 +1059,7 @@ func main() {
   "content": [
     {
       "type": "text",
-      "text": "一位音乐家在舞台上演奏小提琴，观众席上掌声雷动。镜头聚焦音乐家的手指在琴弦上舞动，音乐厅的灯光洒在他专注的脸上。 --ratio 16:9 --duration 8"
+      "text": "一位音乐家在舞台上演奏小提琴，观众席上掌声雷动。镜头聚焦音乐家的手指在琴弦上舞动，音乐厅的灯光洒在他专注的脸上。"
     }
   ],
   "generate_audio": true
