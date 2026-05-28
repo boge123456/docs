@@ -11,9 +11,11 @@ description: '调用豆包 Seedance 视频生成模型的完整示例代码'
 
 | 模型 ID | 能力 | 时长 | 分辨率 | 帧率 |
 |---------|------|------|--------|------|
-| **doubao-seedance-2-0-260128** | 联网搜索、音画同生、图生视频、文生视频 | 5 秒 | 480p, 720p, 1080p | 24 fps |
+| **doubao-seedance-2-0-260128** | 联网搜索、音画同生、图/视频/音频多模态参考、编辑视频、延长视频、图生视频-首尾帧、图生视频-首帧、文生视频 | 4~15 秒 | 480p, 720p, 1080p | 24 fps |
+| **doubao-seedance-2-0-fast-260128** | 联网搜索、音画同生、图/视频/音频多模态参考、编辑视频、延长视频、图生视频-首尾帧、图生视频-首帧、文生视频 | 4~15 秒 | 480p, 720p | 24 fps |
 | **doubao-seedance-1-5-pro-251215** | 音画同生（有声视频）、图生视频-首尾帧、图生视频-首帧、文生视频 | 4~12 秒 | 480p, 720p, 1080p | 24 fps |
 | **doubao-seedance-1-0-pro-250528** | 图生视频-首尾帧、图生视频-首帧、文生视频 | 2~12 秒 | 480p, 720p, 1080p | 24 fps |
+| **doubao-seedance-1-0-pro-fast-251015** | 图生视频-首帧、文生视频 | 2~12 秒 | 480p, 720p, 1080p | 24 fps |
 
 > **注意**: 所有 seedance 模型的参数（ratio, duration, resolution, watermark 等）统一通过请求字段传递，不要在文本中使用 `--ratio 16:9` 命令格式。
 > `doubao-seedance-1-5-pro-251215` 和 `doubao-seedance-2-0-260128` 支持生成带音频的有声视频，通过 `generate_audio` 参数启用。
@@ -861,11 +863,12 @@ func main() {
 
 | 参数名 | 类型 | 必填 | 描述 |
 |--------|------|------|------|
-| **type** | String | 是 | 内容类型：`text`（文本）、`image_url`（图片）、`audio_url`（音频） |
+| **type** | String | 是 | 内容类型：`text`（文本）、`image_url`（图片）、`video_url`（视频）、`audio_url`（音频） |
 | **text** | String | 条件必填 | 文本内容（当 type=text 时必填） |
 | **image_url** | Object | 条件必填 | 图片信息对象（当 type=image_url 时必填），包含 `url` 字段 |
+| **video_url** | Object | 条件必填 | 视频信息对象（当 type=video_url 时必填），包含 `url` 字段，用于视频参考或编辑（Seedance 2.0） |
 | **audio_url** | Object | 条件必填 | 音频信息对象（当 type=audio_url 时必填），包含 `url` 字段，用于有声视频的音频参考 |
-| **role** | String | 否 | 图片角色：`first_frame`（首帧）、`last_frame`（尾帧）、`reference_image`（参考图片） |
+| **role** | String | 否 | 内容角色：`first_frame`（首帧图片）、`last_frame`（尾帧图片）、`reference_image`（参考图片）、`reference_video`（参考视频）、`mask_image`（遮罩图片）、`first_clip`（首段视频）、`video_outpainting`（视频延展） |
 
 ### 视频生成参数
 
@@ -873,8 +876,8 @@ func main() {
 |--------|------|------|------|
 | **size** | String | 否 | 视频尺寸，格式为 `宽x高`（如 `1920x1088`），系统会自动转换为对应的宽高比 |
 | **ratio** | String | 否 | 宽高比，可选值：`16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`keep_ratio`、`adaptive`。可通过 size 参数自动推导 |
-| **resolution** | String | 否 | 分辨率等级：`480p`、`720p`、`1080p`（仅 Seedance 2.0 支持，由 size 自动映射） |
-| **seconds** | String | 否 | 视频时长（秒），范围取决于模型：Seedance 2.0 支持 5 秒，1.0 支持 2~12秒，1.5 支持 4~12秒 |
+| **resolution** | String | 否 | 分辨率等级：`480p`、`720p`、`1080p`，由 size 参数自动映射 |
+| **seconds** | String | 否 | 视频时长（秒），范围取决于模型：2.0 支持 4~15秒，1.5 支持 4~12秒，1.0 支持 2~12秒 |
 | **framespersecond** | Integer | 否 | 帧率，支持值：`24` |
 | **camerafixed** | Boolean | 否 | 是否固定摄像头 |
 | **watermark** | Boolean | 否 | 是否包含水印 |
