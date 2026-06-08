@@ -1,0 +1,319 @@
+---
+title: '异步图片生成'
+description: '提交即返回 task_id、轮询拿结果的异步生图接口，统一覆盖 OpenAI（gpt-image 系列）与 Gemini（nano-banana 系列）模型，按"生成成功"后扣费'
+---
+
+# 异步图片生成
+
+生图通常需要保活一条 HTTP 长连接等待数十秒。一旦客户端与服务之间网络中断，客户端就拿不到结果——而图片其实已经生成、费用也已产生。**异步接口把"生成"与"取结果"解耦**：提交后立即返回 `task_id`，由平台在后台代为完成生成、并把结果转存对象存储；你随后用 `task_id` 轮询即可。
+
+<Note>
+**计费只与"图是否生成成功"绑定（后扣费）**：提交时不扣费，只有后台真正生成成功后才扣费；生成失败不扣费。因此客户端断线、轮询超时都不会导致"扣了费却拿不到图"。
+</Note>
+
+## 接口概览
+
+| 步骤 | 方法 | 路径 | 说明 |
+|------|------|------|------|
+| 提交任务 | `POST` | `/v1/images/generations/async` | 落库并后台执行，立即返回 `task_id` |
+| 查询结果 | `GET` | `/v1/images/generations/{task_id}` | 轮询任务状态与结果 |
+
+- **请求体与同步 `/v1/images/generations` 完全一致**，只是 endpoint 加了 `/async`。
+- 一套接口同时覆盖 **OpenAI** 和 **Gemini** 两类模型，按 `model` 自动路由。
+- 结果图片会**转存到对象存储**，返回稳定的签名 URL（有效期 24 小时），不受原始上游链接过期影响。
+
+## 支持的模型
+
+| 类别 | 模型示例 | size 语义 | 专属参数 |
+|------|----------|-----------|----------|
+| **OpenAI** | `gpt-image-2-2026-04-21`、`gpt-image-1` | 像素，如 `1024x1024` | `quality`、`background`、`moderation` |
+| **Gemini** | `nano-banana-2`、`nano-banana-pro`、`nano-banana` | 分辨率档位 `1K`/`2K`/`4K` | `ratio`、`thinking_level`、`image_search` |
+
+## 快速开始
+
+只需把 `<API-KEY>` 换成你的 Key。下面以 Gemini `nano-banana-2` 为例，完整演示「提交 → 轮询 → 保存图片」。
+
+<CodeGroup>
+
+```bash cURL
+# 1) 提交任务，拿到 task_id
+TASK_ID=$(curl -s -X POST "https://model-api.skyengine.com.cn/v1/images/generations/async" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "nano-banana-2",
+    "prompt": "一只戴红色帽子的橘猫，卡通风格",
+    "ratio": "16:9",
+    "size": "2K"
+  }' | jq -r '.id')
+echo "task_id=$TASK_ID"
+
+# 2) 轮询直到 completed / failed
+while true; do
+  RESP=$(curl -s "https://model-api.skyengine.com.cn/v1/images/generations/$TASK_ID" \
+    -H "Authorization: Bearer <API-KEY>")
+  STATUS=$(echo "$RESP" | jq -r '.status')
+  echo "status=$STATUS"
+  case "$STATUS" in
+    completed) echo "$RESP" | jq -r '.data[].url'; break ;;
+    failed)    echo "$RESP" | jq -r '.error.message'; break ;;
+  esac
+  sleep 3
+done
+```
+
+```python Python
+import time
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+
+def submit_async_image(prompt, model="nano-banana-2", **params):
+    """提交异步生图任务，返回 task_id"""
+    resp = requests.post(
+        f"{BASE_URL}/images/generations/async",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}",
+        },
+        json={"model": model, "prompt": prompt, **params},
+    )
+    resp.raise_for_status()
+    return resp.json()["id"]
+
+
+def wait_image(task_id, interval=3, timeout=300):
+    """轮询任务直到完成，返回结果"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        resp = requests.get(
+            f"{BASE_URL}/images/generations/{task_id}",
+            headers={"Authorization": f"Bearer {API_KEY}"},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        status = result.get("status")
+        print(f"status={status}")
+        if status == "completed":
+            return result
+        if status == "failed":
+            raise RuntimeError(result.get("error", {}).get("message", "generation failed"))
+        time.sleep(interval)
+    raise TimeoutError("image generation timed out")
+
+
+if __name__ == "__main__":
+    # Gemini：用 ratio 控制宽高比，size 填分辨率档位
+    task_id = submit_async_image(
+        "一只戴红色帽子的橘猫，卡通风格",
+        model="nano-banana-2",
+        ratio="16:9",
+        size="2K",
+    )
+    print("task_id =", task_id)
+
+    result = wait_image(task_id)
+    for i, img in enumerate(result["data"]):
+        print(f"图片 {i+1}: {img['url']}")
+    print("usage:", result.get("usage"))
+```
+
+```javascript JavaScript/Node.js
+import axios from "axios";
+
+const API_KEY = "<API-KEY>";
+const BASE_URL = "https://model-api.skyengine.com.cn/v1";
+
+const headers = { Authorization: `Bearer ${API_KEY}` };
+
+async function submitAsyncImage(prompt, { model = "nano-banana-2", ...params } = {}) {
+  const resp = await axios.post(
+    `${BASE_URL}/images/generations/async`,
+    { model, prompt, ...params },
+    { headers: { ...headers, "Content-Type": "application/json" } }
+  );
+  return resp.data.id;
+}
+
+async function waitImage(taskId, { interval = 3000, timeout = 300000 } = {}) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const { data } = await axios.get(`${BASE_URL}/images/generations/${taskId}`, { headers });
+    console.log(`status=${data.status}`);
+    if (data.status === "completed") return data;
+    if (data.status === "failed") throw new Error(data.error?.message || "generation failed");
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  throw new Error("image generation timed out");
+}
+
+const taskId = await submitAsyncImage("一只戴红色帽子的橘猫，卡通风格", {
+  model: "nano-banana-2",
+  ratio: "16:9",
+  size: "2K",
+});
+console.log("task_id =", taskId);
+
+const result = await waitImage(taskId);
+result.data.forEach((img, i) => console.log(`图片 ${i + 1}: ${img.url}`));
+console.log("usage:", result.usage);
+```
+
+</CodeGroup>
+
+## OpenAI 模型用法
+
+OpenAI 模型（`gpt-image-2` / `gpt-image-1`）走相同的异步流程，只是参数遵循 OpenAI 标准：`size` 填**像素**、用 `quality` 控制质量，**不使用** `ratio` / `thinking_level`。
+
+<CodeGroup>
+
+```bash cURL
+curl -s -X POST "https://model-api.skyengine.com.cn/v1/images/generations/async" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -d '{
+    "model": "gpt-image-2-2026-04-21",
+    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
+    "n": 1,
+    "size": "1024x1024",
+    "quality": "high"
+  }'
+# => {"id":"<task_id>","status":"queued","created_at":1780651750}
+# 之后用 GET /v1/images/generations/{task_id} 轮询，方式与上方完全一致
+```
+
+```python Python
+task_id = submit_async_image(
+    "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
+    model="gpt-image-2-2026-04-21",
+    n=1,
+    size="1024x1024",   # 像素：1024x1024 / 1536x1024 / 1024x1536
+    quality="high",     # low / medium / high
+)
+result = wait_image(task_id)
+```
+
+</CodeGroup>
+
+## 参数详解
+
+### 通用参数（两类模型都支持）
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `model` | string | 是 | 模型名，如 `nano-banana-2`、`gpt-image-2-2026-04-21` |
+| `prompt` | string | 是 | 生成图像的提示词 |
+| `n` | int | 否 | 生成图像数量，默认 1 |
+| `image` | string / string[] | 否 | 图生图的参考图，支持 URL、data URI 或裸 base64，可单图或多图 |
+| `response_format` | string | 否 | `url` 或 `b64_json`。**异步模式下结果统一转存对象存储并返回 `url`**，此参数主要影响同步接口 |
+| `user` | string | 否 | 业务侧用户标识，便于排查 |
+
+### Gemini 专属参数（nano-banana 系列）
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `ratio` | string | **宽高比**，直接透传给 Gemini。可选：`1:1` `2:3` `3:2` `3:4` `4:3` `4:5` `5:4` `9:16` `16:9` `21:9` `1:4` `4:1` `1:8` `8:1` |
+| `size` | string | **分辨率档位**：`1K` / `2K` / `4K`（`512` 仅 `nano-banana-2` 即 gemini-3.x-flash-image 支持）。**仅接受这些档位，填其它值（含像素 `宽x高`）会被忽略，由模型用默认 `1K`** |
+| `thinking_level` | string | 生图**思考强度**：`minimal` / `low` / `high`。复杂构图任务可设 `high` 提升质量（会产生 thinking token，单独计费） |
+| `image_search` | bool | 开启**搜索接地**（基于 Google Search），让模型参考实时信息生成 |
+
+<Tip>
+**Gemini 的 `size` 与 `ratio` 是两个维度**：`ratio` 决定形状（宽高比），`size` 决定清晰度档位。两者可独立组合，例如 `ratio="21:9"` + `size="4K"` 生成超宽高清图。不填时由模型用默认 `1K` + `1:1`。
+</Tip>
+
+### OpenAI 专属参数（gpt-image 系列）
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `size` | string | **像素尺寸**：`1024x1024` / `1536x1024` / `1024x1536`（或 `auto`） |
+| `quality` | string | 图像质量：`low` / `medium` / `high` |
+| `background` | string | 背景处理，如 `transparent`（透明背景，gpt-image 系列） |
+| `moderation` | string | 内容审核强度 |
+| `output_format` | string | 输出图片格式，如 `png` / `jpeg` |
+
+## 响应格式
+
+### 提交响应
+
+```json
+{
+  "id": "8316143e8ba6449692e791c6afd64f83",
+  "status": "queued",
+  "created_at": 1780651828
+}
+```
+
+`id` 即 `task_id`，用于后续轮询。
+
+### 查询响应
+
+**进行中：**
+
+```json
+{ "id": "8316143e...", "status": "in_progress", "created_at": 1780651828 }
+```
+
+**完成：**
+
+```json
+{
+  "id": "8316143e8ba6449692e791c6afd64f83",
+  "status": "completed",
+  "created_at": 1780651828,
+  "data": [
+    { "url": "https://.../images/20260605/img_xxx.png" }
+  ],
+  "generate_image": 1,
+  "usage": {
+    "total_tokens": 3335,
+    "input_tokens": 61,
+    "output_tokens": 3274,
+    "input_tokens_details": { "text_tokens": 61, "image_tokens": 0 },
+    "output_tokens_details": { "image_tokens": 1120, "text_tokens": 1748 }
+  }
+}
+```
+
+`generate_image` 为本次生成的图片张数（等于 `data` 数组长度）。
+
+**失败：**
+
+```json
+{
+  "id": "8316143e...",
+  "status": "failed",
+  "created_at": 1780651828,
+  "error": { "message": "失败原因" }
+}
+```
+
+### 任务状态
+
+| status | 含义 |
+|--------|------|
+| `queued` | 已入队，等待执行 |
+| `in_progress` | 后台执行中 |
+| `completed` | 生成成功，`data` 含结果图 URL |
+| `failed` | 生成失败，`error.message` 给出原因（不扣费） |
+
+### usage 字段说明（Gemini）
+
+Gemini 生图的输出按 modality 精确拆分，便于区分计费：
+
+| 字段 | 含义 |
+|------|------|
+| `input_tokens_details.text_tokens` / `image_tokens` | 输入的文本 / 图片 token |
+| `output_tokens_details.image_tokens` | 生成图片的 token |
+| `output_tokens_details.text_tokens` | 模型的**思考 token**（开启 `thinking_level` 时产生） |
+| `output_tokens` | 输出总量（含思考）。模型返回的文字说明 = `output_tokens − image_tokens − text_tokens` |
+
+## 最佳实践
+
+<Tip>
+- **轮询间隔**建议 2~5 秒，并设置总超时（如 300 秒）兜底。
+- 结果 URL 有效期 **24 小时**，如需长期保存请及时把图片下载到自己的存储。
+- 任务 `task_id` 与计费订单号对齐，排查问题时可直接用它检索。
+- 平台对上游限流 / 瞬时不可用等可重试错误会**自动指数退避重试**，无需业务侧重复提交。
+</Tip>
