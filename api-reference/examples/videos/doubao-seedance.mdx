@@ -44,6 +44,7 @@ curl --request POST \
         }
     ],
     "ratio": "16:9",
+    "resolution": "4K",
     "seconds": "5",
     "watermark": false,
     "tools": [{"type": "web_search"}]
@@ -103,7 +104,7 @@ def create_doubao_video(content, model="doubao-seedance-1.0-pro-250528", **kwarg
     }
     
     # 添加豆包特有参数
-    for key in ["ratio", "seconds", "framespersecond", "camerafixed", "watermark", "return_last_frame"]:
+    for key in ["ratio", "resolution", "seconds", "framespersecond", "camerafixed", "watermark", "return_last_frame"]:
         if key in kwargs:
             data[key] = kwargs[key]
     
@@ -211,6 +212,7 @@ type DoubaoVideoRequest struct {
     Model           string          `json:"model"`
     Content         []DoubaoContent `json:"content"`
     Size            string          `json:"size,omitempty"`            // 视频尺寸，如 "1920x1088"，自动转换为宽高比
+    Resolution      string          `json:"resolution,omitempty"`      // 分辨率档位：480p, 720p, 1080p, 4K
     Ratio           string          `json:"ratio,omitempty"`           // 宽高比：16:9, 4:3, 1:1, 3:4, 9:16, 21:9
     Seconds         string          `json:"seconds,omitempty"`         // 时长（秒）
     FramesPerSecond *int            `json:"framespersecond,omitempty"` // 帧率：24
@@ -876,7 +878,7 @@ func main() {
 |--------|------|------|------|
 | **size** | String | 否 | 视频尺寸，格式为 `宽x高`（如 `1920x1088`），系统会自动转换为对应的宽高比 |
 | **ratio** | String | 否 | 宽高比，可选值：`16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`keep_ratio`、`adaptive`。可通过 size 参数自动推导 |
-| **resolution** | String | 否 | 分辨率等级：`480p`、`720p`、`1080p`，由 size 参数自动映射 |
+| **resolution** | String | 否 | 分辨率等级：`480p`、`720p`、`1080p`、`4K`。如需输出 4K 视频，直接设置 `"resolution": "4K"` |
 | **seconds** | String | 否 | 视频时长（秒），范围取决于模型：2.0 支持 4~15秒，1.5 支持 4~12秒，1.0 支持 2~12秒 |
 | **framespersecond** | Integer | 否 | 帧率，支持值：`24` |
 | **camerafixed** | Boolean | 否 | 是否固定摄像头 |
@@ -1013,6 +1015,28 @@ func main() {
 }
 ```
 > 使用 `size: "1920x1088"` 会自动设置为 1080p 分辨率和 16:9 宽高比
+
+### 输出 4K 视频
+
+在我们平台使用 Seedance 输出 4K 视频时，直接在创建视频任务的请求体中设置 `"resolution": "4K"`。`ratio` 仍用于控制视频宽高比，`seconds` 用于控制时长。
+
+```json
+{
+  "model": "doubao-seedance-2-0-260128",
+  "content": [
+    {
+      "type": "text",
+      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨"
+    }
+  ],
+  "ratio": "16:9",
+  "resolution": "4K",
+  "seconds": "5",
+  "watermark": false
+}
+```
+
+> 不要在文本提示词中追加 `--resolution 4K`、`--4k` 等命令式参数；Seedance 参数仍通过请求字段传递，4K 输出能力以官方文档和模型实际支持为准。
 
 ### 文本+参考图片
 ```json

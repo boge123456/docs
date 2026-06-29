@@ -150,12 +150,12 @@
                   {
                     "group": "图片生成",
                     "pages": [
-                      "api-reference/examples/images/async-image",
                       "api-reference/examples/images/openai-image",
                       "api-reference/examples/images/douao",
                       "api-reference/examples/images/qwen",
                       "api-reference/examples/images/nanobanana",
-                      "api-reference/examples/images/jimeng"
+                      "api-reference/examples/images/jimeng",
+                      "api-reference/examples/images/async-image"
                     ]
                   },
                   {
