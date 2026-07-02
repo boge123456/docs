@@ -87,6 +87,10 @@ title: '通义万象视频生成示例'
 
 以下参数仅适用于 **happyhorse-\\*** 系列模型：
 
+- **resolution** (string, 可选): 生成视频的清晰度档位。HappyHorse 支持 `720P`、`1080P`，默认 `1080P`
+  - 注意：HappyHorse 不使用 `size` 设置分辨率，请直接传 `resolution`
+  - 示例值："720P"
+
 - **ratio** (string, 可选): 生成视频的宽高比。仅 **t2v**、**r2v** 支持
   - t2v 可选值：`16:9`（默认）、`9:16`、`1:1`、`4:3`、`3:4`、`4:5`、`5:4`
   - r2v 可选值：`16:9`（默认）、`9:16`、`3:4`、`4:3`、`4:5`、`5:4`、`1:1`
@@ -2809,7 +2813,7 @@ HappyHorse 是阿里云百炼的轻量级视频生成模型，提供文生视频
 | content.image_url (first_frame) | - | 必选 | - | - |
 | content.image_url (reference_image) | - | - | 1~9张 | 0~5张 |
 | content.video_url (video) | - | - | - | 必选1个 |
-| resolution (size) | 支持 | 支持 | 支持 | 支持 |
+| resolution | 支持 | 支持 | 支持 | 支持 |
 | duration (seconds) | 3~15s | 3~15s | 3~15s | - |
 | ratio | 支持 | - | 支持 | - |
 | audio_setting | - | - | - | auto/origin |
@@ -2830,7 +2834,7 @@ curl --request POST \
   --data '{
     "model": "happyhorse-1.0-t2v",
     "prompt": "一座由硬纸板和瓶盖搭建的微型城市，在夜晚焕发出生机。一列硬纸板火车缓缓驶过，小灯点缀其间，照亮前路。",
-    "size": "1280x720",
+    "resolution": "720P",
     "ratio": "16:9",
     "seconds": "5",
     "watermark": false,
@@ -2857,7 +2861,7 @@ def create_happyhorse_t2v(prompt, **kwargs):
         "prompt": prompt
     }
 
-    for key in ["size", "seconds", "ratio", "watermark", "seed"]:
+    for key in ["resolution", "seconds", "ratio", "watermark", "seed"]:
         if key in kwargs:
             data[key] = kwargs[key]
 
@@ -2873,7 +2877,7 @@ def create_happyhorse_t2v(prompt, **kwargs):
 # 使用示例
 result = create_happyhorse_t2v(
     prompt="一座由硬纸板和瓶盖搭建的微型城市，在夜晚焕发出生机",
-    size="1280x720",
+    resolution="720P",
     ratio="16:9",
     seconds="5",
     watermark=False,
@@ -2893,7 +2897,7 @@ async function createHappyhorseT2V(prompt, options = {}) {
         prompt: prompt
     };
 
-    ['size', 'seconds', 'ratio', 'watermark', 'seed'].forEach(key => {
+    ['resolution', 'seconds', 'ratio', 'watermark', 'seed'].forEach(key => {
         if (options[key] !== undefined) data[key] = options[key];
     });
 
@@ -2912,7 +2916,7 @@ async function createHappyhorseT2V(prompt, options = {}) {
 // 使用示例
 const result = await createHappyhorseT2V(
     '一座由硬纸板和瓶盖搭建的微型城市，在夜晚焕发出生机',
-    { size: '1280x720', ratio: '16:9', seconds: '5', watermark: false, seed: 42 }
+    { resolution: '720P', ratio: '16:9', seconds: '5', watermark: false, seed: 42 }
 );
 ```
 
@@ -2944,7 +2948,7 @@ curl --request POST \
         "role": "first_frame"
       }
     ],
-    "size": "1920x1080",
+    "resolution": "1080P",
     "seconds": "5",
     "watermark": false
   }'
@@ -2971,7 +2975,7 @@ def create_happyhorse_i2v(prompt, image_url, **kwargs):
         ]
     }
 
-    for key in ["size", "seconds", "watermark", "seed"]:
+    for key in ["resolution", "seconds", "watermark", "seed"]:
         if key in kwargs:
             data[key] = kwargs[key]
 
@@ -2988,7 +2992,7 @@ def create_happyhorse_i2v(prompt, image_url, **kwargs):
 result = create_happyhorse_i2v(
     prompt="一只猫在草地上奔跑",
     image_url="https://cdn.translate.alibaba.com/r/wanx-demo-1.png",
-    size="1920x1080",
+    resolution="1080P",
     seconds="5"
 )
 ```
@@ -3007,7 +3011,7 @@ async function createHappyhorseI2V(prompt, imageUrl, options = {}) {
         ]
     };
 
-    ['size', 'seconds', 'watermark', 'seed'].forEach(key => {
+    ['resolution', 'seconds', 'watermark', 'seed'].forEach(key => {
         if (options[key] !== undefined) data[key] = options[key];
     });
 
@@ -3027,7 +3031,7 @@ async function createHappyhorseI2V(prompt, imageUrl, options = {}) {
 const result = await createHappyhorseI2V(
     '一只猫在草地上奔跑',
     'https://cdn.translate.alibaba.com/r/wanx-demo-1.png',
-    { size: '1920x1080', seconds: '5' }
+    { resolution: '1080P', seconds: '5' }
 );
 ```
 
@@ -3075,7 +3079,7 @@ curl --request POST \
         "role": "reference_image"
       }
     ],
-    "size": "1280x720",
+    "resolution": "720P",
     "ratio": "16:9",
     "seconds": "5",
     "watermark": false
@@ -3104,7 +3108,7 @@ def create_happyhorse_r2v(prompt, reference_images, **kwargs):
         "content": content
     }
 
-    for key in ["size", "seconds", "ratio", "watermark", "seed"]:
+    for key in ["resolution", "seconds", "ratio", "watermark", "seed"]:
         if key in kwargs:
             data[key] = kwargs[key]
 
@@ -3126,7 +3130,7 @@ reference_images = [
 result = create_happyhorse_r2v(
     prompt="[Image 1]中身着红色旗袍的女性，镜头先以侧面中景勾勒旗袍修身剪裁，随即切换至低角度仰拍，捕捉她轻抬玉手展开[Image 2]中的折扇",
     reference_images=reference_images,
-    size="1280x720",
+    resolution="720P",
     ratio="16:9",
     seconds="5"
 )
@@ -3145,7 +3149,7 @@ async function createHappyhorseR2V(prompt, referenceImages, options = {}) {
 
     const data = { model: 'happyhorse-1.0-r2v', content: content };
 
-    ['size', 'seconds', 'ratio', 'watermark', 'seed'].forEach(key => {
+    ['resolution', 'seconds', 'ratio', 'watermark', 'seed'].forEach(key => {
         if (options[key] !== undefined) data[key] = options[key];
     });
 
@@ -3170,7 +3174,7 @@ const referenceImages = [
 const result = await createHappyhorseR2V(
     '[Image 1]中身着红色旗袍的女性，镜头先以侧面中景勾勒旗袍修身剪裁，随即切换至低角度仰拍，捕捉她轻抬玉手展开[Image 2]中的折扇',
     referenceImages,
-    { size: '1280x720', ratio: '16:9', seconds: '5' }
+    { resolution: '720P', ratio: '16:9', seconds: '5' }
 );
 ```
 
@@ -3211,7 +3215,7 @@ curl --request POST \
         "role": "reference_image"
       }
     ],
-    "size": "1280x720",
+    "resolution": "720P",
     "audio_setting": "origin",
     "watermark": false
   }'
@@ -3249,7 +3253,7 @@ def create_happyhorse_video_edit(prompt, video_url, reference_images=None, **kwa
         "content": content
     }
 
-    for key in ["size", "audio_setting", "watermark", "seed"]:
+    for key in ["resolution", "audio_setting", "watermark", "seed"]:
         if key in kwargs:
             data[key] = kwargs[key]
 
@@ -3269,7 +3273,7 @@ result = create_happyhorse_video_edit(
     reference_images=[
         "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260415/hynnff/wan-video-edit-clothes.webp"
     ],
-    size="1280x720",
+    resolution="720P",
     audio_setting="origin"
 )
 ```
@@ -3291,7 +3295,7 @@ async function createHappyhorseVideoEdit(prompt, videoUrl, referenceImages = [],
 
     const data = { model: 'happyhorse-1.0-video-edit', content: content };
 
-    ['size', 'audio_setting', 'watermark', 'seed'].forEach(key => {
+    ['resolution', 'audio_setting', 'watermark', 'seed'].forEach(key => {
         if (options[key] !== undefined) data[key] = options[key];
     });
 
@@ -3312,7 +3316,7 @@ const result = await createHappyhorseVideoEdit(
     '让视频中的马头人身角色穿上图片中的条纹毛衣',
     'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260409/dozxak/Wan_Video_Edit_33_1.mp4',
     ['https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260415/hynnff/wan-video-edit-clothes.webp'],
-    { size: '1280x720', audio_setting: 'origin' }
+    { resolution: '720P', audio_setting: 'origin' }
 );
 ```
 
