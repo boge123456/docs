@@ -205,6 +205,7 @@ def generate_image_doubao_advanced(prompt, **kwargs):
     data = {
         "prompt": prompt,
         "model": kwargs.get("model", "doubao-seedream-4-0-250828"),
+        "n": kwargs.get("n", 1),
         "size": kwargs.get("size", "1024x1024"),
         "response_format": kwargs.get("response_format", "url"),
         "watermark": kwargs.get("watermark", True)
@@ -212,9 +213,9 @@ def generate_image_doubao_advanced(prompt, **kwargs):
     
     # 高级功能参数
     if kwargs.get("enable_sequential"):
-        data["sequential_image_generation"] = "enabled"
+        data["sequential_image_generation"] = "auto"
         data["sequential_image_generation_options"] = {
-            "max_num": kwargs.get("max_images", 4)
+            "max_images": kwargs.get("max_images", 4)
         }
     
     if kwargs.get("optimize_prompt"):
@@ -246,6 +247,7 @@ if __name__ == "__main__":
     print("=== 组图生成示例 ===")
     images = generate_image_doubao_advanced(
         prompt="可爱的动物系列：小猫、小狗、小兔子，卡通风格",
+        n=3,
         enable_sequential=True,
         max_images=3,
         optimize_prompt=True
@@ -262,13 +264,13 @@ if __name__ == "__main__":
 
 </CodeGroup>
 
-## Seedream 5.0 lite 新特性
+## Seedream 5.0 新特性
 
-Seedream 5.0 lite（`doubao-seedream-5-0-260128`）相比 4.0 版本新增了以下能力：
+Seedream 5.0 Pro（`doubao-seedream-5-0-pro-260628`）和 Seedream 5.0 lite（`doubao-seedream-5-0-260128`）相比 4.0 版本新增了以下能力。Pro 版本面向高精度图片生成场景，调用方式与 lite 一致，只需替换 `model` 字段。
 
 ### 指定输出格式（output_format）
 
-5.0 lite 支持 `png` 和 `jpeg` 两种输出格式（4.0/4.5 仅支持 jpeg）。
+5.0 Pro / lite 支持 `png` 和 `jpeg` 两种输出格式（4.0/4.5 仅支持 jpeg）。
 
 <CodeGroup>
 
@@ -278,8 +280,9 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
     "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚",
-    "model": "doubao-seedream-5-0-260128",
-    "size": "2048x2048",
+    "model": "doubao-seedream-5-0-pro-260628",
+    "n": 1,
+    "size": "2K",
     "output_format": "png",
     "response_format": "url"
   }'
@@ -299,8 +302,9 @@ response = requests.post(
     },
     json={
         "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚",
-        "model": "doubao-seedream-5-0-260128",
-        "size": "2048x2048",
+        "model": "doubao-seedream-5-0-pro-260628",
+        "n": 1,
+        "size": "2K",
         "output_format": "png",
         "response_format": "url"
     }
@@ -324,8 +328,8 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
     "prompt": "上海今日天气预报，天气可视化信息图",
-    "model": "doubao-seedream-5-0-260128",
-    "size": "2048x2048",
+    "model": "doubao-seedream-5-0-pro-260628",
+    "size": "2K",
     "tools": [{"type": "web_search"}],
     "response_format": "url"
   }'
@@ -345,8 +349,8 @@ response = requests.post(
     },
     json={
         "prompt": "上海今日天气预报，天气可视化信息图",
-        "model": "doubao-seedream-5-0-260128",
-        "size": "2048x2048",
+        "model": "doubao-seedream-5-0-pro-260628",
+        "size": "2K",
         "tools": [{"type": "web_search"}],
         "response_format": "url"
     }
@@ -368,7 +372,7 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 - 开启后模型会根据提示词**自主判断**是否需要搜索，不一定每次都会触发
 - 实际搜索次数可通过响应中的 `usage.tool_usage.web_search` 字段查看
 - 联网搜索会增加一定的响应时延
-- 仅 Seedream 5.0 lite 支持，4.0/4.5 不支持
+- 仅 Seedream 5.0 Pro / lite 支持，4.0/4.5 不支持
 </Info>
 
 ## 重要提示
@@ -390,7 +394,8 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 
 | 模型 | Model ID | 分辨率 | 输出格式 | 联网搜索 |
 |------|----------|--------|----------|----------|
-| Seedream 5.0 lite | `doubao-seedream-5-0-260128` | 2K, 3K | png, jpeg | 支持 |
+| Seedream 5.0 Pro | `doubao-seedream-5-0-pro-260628` | 1K, 2K | png, jpeg | 支持 |
+| Seedream 5.0 lite | `doubao-seedream-5-0-260128` | 2K, 3K, 4K | png, jpeg | 支持 |
 | Seedream 4.5 | `doubao-seedream-4-5-251128` | 2K, 4K | jpeg | 不支持 |
 | Seedream 4.0 | `doubao-seedream-4-0-250828` | 1K, 2K, 4K | jpeg | 不支持 |
 
@@ -402,7 +407,7 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 
 **方式 2：精确像素值**（如 `"2048x2048"`），推荐值如下：
 
-### Seedream 5.0 lite
+### Seedream 5.0 Pro / lite
 
 **2K 分辨率：**
 
@@ -435,9 +440,10 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 ### 基础参数
 - **prompt**: 图片描述文本（必需），建议不超过 300 汉字或 600 英文单词
 - **model**: 模型名称
-- **size**: 图片尺寸，分辨率等级（`"2K"`、`"3K"`）或精确像素值（`"2048x2048"`）
+- **n**: 生成图片数量。Seedream 5.0 Pro 当前仅支持生成单图；需要组图时请使用 `sequential_image_generation_options.max_images`
+- **size**: 图片尺寸，分辨率等级（如 `"1K"`、`"2K"`、`"3K"`）或精确像素值（如 `"2048x2048"`）。Seedream 5.0 Pro 支持 `1K`、`2K`
 - **response_format**: 返回格式（`url` 或 `b64_json`）
-- **output_format**: 输出图片格式（`png` 或 `jpeg`），仅 5.0 lite 支持 png
+- **output_format**: 输出图片格式（`png` 或 `jpeg`），仅 5.0 Pro / lite 支持 png
 - **seed**: 随机数种子，-1 表示随机
 
 ### 画质控制参数
@@ -445,7 +451,7 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 
 ### 高级功能参数
 - **stream**: 是否启用流式输出，默认 `false`
-- **tools**: 工具列表，如 `[{"type": "web_search"}]` 开启联网搜索（仅 5.0 lite）
+- **tools**: 工具列表，如 `[{"type": "web_search"}]` 开启联网搜索（仅 5.0 Pro / lite）
 - **sequential_image_generation**: 组图功能控制（`auto` 或 `disabled`）
 - **sequential_image_generation_options**: 组图功能配置
   - **max_images**: 最大图片数量
