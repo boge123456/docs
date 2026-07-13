@@ -1,0 +1,88 @@
+---
+title: "MiniMax TTS"
+description: "MiniMax 流式与非流式语音合成示例"
+---
+
+统一端点：`POST https://model-api.skyengine.com.cn/v1/audio/speech`。参数依据 [MiniMax 官方 T2A V2 文档](https://platform.minimaxi.com/docs/api-reference/speech-t2a-http) 和当前平台实现整理。
+
+## 非流式
+
+```bash cURL
+curl https://model-api.skyengine.com.cn/v1/audio/speech \
+  -H 'Authorization: Bearer <API-KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"speech-2.6-hd",
+    "input":"欢迎使用 ModelHub 语音合成服务。",
+    "voice":"male-qn-qingse",
+    "speed":1,
+    "response_format":"mp3",
+    "model_extra":{
+      "vol":1,"pitch":0,"audio_sample_rate":32000,"bitrate":128000,
+      "language_boost":"Chinese","subtitle_enable":true,"subtitle_type":"sentence"
+    }
+  }'
+```
+
+返回 JSON，主要字段为 `request_id`、音频 `url`、`subtitle_url`、`duration_ms` 和计费字符数 `token`。
+
+## 流式
+
+```bash cURL
+curl --no-buffer https://model-api.skyengine.com.cn/v1/audio/speech \
+  -H 'Authorization: Bearer <API-KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"speech-2.6-turbo","input":"这是一段流式语音。",
+    "voice":"female-shaonv","response_format":"mp3","stream":true,
+    "model_extra":{"subtitle_enable":true,"subtitle_type":"word_streaming"}
+  }'
+```
+
+```text SSE
+data: {"audio":"<base64-audio>"}
+
+data: {"token":9}
+```
+
+逐条解析 `data:`，Base64 解码 `audio` 后按顺序写入同一文件。
+
+## 参数
+
+<Info>
+截至 2026-07-13，正式环境 `/v1/models` 返回的在线 MiniMax TTS 模型为：`speech-2.6-turbo`、`speech-2.6-hd`、`speech-02-hd`、`speech-2.5-hd-preview`、`speech-2.5-turbo-preview`、`speech-02`、`speech-02-turbo`、`speech-01-hd`。上面的基础示例已使用正式环境验证。
+</Info>
+
+| 参数 | 当前实现 |
+| --- | --- |
+| `model` | MiniMax 模型名；旧名 `speech-01`、`speech-02`、`speech-02-turbo` 会映射到兼容的 V2 名称。 |
+| `input` / `voice` | 必填文本 / MiniMax `voice_id`。 |
+| `speed` | 默认 `1`，平台限制到 `0.5`～`2.0`。 |
+| `response_format` | 默认 `mp3`；具体格式同时受模型和流式模式限制。 |
+| `stream` | 默认 `false`；`true` 返回 SSE。 |
+| `model_extra.vol` | 音量，官方范围 `(0, 10]`。 |
+| `model_extra.pitch` | 音调，官方范围 `-12`～`12`。 |
+| `audio_sample_rate` / `bitrate` | 放在 `model_extra` 中，映射到官方 `audio_setting`。 |
+| `timber_weights` | 混合音色数组：`[{"voice_id":"...","weight":整数}]`。 |
+| `emotion` | 代码仅为 `speech-01` / `speech-01-turbo` 透传该字段；这两个模型当前未出现在正式环境在线模型列表中。对 `speech-01-hd` 传入该字段会被平台忽略。 |
+| `tone` | 发音词典数组，例如 `处理/(chu3)(li3)`。 |
+| `language_boost` | 如 `Chinese`、`English`、`auto`。 |
+| `subtitle_enable` / `subtitle_type` | 字幕开关；粒度为 `sentence`、`word` 或流式的 `word_streaming`。 |
+
+<Warning>
+平台的 `model_extra.output_format` 是音频编码格式的兼容别名，并非 MiniMax 官方同名的 `hex` / `url` 响应形式。请优先使用顶层 `response_format`。
+</Warning>
+
+<Note>
+正式环境实测流式字幕请求会正常完成并在结束事件返回 `token`，但当前适配器未观察到 `subtitle_url`；如需字幕文件，请使用非流式模式。
+</Note>
+
+## 正式环境验证
+
+截至 2026-07-13，以上 8 个在线模型均完成非流式 MP3 生成，并使用 `gemini-3.5-flash` 对生成音频进行内容转写和质量检查：转写均与输入文本一致，音频清晰，无异常静音或截断。`speech-2.6-turbo` 的流式 MP3 也已验证可连续解码。
+
+关键组合验证包括：`speed=0.5` 与 `speed=2.0` 的语速对比、WAV + 音量 + 音调 + 采样率 + 码率 + 语言增强、FLAC + 发音词典、双音色混合，以及词级字幕。MLLM 检查确认快慢语速差异明显、WAV/FLAC 可解码、发音词典中的“行长”读作 `háng zhǎng`，所有样本内容完整。
+
+<Warning>
+FLAC 音频可以正常生成和识别，但当前平台只计算 MP3/WAV 的 `duration_ms`，因此 FLAC 响应的 `duration_ms` 可能为空。MLLM 内容检查用于发现错读、静音和截断，不等同于专业音质或主观听感测评。
+</Warning>

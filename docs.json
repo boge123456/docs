@@ -171,6 +171,14 @@
                     ]
                   },
                   {
+                    "group": "语音合成（TTS）",
+                    "pages": [
+                      "api-reference/examples/tts/minimax",
+                      "api-reference/examples/tts/doubao",
+                      "api-reference/examples/tts/kaitian"
+                    ]
+                  },
+                  {
                     "group": "多模态对话",
                     "pages": [
                       "api-reference/examples/multimodal/openai-vision",

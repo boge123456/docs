@@ -1,0 +1,59 @@
+---
+title: "开天 TTS"
+description: "开天流式与非流式语音合成示例"
+---
+
+统一端点：`POST https://model-api.skyengine.com.cn/v1/audio/speech`。
+
+<Warning>
+截至 2026-07-13，正式环境 `/v1/models` 未返回在线的开天 TTS 模型，下面示例用于说明已实现的协议，当前不能直接在正式环境运行。
+</Warning>
+
+<Note>
+公开渠道未检索到与当前 `/api/tts` 协议完全对应的厂商文档。本页严格依据仓库适配代码；音色和语言可用值以平台模型配置为准。
+</Note>
+
+## 非流式
+
+```bash cURL
+curl https://model-api.skyengine.com.cn/v1/audio/speech \
+  -H 'Authorization: Bearer <API-KEY>' -H 'Content-Type: application/json' \
+  -d '{
+    "model":"ktian-speechv4.3","input":"欢迎使用开天语音合成服务。",
+    "voice":"1","speed":1,"response_format":"mp3",
+    "model_extra":{"language":"zh"}
+  }'
+```
+
+返回 JSON，包含 `request_id`，以及厂商返回的 `url`、`duration_ms` 和平台计费用的 `token`。
+
+## 流式
+
+```bash cURL
+curl --no-buffer https://model-api.skyengine.com.cn/v1/audio/speech \
+  -H 'Authorization: Bearer <API-KEY>' -H 'Content-Type: application/json' \
+  -d '{
+    "model":"ktian-speechv4.3","input":"这是一段流式语音。",
+    "voice":"1","speed":1,"response_format":"mp3","stream":true,
+    "model_extra":{"language":"zh"}
+  }'
+```
+
+```text SSE
+data: {"audio":"<base64-audio>"}
+```
+
+## 参数
+
+| 参数 | 当前实现 |
+| --- | --- |
+| `model` | 开天模型名，例如 `ktian-speechv4.3`。 |
+| `input` | 待合成文本，不能为空。 |
+| `voice` | 音色名称或数字 ID；数字字符串会转换为 `spk_id`，原值也作为 `speaker_name` 传递。 |
+| `speed` | 默认 `1`，限制到 `0.5`～`2.0`。 |
+| `response_format` | 默认 `mp3`。 |
+| `stream` | 默认 `false`；`true` 返回 SSE。 |
+| `model_extra.language` | 直接映射厂商请求的 `language`。 |
+| `model_extra.output_format` | 若提供，会覆盖顶层 `response_format`。 |
+
+流式客户端应逐条 Base64 解码 `audio` 并按顺序写入。当前适配器以 HTTP 响应结束表示流结束，不额外发送 token 结束块。

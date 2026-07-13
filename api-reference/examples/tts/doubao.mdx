@@ -1,0 +1,63 @@
+---
+title: "豆包（火山引擎）TTS"
+description: "豆包流式与非流式语音合成示例"
+---
+
+统一端点：`POST https://model-api.skyengine.com.cn/v1/audio/speech`。参数参考 [火山引擎语音合成大模型 API 文档](https://www.volcengine.com/docs/6348/1807452?lang=zh)，仅列当前代码已实现字段。
+
+<Warning>
+截至 2026-07-13，正式环境 `/v1/models` 未返回在线的豆包 TTS 模型，下面示例用于说明已实现的协议，当前不能直接在正式环境运行。
+</Warning>
+
+## 非流式
+
+```bash cURL
+curl https://model-api.skyengine.com.cn/v1/audio/speech \
+  -H 'Authorization: Bearer <API-KEY>' -H 'Content-Type: application/json' \
+  -d '{
+    "model":"volcengine_tts","input":"欢迎体验豆包语音合成。",
+    "voice":"<speaker-id>","speed":1,"response_format":"mp3",
+    "model_extra":{
+      "loudness_rate":0,"pitch":0,"audio_sample_rate":32000,
+      "bitrate":128000,"enable_timestamp":true,"emotion":"happy"
+    }
+  }'
+```
+
+平台聚合底层音频分片、上传文件，返回 `request_id`、`url`、`duration_ms`、`words` 和 `token`。
+
+## 流式
+
+```bash cURL
+curl --no-buffer https://model-api.skyengine.com.cn/v1/audio/speech \
+  -H 'Authorization: Bearer <API-KEY>' -H 'Content-Type: application/json' \
+  -d '{
+    "model":"volcengine_tts","input":"这是一段流式语音。",
+    "voice":"<speaker-id>","response_format":"mp3","stream":true,
+    "model_extra":{"enable_timestamp":true}
+  }'
+```
+
+```text SSE
+data: {"audio":"<base64-audio>","words":[{"word":"这是","start":0,"end":310}]}
+```
+
+## 参数
+
+| 参数 | 当前实现 |
+| --- | --- |
+| `model` | 平台中的豆包 TTS 模型名。 |
+| `input` / `voice` | 必填文本 / 火山 `speaker` 音色 ID。音色以账号开通范围为准。 |
+| `speed` | 限制到 `0.5`～`2.0`，转换为 `speech_rate`：`0.5 → -50`、`1 → 0`、`2 → 100`。 |
+| `response_format` | 默认 `mp3`；`wav` 会请求 PCM，非流式聚合后由平台封装 WAV。 |
+| `stream` | 默认 `false`；`true` 返回 SSE。 |
+| `model_extra.loudness_rate` | 直接映射官方音量参数。 |
+| `model_extra.vol` | 未传 `loudness_rate` 时使用；倍率转换后限制到 `-50`～`100`。 |
+| `model_extra.pitch` | 映射为 `pitch_rate`。 |
+| `audio_sample_rate` / `bitrate` | 放在 `model_extra` 中；默认采样率 `32000`。 |
+| `enable_timestamp` | 请求字词时间戳；平台输出 `start` / `end` 单位为毫秒。 |
+| `emotion` | 代码接受 `happy`、`sad`、`angry`、`surprised`、`fear`、`hate`、`excited`、`coldness`。 |
+
+<Warning>
+火山不同 TTS 产品、模型和音色的参数能力不同，部分大模型不支持自定义音量或音高；最终以所选模型的官方说明为准。
+</Warning>
