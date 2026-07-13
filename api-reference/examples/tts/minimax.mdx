@@ -12,20 +12,16 @@ description: "在 ModelHub 中使用 MiniMax TTS 将文本转换为语音"
 
 ## 可用模型
 
-| 模型 | 特点 | 推荐场景 |
-| --- | --- | --- |
-| `speech-2.6-hd` | 更注重音质和自然度 | 有声内容、视频配音 |
-| `speech-2.6-turbo` | 更注重生成速度 | 实时播报、语音助手 |
-| `speech-02-hd` | 高质量语音生成 | 通用配音 |
-| `speech-02-turbo` | 低延迟语音生成 | 交互式应用 |
-| `speech-02` | 通用语音模型 | 常规文本朗读 |
-| `speech-2.5-hd-preview` | HD 预览版本 | 效果体验 |
-| `speech-2.5-turbo-preview` | Turbo 预览版本 | 低延迟效果体验 |
-| `speech-01-hd` | 早期 HD 模型 | 已有业务兼容 |
-
-<Tip>
-不确定如何选择时，优先使用 `speech-2.6-hd`；对首包延迟更敏感时使用 `speech-2.6-turbo`。
-</Tip>
+| 模型 |
+| --- |
+| `speech-2.6-hd` |
+| `speech-2.6-turbo` |
+| `speech-02-hd` |
+| `speech-02-turbo` |
+| `speech-02` |
+| `speech-2.5-hd-preview` |
+| `speech-2.5-turbo-preview` |
+| `speech-01-hd` |
 
 ## 非流式语音合成
 
@@ -341,17 +337,3 @@ data: {"token":15}
 <Note>
 设置 `timber_weights` 后，最终声音主要由混合音色配置决定。
 </Note>
-
-## 常见问题
-
-### 如何降低首次播放等待时间？
-
-使用 `speech-2.6-turbo` 并设置 `stream: true`，在收到首个 `audio` 分片后即可开始解码或播放。
-
-### 为什么 FLAC 响应没有音频时长？
-
-FLAC 音频可以正常生成，但响应中可能不包含 `duration_ms`。如业务依赖准确时长，建议使用 MP3 或 WAV。
-
-### 为什么没有返回字幕地址？
-
-确认使用非流式请求，并设置 `model_extra.subtitle_enable: true`。字幕能力还与所选模型有关，推荐使用 `speech-2.6-hd` 或 `speech-2.6-turbo`。
