@@ -125,7 +125,7 @@ Authorization: Bearer <API-KEY>
 | `model` | URL Query | 是 | 固定为 `aigc-cpp-funasr-sysj`。 |
 | `Authorization` | Header | 是 | `Bearer <API-KEY>`。 |
 
-该模型的识别模式、音频采样率和下游切块配置由平台固定。平台会接受 `session.config` 并返回 `session.ready`，但其中的 `config` 参数不会传递给该模型，因此本示例直接发送音频消息。
+WebSocket 建连成功后可以直接发送音频消息，无需先发送 `session.config`，也无需等待 `session.ready`。
 
 ## 输入事件
 

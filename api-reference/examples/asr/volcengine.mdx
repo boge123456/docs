@@ -58,15 +58,6 @@ async def recognize(path: str) -> None:
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
     async with websockets.connect(WS_URL, additional_headers=headers) as ws:
-        await ws.send(json.dumps({
-            "type": "session.config",
-            "config": {}
-        }))
-
-        ready = json.loads(await ws.recv())
-        if ready.get("type") != "session.ready":
-            raise RuntimeError(ready)
-
         with open(path, "rb") as audio_file:
             while chunk := audio_file.read(3200):
                 await ws.send(json.dumps({
@@ -119,7 +110,16 @@ wss://model-api.skyengine.com.cn/v1/stream_asr?model=volcengine_normal
 Authorization: Bearer <API-KEY>
 ```
 
-连接建立后，可以先发送会话配置 Body：
+WebSocket 连接建立后，可以直接发送音频 Body：
+
+```json
+{
+  "type": "input_audio_buffer.append",
+  "audio": "<BASE64_PCM_AUDIO>"
+}
+```
+
+如果需要设置识别语言，可以先发送会话配置 Body：
 
 ```json
 {
@@ -130,7 +130,9 @@ Authorization: Bearer <API-KEY>
 }
 ```
 
-收到 `session.ready` 后，发送音频 Body：
+发送了 `session.config` 时，请等待平台返回 `session.ready`，然后再发送音频 Body。不需要设置会话参数时，无需发送 `session.config`，也无需等待 `session.ready`。
+
+音频 Body：
 
 ```json
 {
@@ -150,7 +152,7 @@ Authorization: Bearer <API-KEY>
 
 ### `session.config`
 
-配置当前识别会话。平台的火山引擎适配器会解析该事件。该事件应作为连接后的第一条消息发送；服务端返回 `session.ready` 后再发送音频。
+配置当前识别会话。该事件不是必需步骤；只有需要设置会话参数时才发送。发送后应等待平台返回 `session.ready`，再开始发送音频。
 
 ```json
 {
@@ -173,7 +175,7 @@ Authorization: Bearer <API-KEY>
 
 `volcengine_normal` 只读取 `language`；`enable_itn`、`enable_punc` 和 `enable_ddc` 不会传递给该模型。
 
-不发送 `session.config`、直接发送第一条 `input_audio_buffer.append` 时，平台会使用模型默认配置。
+不发送 `session.config` 时，WebSocket 建连成功后可以直接发送第一条 `input_audio_buffer.append`，平台将使用模型默认配置。
 
 ### `input_audio_buffer.append`
 
