@@ -107,6 +107,45 @@ asyncio.run(recognize("input.pcm"))
 
 将 `MODEL` 改为 `volcengine_bigmodel` 即可调用大模型流式识别。
 
+## 请求格式
+
+ASR 使用 WebSocket 协议，因此建连请求没有 HTTP JSON Body。连接成功后，客户端通过 WebSocket 文本消息发送 JSON Body。
+
+建连地址：
+
+```text
+wss://model-api.skyengine.com.cn/v1/stream_asr?model=volcengine_normal
+```
+
+建连 Header：
+
+```text
+Authorization: Bearer <API-KEY>
+```
+
+连接建立后，可以先发送会话配置 Body：
+
+```json
+{
+  "type": "session.config",
+  "event_id": "event_config",
+  "config": {
+    "language": "zh-CN"
+  }
+}
+```
+
+收到 `session.ready` 后，发送音频 Body：
+
+```json
+{
+  "type": "input_audio_buffer.append",
+  "event_id": "event_01",
+  "trace_id": "segment_01",
+  "audio": "<BASE64_PCM_AUDIO>"
+}
+```
+
 ## 连接参数
 
 | 参数 | 位置 | 必填 | 说明 |
@@ -118,7 +157,7 @@ asyncio.run(recognize("input.pcm"))
 
 ### `session.config`
 
-配置当前识别会话。该事件应作为连接后的第一条消息发送；服务端返回 `session.ready` 后再发送音频。
+配置当前识别会话。平台的火山引擎适配器会解析该事件。该事件应作为连接后的第一条消息发送；服务端返回 `session.ready` 后再发送音频。
 
 ```json
 {
@@ -141,6 +180,8 @@ asyncio.run(recognize("input.pcm"))
 | `enable_ddc` | boolean | `false` | `volcengine_bigmodel` | 开启语义顺滑。 |
 
 `volcengine_normal` 只读取 `language`；`enable_itn`、`enable_punc` 和 `enable_ddc` 不会传递给该模型。
+
+不发送 `session.config`、直接发送第一条 `input_audio_buffer.append` 时，平台会使用模型默认配置。
 
 ### `input_audio_buffer.append`
 

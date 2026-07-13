@@ -91,6 +91,33 @@ async def recognize(path: str) -> None:
 asyncio.run(recognize("input.pcm"))
 ```
 
+## 请求格式
+
+ASR 使用 WebSocket 协议，因此建连请求没有 HTTP JSON Body。连接成功后，客户端通过 WebSocket 文本消息发送音频 JSON Body。
+
+建连地址：
+
+```text
+wss://model-api.skyengine.com.cn/v1/stream_asr?model=aigc-cpp-funasr-sysj
+```
+
+建连 Header：
+
+```text
+Authorization: Bearer <API-KEY>
+```
+
+音频消息 Body：
+
+```json
+{
+  "type": "input_audio_buffer.append",
+  "event_id": "event_01",
+  "trace_id": "segment_01",
+  "audio": "<BASE64_PCM_AUDIO>"
+}
+```
+
 ## 连接参数
 
 | 参数 | 位置 | 必填 | 说明 |
@@ -98,7 +125,7 @@ asyncio.run(recognize("input.pcm"))
 | `model` | URL Query | 是 | 固定为 `aigc-cpp-funasr-sysj`。 |
 | `Authorization` | Header | 是 | `Bearer <API-KEY>`。 |
 
-该模型的识别模式、音频采样率和下游切块配置由平台固定。发送 `session.config` 不会修改这些参数。
+该模型的识别模式、音频采样率和下游切块配置由平台固定。平台会接受 `session.config` 并返回 `session.ready`，但其中的 `config` 参数不会传递给该模型，因此本示例直接发送音频消息。
 
 ## 输入事件
 
