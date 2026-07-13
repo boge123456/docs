@@ -177,6 +177,13 @@
                     ]
                   },
                   {
+                    "group": "语音识别（ASR）",
+                    "pages": [
+                      "api-reference/examples/asr/volcengine",
+                      "api-reference/examples/asr/funasr"
+                    ]
+                  },
+                  {
                     "group": "多模态对话",
                     "pages": [
                       "api-reference/examples/multimodal/openai-vision",

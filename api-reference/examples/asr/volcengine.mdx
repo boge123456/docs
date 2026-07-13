@@ -1,0 +1,189 @@
+---
+title: "火山引擎流式语音识别"
+description: "在 ModelHub 中使用火山引擎 ASR 实时识别语音"
+---
+
+# 火山引擎流式语音识别
+
+通过 WebSocket 接口 `/v1/stream_asr` 持续发送 PCM 音频，并实时接收识别结果。
+
+## 可用模型
+
+| 模型 | 说明 |
+| --- | --- |
+| `volcengine_bigmodel` | 火山引擎大模型流式语音识别 |
+| `volcengine_normal` | 火山引擎流式语音识别 |
+
+## 音频要求
+
+发送的音频必须满足以下要求：
+
+| 项目 | 要求 |
+| --- | --- |
+| 编码 | PCM signed 16-bit little-endian |
+| 采样率 | 16000 Hz |
+| 声道 | 单声道 |
+| 容器 | 裸 PCM，不包含 WAV 文件头 |
+
+如果源文件不是该格式，可先使用 FFmpeg 转换：
+
+```bash
+ffmpeg -i input.mp3 -f s16le -acodec pcm_s16le -ac 1 -ar 16000 input.pcm
+```
+
+## Python 示例
+
+安装 WebSocket 客户端：
+
+```bash
+pip install websockets
+```
+
+以下示例读取 `input.pcm`，按 100 毫秒分片发送，并在音频末尾补充静音以触发完整识别结果：
+
+```python
+import asyncio
+import base64
+import json
+import os
+import uuid
+
+import websockets
+
+API_KEY = os.environ["MODELHUB_API_KEY"]
+MODEL = "volcengine_normal"
+WS_URL = f"wss://model-api.skyengine.com.cn/v1/stream_asr?model={MODEL}"
+
+
+async def recognize(path: str) -> None:
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+
+    async with websockets.connect(WS_URL, additional_headers=headers) as ws:
+        await ws.send(json.dumps({
+            "type": "session.config",
+            "event_id": "event_config",
+            "config": {}
+        }))
+
+        ready = json.loads(await ws.recv())
+        if ready.get("type") != "session.ready":
+            raise RuntimeError(ready)
+
+        with open(path, "rb") as audio_file:
+            while chunk := audio_file.read(3200):
+                await ws.send(json.dumps({
+                    "type": "input_audio_buffer.append",
+                    "event_id": f"event_{uuid.uuid4().hex}",
+                    "audio": base64.b64encode(chunk).decode(),
+                }))
+                await asyncio.sleep(0.1)
+
+        # 1 秒 16 kHz、16-bit、单声道静音
+        await ws.send(json.dumps({
+            "type": "input_audio_buffer.append",
+            "event_id": f"event_{uuid.uuid4().hex}",
+            "audio": base64.b64encode(bytes(32000)).decode(),
+        }))
+
+        completed = []
+        while True:
+            try:
+                message = await asyncio.wait_for(ws.recv(), timeout=3)
+            except asyncio.TimeoutError:
+                break
+            event = json.loads(message)
+            if event.get("type") == "error":
+                raise RuntimeError(event["error"]["message"])
+            if event.get("type") == "conversation.item.input_audio_transcription.delta":
+                print("实时结果：", event["transcript"])
+            if event.get("type") == "conversation.item.input_audio_transcription.completed":
+                completed.append(event["transcript"])
+
+        print("最终结果：", "".join(completed))
+
+
+asyncio.run(recognize("input.pcm"))
+```
+
+将 `MODEL` 改为 `volcengine_bigmodel` 即可调用大模型流式识别。
+
+## 连接参数
+
+| 参数 | 位置 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | URL Query | 是 | 使用的 ASR 模型名称。 |
+| `Authorization` | Header | 是 | `Bearer <API-KEY>`。 |
+
+## 客户端事件
+
+### `session.config`
+
+配置当前识别会话。该事件应作为连接后的第一条消息发送；服务端返回 `session.ready` 后再发送音频。
+
+```json
+{
+  "type": "session.config",
+  "event_id": "event_config",
+  "config": {
+    "language": "zh-CN",
+    "enable_itn": true,
+    "enable_punc": true,
+    "enable_ddc": false
+  }
+}
+```
+
+| `config` 参数 | 类型 | 默认值 | 适用模型 | 说明 |
+| --- | --- | --- | --- | --- |
+| `language` | string | 未指定 | 两款模型 | 识别语言。是否可用以及具体取值取决于模型服务。 |
+| `enable_itn` | boolean | `true` | `volcengine_bigmodel` | 开启数字、日期等内容的文本规整。 |
+| `enable_punc` | boolean | `true` | `volcengine_bigmodel` | 在识别结果中添加标点。 |
+| `enable_ddc` | boolean | `false` | `volcengine_bigmodel` | 开启语义顺滑。 |
+
+`volcengine_normal` 只读取 `language`；`enable_itn`、`enable_punc` 和 `enable_ddc` 不会传递给该模型。
+
+### `input_audio_buffer.append`
+
+发送一段 Base64 编码的 PCM 音频。建议按固定时长连续发送，不要一次发送完整的长音频。
+
+```json
+{
+  "type": "input_audio_buffer.append",
+  "event_id": "event_01",
+  "audio": "<BASE64_PCM_AUDIO>"
+}
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `type` | string | 是 | 固定为 `input_audio_buffer.append`。 |
+| `audio` | string | 是 | Base64 编码的 PCM 音频字节。 |
+| `event_id` | string | 否 | 客户端生成的事件 ID。 |
+| `trace_id` | string | 否 | 用于关联当前音频片段和识别事件。 |
+
+## 服务端事件
+
+| 事件 | 说明 |
+| --- | --- |
+| `session.ready` | 会话配置完成，可以开始发送音频。 |
+| `conversation.item.created` | 创建了一段新的语音识别内容。 |
+| `input_audio_buffer.speech_started` | 检测到语音开始。 |
+| `conversation.item.input_audio_transcription.delta` | 当前语音段的实时累计识别文本。 |
+| `input_audio_buffer.speech_stopped` | 检测到语音结束。 |
+| `conversation.item.input_audio_transcription.completed` | 当前语音段的最终识别文本；一次连接可能返回多条。 |
+| `error` | 请求或识别失败。 |
+
+最终结果事件示例：
+
+```json
+{
+  "event_id": "event_xxx",
+  "type": "conversation.item.input_audio_transcription.completed",
+  "item_id": "item_xxx",
+  "content_index": 0,
+  "transcript": "欢迎使用语音识别服务。",
+  "audio_duration": 3
+}
+```
+
+火山引擎模型能力说明可参考[火山引擎语音识别产品文档](https://www.volcengine.com/docs/6561/1354871)。
