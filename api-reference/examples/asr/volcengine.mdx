@@ -46,7 +46,6 @@ import asyncio
 import base64
 import json
 import os
-import uuid
 
 import websockets
 
@@ -61,7 +60,6 @@ async def recognize(path: str) -> None:
     async with websockets.connect(WS_URL, additional_headers=headers) as ws:
         await ws.send(json.dumps({
             "type": "session.config",
-            "event_id": "event_config",
             "config": {}
         }))
 
@@ -73,7 +71,6 @@ async def recognize(path: str) -> None:
             while chunk := audio_file.read(3200):
                 await ws.send(json.dumps({
                     "type": "input_audio_buffer.append",
-                    "event_id": f"event_{uuid.uuid4().hex}",
                     "audio": base64.b64encode(chunk).decode(),
                 }))
                 await asyncio.sleep(0.1)
@@ -81,7 +78,6 @@ async def recognize(path: str) -> None:
         # 1 秒 16 kHz、16-bit、单声道静音
         await ws.send(json.dumps({
             "type": "input_audio_buffer.append",
-            "event_id": f"event_{uuid.uuid4().hex}",
             "audio": base64.b64encode(bytes(32000)).decode(),
         }))
 
@@ -128,7 +124,6 @@ Authorization: Bearer <API-KEY>
 ```json
 {
   "type": "session.config",
-  "event_id": "event_config",
   "config": {
     "language": "zh-CN"
   }
@@ -140,8 +135,6 @@ Authorization: Bearer <API-KEY>
 ```json
 {
   "type": "input_audio_buffer.append",
-  "event_id": "event_01",
-  "trace_id": "segment_01",
   "audio": "<BASE64_PCM_AUDIO>"
 }
 ```
@@ -162,7 +155,6 @@ Authorization: Bearer <API-KEY>
 ```json
 {
   "type": "session.config",
-  "event_id": "event_config",
   "config": {
     "language": "zh-CN",
     "enable_itn": true,
@@ -190,7 +182,6 @@ Authorization: Bearer <API-KEY>
 ```json
 {
   "type": "input_audio_buffer.append",
-  "event_id": "event_01",
   "audio": "<BASE64_PCM_AUDIO>"
 }
 ```
@@ -199,8 +190,6 @@ Authorization: Bearer <API-KEY>
 | --- | --- | --- | --- |
 | `type` | string | 是 | 固定为 `input_audio_buffer.append`。 |
 | `audio` | string | 是 | Base64 编码的 PCM 音频字节。 |
-| `event_id` | string | 否 | 客户端生成的事件 ID。 |
-| `trace_id` | string | 否 | 用于关联当前音频片段和识别事件。 |
 
 ## 服务端事件
 

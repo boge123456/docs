@@ -53,13 +53,14 @@ WS_URL = "wss://model-api.skyengine.com.cn/v1/stream_asr?model=aigc-cpp-funasr-s
 
 async def recognize(path: str) -> None:
     headers = {"Authorization": f"Bearer {API_KEY}"}
+    trace_id = f"segment_{uuid.uuid4().hex}"
 
     async with websockets.connect(WS_URL, additional_headers=headers) as ws:
         with open(path, "rb") as audio_file:
             while chunk := audio_file.read(3200):
                 await ws.send(json.dumps({
                     "type": "input_audio_buffer.append",
-                    "event_id": f"event_{uuid.uuid4().hex}",
+                    "trace_id": trace_id,
                     "audio": base64.b64encode(chunk).decode(),
                 }))
                 await asyncio.sleep(0.1)
@@ -67,7 +68,7 @@ async def recognize(path: str) -> None:
         # 发送静音，让服务端完成当前语音段
         await ws.send(json.dumps({
             "type": "input_audio_buffer.append",
-            "event_id": f"event_{uuid.uuid4().hex}",
+            "trace_id": trace_id,
             "audio": base64.b64encode(bytes(32000)).decode(),
         }))
 
@@ -112,7 +113,6 @@ Authorization: Bearer <API-KEY>
 ```json
 {
   "type": "input_audio_buffer.append",
-  "event_id": "event_01",
   "trace_id": "segment_01",
   "audio": "<BASE64_PCM_AUDIO>"
 }
@@ -134,7 +134,6 @@ Authorization: Bearer <API-KEY>
 ```json
 {
   "type": "input_audio_buffer.append",
-  "event_id": "event_01",
   "trace_id": "segment_01",
   "audio": "<BASE64_PCM_AUDIO>"
 }
@@ -144,8 +143,7 @@ Authorization: Bearer <API-KEY>
 | --- | --- | --- | --- |
 | `type` | string | 是 | 固定为 `input_audio_buffer.append`。 |
 | `audio` | string | 是 | Base64 编码的 PCM 音频字节。 |
-| `event_id` | string | 否 | 客户端生成的事件 ID。 |
-| `trace_id` | string | 否 | 用于关联当前音频片段和识别事件。 |
+| `trace_id` | string | 否 | 客户端为当前语音段生成的关联 ID；平台会在该语音段的识别事件中回传相同值。它不是平台请求链路的 Trace ID。 |
 
 ## 输出事件
 
