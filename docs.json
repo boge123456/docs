@@ -180,7 +180,8 @@
                     "group": "语音识别（ASR）",
                     "pages": [
                       "api-reference/examples/asr/volcengine",
-                      "api-reference/examples/asr/funasr"
+                      "api-reference/examples/asr/funasr",
+                      "api-reference/examples/asr/kaitian"
                     ]
                   },
                   {
