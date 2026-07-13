@@ -1,88 +1,357 @@
 ---
-title: "MiniMax TTS"
-description: "MiniMax 流式与非流式语音合成示例"
+title: "MiniMax 语音合成"
+description: "在 ModelHub 中使用 MiniMax TTS 将文本转换为语音"
 ---
 
-统一端点：`POST https://model-api.skyengine.com.cn/v1/audio/speech`。参数依据 [MiniMax 官方 T2A V2 文档](https://platform.minimaxi.com/docs/api-reference/speech-t2a-http) 和当前平台实现整理。
+# MiniMax 语音合成
 
-## 非流式
+通过 `/v1/audio/speech` 接口将文本转换为自然语音。接口支持两种输出方式：
+
+- **非流式**：生成完成后返回音频文件 URL，适合配音、有声内容等场景。
+- **流式**：通过 SSE 持续返回音频分片，适合语音助手、实时播报等低延迟场景。
+
+## 可用模型
+
+| 模型 | 特点 | 推荐场景 |
+| --- | --- | --- |
+| `speech-2.6-hd` | 更注重音质和自然度 | 有声内容、视频配音 |
+| `speech-2.6-turbo` | 更注重生成速度 | 实时播报、语音助手 |
+| `speech-02-hd` | 高质量语音生成 | 通用配音 |
+| `speech-02-turbo` | 低延迟语音生成 | 交互式应用 |
+| `speech-02` | 通用语音模型 | 常规文本朗读 |
+| `speech-2.5-hd-preview` | HD 预览版本 | 效果体验 |
+| `speech-2.5-turbo-preview` | Turbo 预览版本 | 低延迟效果体验 |
+| `speech-01-hd` | 早期 HD 模型 | 已有业务兼容 |
+
+<Tip>
+不确定如何选择时，优先使用 `speech-2.6-hd`；对首包延迟更敏感时使用 `speech-2.6-turbo`。
+</Tip>
+
+## 非流式语音合成
+
+只需提供模型、文本和音色。生成完成后，从响应的 `url` 下载或播放音频。
+
+<CodeGroup>
 
 ```bash cURL
-curl https://model-api.skyengine.com.cn/v1/audio/speech \
-  -H 'Authorization: Bearer <API-KEY>' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model":"speech-2.6-hd",
-    "input":"欢迎使用 ModelHub 语音合成服务。",
-    "voice":"male-qn-qingse",
-    "speed":1,
-    "response_format":"mp3",
-    "model_extra":{
-      "vol":1,"pitch":0,"audio_sample_rate":32000,"bitrate":128000,
-      "language_boost":"Chinese","subtitle_enable":true,"subtitle_type":"sentence"
-    }
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/audio/speech \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "speech-2.6-hd",
+    "input": "欢迎使用 ModelHub 语音合成服务。",
+    "voice": "male-qn-qingse",
+    "speed": 1.0,
+    "response_format": "mp3"
   }'
 ```
 
-返回 JSON，主要字段为 `request_id`、音频 `url`、`subtitle_url`、`duration_ms` 和计费字符数 `token`。
+```python Python
+import requests
 
-## 流式
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-```bash cURL
-curl --no-buffer https://model-api.skyengine.com.cn/v1/audio/speech \
-  -H 'Authorization: Bearer <API-KEY>' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model":"speech-2.6-turbo","input":"这是一段流式语音。",
-    "voice":"female-shaonv","response_format":"mp3","stream":true,
-    "model_extra":{"subtitle_enable":true,"subtitle_type":"word_streaming"}
-  }'
+response = requests.post(
+    f"{BASE_URL}/audio/speech",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+    json={
+        "model": "speech-2.6-hd",
+        "input": "欢迎使用 ModelHub 语音合成服务。",
+        "voice": "male-qn-qingse",
+        "speed": 1.0,
+        "response_format": "mp3",
+    },
+    timeout=120,
+)
+response.raise_for_status()
+
+result = response.json()
+print("音频地址:", result["url"])
+print("音频时长（毫秒）:", result.get("duration_ms"))
 ```
 
-```text SSE
-data: {"audio":"<base64-audio>"}
+```javascript JavaScript/Node.js
+const response = await fetch("https://model-api.skyengine.com.cn/v1/audio/speech", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer <API-KEY>",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "speech-2.6-hd",
+    input: "欢迎使用 ModelHub 语音合成服务。",
+    voice: "male-qn-qingse",
+    speed: 1.0,
+    response_format: "mp3"
+  })
+});
 
-data: {"token":9}
+if (!response.ok) throw new Error(await response.text());
+
+const result = await response.json();
+console.log("音频地址:", result.url);
+console.log("音频时长（毫秒）:", result.duration_ms);
 ```
 
-逐条解析 `data:`，Base64 解码 `audio` 后按顺序写入同一文件。
+</CodeGroup>
 
-## 参数
+响应示例：
 
-<Info>
-截至 2026-07-13，正式环境 `/v1/models` 返回的在线 MiniMax TTS 模型为：`speech-2.6-turbo`、`speech-2.6-hd`、`speech-02-hd`、`speech-2.5-hd-preview`、`speech-2.5-turbo-preview`、`speech-02`、`speech-02-turbo`、`speech-01-hd`。上面的基础示例已使用正式环境验证。
-</Info>
+```json
+{
+  "request_id": "9f72f...",
+  "url": "https://.../tts_xxx.mp3",
+  "duration_ms": 3204,
+  "token": 23
+}
+```
 
-| 参数 | 当前实现 |
+| 响应字段 | 说明 |
 | --- | --- |
-| `model` | MiniMax 模型名；旧名 `speech-01`、`speech-02`、`speech-02-turbo` 会映射到兼容的 V2 名称。 |
-| `input` / `voice` | 必填文本 / MiniMax `voice_id`。 |
-| `speed` | 默认 `1`，平台限制到 `0.5`～`2.0`。 |
-| `response_format` | 默认 `mp3`；具体格式同时受模型和流式模式限制。 |
-| `stream` | 默认 `false`；`true` 返回 SSE。 |
-| `model_extra.vol` | 音量，官方范围 `(0, 10]`。 |
-| `model_extra.pitch` | 音调，官方范围 `-12`～`12`。 |
-| `audio_sample_rate` / `bitrate` | 放在 `model_extra` 中，映射到官方 `audio_setting`。 |
-| `timber_weights` | 混合音色数组：`[{"voice_id":"...","weight":整数}]`。 |
-| `emotion` | 代码仅为 `speech-01` / `speech-01-turbo` 透传该字段；这两个模型当前未出现在正式环境在线模型列表中。对 `speech-01-hd` 传入该字段会被平台忽略。 |
-| `tone` | 发音词典数组，例如 `处理/(chu3)(li3)`。 |
-| `language_boost` | 如 `Chinese`、`English`、`auto`。 |
-| `subtitle_enable` / `subtitle_type` | 字幕开关；粒度为 `sentence`、`word` 或流式的 `word_streaming`。 |
+| `request_id` | 本次语音合成请求 ID。 |
+| `url` | 生成音频的访问地址。请及时转存，不要依赖其永久有效。 |
+| `subtitle_url` | 开启字幕后返回的字幕文件地址。 |
+| `duration_ms` | 音频时长，单位为毫秒。 |
+| `token` | 本次请求计费使用的字符数。 |
 
-<Warning>
-平台的 `model_extra.output_format` 是音频编码格式的兼容别名，并非 MiniMax 官方同名的 `hex` / `url` 响应形式。请优先使用顶层 `response_format`。
-</Warning>
+## 流式语音合成
+
+设置 `stream: true` 后，接口返回 `text/event-stream`。每条 SSE 消息中的 `audio` 是 Base64 编码的 MP3 分片。
+
+<CodeGroup>
+
+```bash cURL
+curl --no-buffer --request POST \
+  --url https://model-api.skyengine.com.cn/v1/audio/speech \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "speech-2.6-turbo",
+    "input": "这是一段流式语音合成示例。",
+    "voice": "female-shaonv",
+    "response_format": "mp3",
+    "stream": true
+  }'
+```
+
+```python Python
+import base64
+import json
+import requests
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/audio/speech",
+    headers={"Authorization": "Bearer <API-KEY>"},
+    json={
+        "model": "speech-2.6-turbo",
+        "input": "这是一段流式语音合成示例。",
+        "voice": "female-shaonv",
+        "response_format": "mp3",
+        "stream": True,
+    },
+    stream=True,
+    timeout=120,
+)
+response.raise_for_status()
+
+with open("speech.mp3", "wb") as audio_file:
+    for line in response.iter_lines(decode_unicode=True):
+        if not line or not line.startswith("data:"):
+            continue
+        event = json.loads(line.removeprefix("data:").strip())
+        if event.get("error"):
+            raise RuntimeError(event["error"]["message"])
+        if event.get("audio"):
+            audio_file.write(base64.b64decode(event["audio"]))
+
+print("音频已保存为 speech.mp3")
+```
+
+```javascript JavaScript/Node.js
+import { createWriteStream } from "node:fs";
+
+const response = await fetch("https://model-api.skyengine.com.cn/v1/audio/speech", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer <API-KEY>",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "speech-2.6-turbo",
+    input: "这是一段流式语音合成示例。",
+    voice: "female-shaonv",
+    response_format: "mp3",
+    stream: true
+  })
+});
+
+if (!response.ok) throw new Error(await response.text());
+
+const output = createWriteStream("speech.mp3");
+const decoder = new TextDecoder();
+let buffer = "";
+
+for await (const chunk of response.body) {
+  buffer += decoder.decode(chunk, { stream: true });
+  const events = buffer.split("\n\n");
+  buffer = events.pop() ?? "";
+
+  for (const eventText of events) {
+    const dataLine = eventText.split("\n").find(line => line.startsWith("data:"));
+    if (!dataLine) continue;
+    const event = JSON.parse(dataLine.slice(5).trim());
+    if (event.error) throw new Error(event.error.message);
+    if (event.audio) output.write(Buffer.from(event.audio, "base64"));
+  }
+}
+
+output.end();
+console.log("音频已保存为 speech.mp3");
+```
+
+</CodeGroup>
+
+SSE 数据示例：
+
+```text
+data: {"audio":"<base64-audio-chunk>"}
+
+data: {"audio":"<base64-audio-chunk>"}
+
+data: {"token":15}
+```
 
 <Note>
-正式环境实测流式字幕请求会正常完成并在结束事件返回 `token`，但当前适配器未观察到 `subtitle_url`；如需字幕文件，请使用非流式模式。
+流式模式建议使用 `mp3`。音频分片必须按接收顺序解码并写入同一个文件。
 </Note>
 
-## 正式环境验证
+## 请求参数
 
-截至 2026-07-13，以上 8 个在线模型均完成非流式 MP3 生成，并使用 `gemini-3.5-flash` 对生成音频进行内容转写和质量检查：转写均与输入文本一致，音频清晰，无异常静音或截断。`speech-2.6-turbo` 的流式 MP3 也已验证可连续解码。
+### 通用参数
 
-关键组合验证包括：`speed=0.5` 与 `speed=2.0` 的语速对比、WAV + 音量 + 音调 + 采样率 + 码率 + 语言增强、FLAC + 发音词典、双音色混合，以及词级字幕。MLLM 检查确认快慢语速差异明显、WAV/FLAC 可解码、发音词典中的“行长”读作 `háng zhǎng`，所有样本内容完整。
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `model` | string | 是 | - | 要使用的 TTS 模型。 |
+| `input` | string | 是 | - | 需要合成的文本。 |
+| `voice` | string | 是 | - | 音色 ID。 |
+| `speed` | number | 否 | `1.0` | 语速，范围 `0.5`～`2.0`。数值越大语速越快。 |
+| `response_format` | string | 否 | `mp3` | 音频格式，常用值为 `mp3`、`wav`、`flac`。流式模式推荐 `mp3`。 |
+| `stream` | boolean | 否 | `false` | 是否通过 SSE 流式返回音频。 |
+| `model_extra` | object | 否 | - | MiniMax 高级参数。 |
 
-<Warning>
-FLAC 音频可以正常生成和识别，但当前平台只计算 MP3/WAV 的 `duration_ms`，因此 FLAC 响应的 `duration_ms` 可能为空。MLLM 内容检查用于发现错读、静音和截断，不等同于专业音质或主观听感测评。
-</Warning>
+### 常用音色
+
+| 音色 ID | 音色说明 |
+| --- | --- |
+| `male-qn-qingse` | 青涩青年男声 |
+| `male-qn-jingying` | 精英青年男声 |
+| `male-qn-badao` | 霸道青年男声 |
+| `female-shaonv` | 少女音色 |
+| `female-yujie` | 御姐音色 |
+| `female-chengshu` | 成熟女性音色 |
+| `presenter_male` | 男性主持人 |
+| `presenter_female` | 女性主持人 |
+| `audiobook_male_1` | 男性有声书音色 |
+| `audiobook_female_1` | 女性有声书音色 |
+
+也可以将已创建的 MiniMax 复刻音色 ID 传给 `voice`。更多系统音色请参考 [MiniMax 官方语音合成文档](https://platform.minimaxi.com/docs/api-reference/speech-t2a-http)。
+
+### 高级参数
+
+高级参数统一放在 `model_extra` 中：
+
+```json
+{
+  "model_extra": {
+    "vol": 1.2,
+    "pitch": 2,
+    "audio_sample_rate": 32000,
+    "bitrate": 128000,
+    "language_boost": "Chinese"
+  }
+}
+```
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `vol` | number | 音量，范围 `(0, 10]`，默认 `1.0`。 |
+| `pitch` | integer | 音调，范围 `-12`～`12`，默认 `0`。 |
+| `audio_sample_rate` | integer | 音频采样率，例如 `16000`、`24000`、`32000`、`44100`。 |
+| `bitrate` | integer | MP3 比特率，例如 `128000`。 |
+| `language_boost` | string | 指定语言增强，如 `Chinese`、`English`、`Chinese,Yue` 或 `auto`。 |
+| `tone` | string[] | 自定义发音词典，例如 `["行长/(hang2)(zhang3)"]`。 |
+| `timber_weights` | object[] | 混合多个音色，每项包含 `voice_id` 和 `weight`。最多建议使用 4 个音色。 |
+| `subtitle_enable` | boolean | 是否生成字幕文件。 |
+| `subtitle_type` | string | 字幕粒度：`sentence` 或 `word`。 |
+
+## 生成字幕
+
+字幕文件请使用非流式模式：
+
+```json
+{
+  "model": "speech-2.6-hd",
+  "input": "这段语音会同时生成词级字幕。",
+  "voice": "presenter_female",
+  "response_format": "mp3",
+  "model_extra": {
+    "subtitle_enable": true,
+    "subtitle_type": "word"
+  }
+}
+```
+
+成功后通过响应中的 `subtitle_url` 获取字幕文件。
+
+## 指定发音
+
+遇到多音字、专有名词或英文缩写时，可以使用 `tone` 指定发音：
+
+```json
+{
+  "model": "speech-2.6-hd",
+  "input": "银行行长参加会议。",
+  "voice": "male-qn-jingying",
+  "model_extra": {
+    "tone": ["行长/(hang2)(zhang3)"]
+  }
+}
+```
+
+## 混合音色
+
+使用 `timber_weights` 混合多个系统音色：
+
+```json
+{
+  "model": "speech-2.6-hd",
+  "input": "这是一段混合音色示例。",
+  "voice": "female-shaonv",
+  "model_extra": {
+    "timber_weights": [
+      {"voice_id": "male-qn-qingse", "weight": 50},
+      {"voice_id": "female-shaonv", "weight": 50}
+    ]
+  }
+}
+```
+
+<Note>
+设置 `timber_weights` 后，最终声音主要由混合音色配置决定。
+</Note>
+
+## 常见问题
+
+### 如何降低首次播放等待时间？
+
+使用 `speech-2.6-turbo` 并设置 `stream: true`，在收到首个 `audio` 分片后即可开始解码或播放。
+
+### 为什么 FLAC 响应没有音频时长？
+
+FLAC 音频可以正常生成，但响应中可能不包含 `duration_ms`。如业务依赖准确时长，建议使用 MP3 或 WAV。
+
+### 为什么没有返回字幕地址？
+
+确认使用非流式请求，并设置 `model_extra.subtitle_enable: true`。字幕能力还与所选模型有关，推荐使用 `speech-2.6-hd` 或 `speech-2.6-turbo`。

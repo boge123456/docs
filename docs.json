@@ -173,9 +173,7 @@
                   {
                     "group": "语音合成（TTS）",
                     "pages": [
-                      "api-reference/examples/tts/minimax",
-                      "api-reference/examples/tts/doubao",
-                      "api-reference/examples/tts/kaitian"
+                      "api-reference/examples/tts/minimax"
                     ]
                   },
                   {
