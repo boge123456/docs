@@ -1,0 +1,225 @@
+---
+title: 'MiniMax Music 3.0 音乐生成'
+description: '通过平台音乐生成接口调用 MiniMax Music 3.0，支持普通歌词、纯音乐和自动歌词模式。'
+---
+
+# MiniMax Music 3.0 音乐生成
+
+您可以通过平台统一的同步接口生成完整音乐：
+
+```text
+POST /v1/music/generations
+```
+
+接口成功时直接返回音频 URL 或 Hex 数据，不需要轮询任务状态。
+
+<Note>
+本文描述的是平台对外接口。请使用平台域名、平台 API Key 和模型广场中展示的模型名称，不要直接使用 MiniMax 原生接口地址。
+</Note>
+
+## 快速开始
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/music/generations \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json; charset=utf-8' \
+  --data '{
+    "model": "music-3.0",
+    "prompt": "独立民谣，温暖、轻松，木吉他与柔和鼓点",
+    "lyrics": "[Verse]\n晚风吹过安静街角\n灯光落在回家的路\n[Chorus]\n让这一刻慢慢停留\n把温柔唱给你听",
+    "output_format": "url",
+    "audio_setting": {
+      "sample_rate": 44100,
+      "bitrate": 256000,
+      "format": "mp3"
+    },
+    "aigc_watermark": false
+  }'
+```
+
+成功响应示例：
+
+```json
+{
+  "data": {
+    "audio": "https://example.com/generated-music.mp3",
+    "status": 2
+  },
+  "trace_id": "06c09084a14f0881b9fc1311809682cf",
+  "extra_info": {
+    "music_duration": 55116,
+    "music_sample_rate": 44100,
+    "music_channel": 2,
+    "bitrate": 256000,
+    "music_size": 1765480
+  },
+  "base_resp": {
+    "status_code": 0,
+    "status_msg": "success"
+  }
+}
+```
+
+## 请求参数
+
+| 参数 | 类型 | 必填 | 平台规则 |
+|---|---|---|---|
+| `model` | string | 是 | 使用模型广场展示的 Music 3.0 模型名称，例如 `music-3.0` |
+| `prompt` | string | 条件必填 | 音乐风格、情绪和场景描述，最多 2000 个 Unicode 字符；纯音乐或空歌词自动生成时必填 |
+| `lyrics` | string | 条件必填 | 歌词，最多 3500 个 Unicode 字符；普通歌曲必填，使用 `\n` 分行 |
+| `stream` | boolean | 否 | 平台当前仅支持 `false`；传入 `true` 返回参数错误 |
+| `output_format` | string | 否 | `hex` 或 `url`，默认 `hex` |
+| `audio_setting` | object | 否 | 输出音频参数；未传时默认生成 MP3、44.1 kHz、256 kbps |
+| `aigc_watermark` | boolean | 否 | 是否在音频末尾添加 AIGC 水印，默认 `false` |
+| `lyrics_optimizer` | boolean | 否 | `lyrics` 为空时，根据 `prompt` 自动生成歌词，默认 `false` |
+| `is_instrumental` | boolean | 否 | 是否生成纯音乐，默认 `false` |
+
+未知字段会被平台拒绝。建议显式传入 `audio_setting`，以便调用方稳定控制输出规格。
+
+### audio_setting
+
+| 参数 | 类型 | 支持值 |
+|---|---|---|
+| `sample_rate` | integer | `16000`、`24000`、`32000`、`44100` |
+| `bitrate` | integer | `32000`、`64000`、`128000`、`256000` |
+| `format` | string | `mp3`、`wav`、`pcm` |
+
+<Warning>
+PCM 是裸音频数据，不包含 WAV 文件头。播放或封装 PCM 时，请同时保留响应中的采样率和声道信息。对于 WAV/PCM，`bitrate` 的含义可能不同于有损 MP3 编码；应以实际输出媒体信息为准。
+</Warning>
+
+## 生成模式
+
+### 普通歌词歌曲
+
+普通歌曲需要提供 `lyrics`，`prompt` 可用于补充风格和情绪：
+
+```json
+{
+  "model": "music-3.0",
+  "prompt": "流行摇滚，充满希望，明亮女声",
+  "lyrics": "[Verse]\n越过漫长的黑夜\n[Chorus]\n我们迎着晨光向前",
+  "output_format": "url"
+}
+```
+
+歌词支持以下常用结构标签：
+
+```text
+[Intro] [Verse] [Pre Chorus] [Chorus] [Interlude] [Bridge]
+[Outro] [Post Chorus] [Transition] [Break] [Hook] [Build Up]
+[Inst] [Solo]
+```
+
+### 纯音乐
+
+设置 `is_instrumental=true`，提供非空 `prompt`，并省略 `lyrics`：
+
+```json
+{
+  "model": "music-3.0",
+  "prompt": "电影感氛围音乐，弦乐与钢琴，缓慢推进，无人声",
+  "is_instrumental": true,
+  "output_format": "url"
+}
+```
+
+纯音乐模式不能同时设置 `lyrics_optimizer=true`。
+
+### 自动生成歌词
+
+设置 `lyrics_optimizer=true`，提供非空 `prompt`，并省略 `lyrics`：
+
+```json
+{
+  "model": "music-3.0",
+  "prompt": "夏日海边的轻快流行歌曲，主题是朋友重逢",
+  "lyrics_optimizer": true,
+  "output_format": "url"
+}
+```
+
+模型会根据 `prompt` 自动创作歌词并完成音乐生成。
+
+## 获取音频
+
+### URL 输出
+
+设置 `output_format=url` 后，`data.audio` 返回临时下载地址：
+
+```python Python
+import requests
+
+api_key = "<API-KEY>"
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/music/generations",
+    headers={"Authorization": f"Bearer {api_key}"},
+    json={
+        "model": "music-3.0",
+        "prompt": "温暖的原声民谣",
+        "lyrics": "[Verse]\n风吹过熟悉的窗口\n[Chorus]\n我们再次并肩向前",
+        "output_format": "url",
+    },
+    timeout=300,
+)
+response.raise_for_status()
+result = response.json()
+
+audio_response = requests.get(result["data"]["audio"], timeout=120)
+audio_response.raise_for_status()
+with open("music.mp3", "wb") as output_file:
+    output_file.write(audio_response.content)
+```
+
+<Warning>
+音频 URL 有有效期。请在生成成功后及时下载或转存，不要把临时 URL 当作永久资源地址。
+</Warning>
+
+### Hex 输出
+
+`output_format` 省略或设置为 `hex` 时，`data.audio` 是音频文件的十六进制字符串：
+
+```python Python
+audio_bytes = bytes.fromhex(result["data"]["audio"])
+with open("music.mp3", "wb") as output_file:
+    output_file.write(audio_bytes)
+```
+
+Hex 字符串长度通常约为音频字节数的两倍，可使用 `extra_info.music_size` 核对解码后的文件大小。
+
+## 响应字段
+
+| 字段 | 含义 |
+|---|---|
+| `data.status` | `2` 表示音乐生成完成 |
+| `data.audio` | URL 或 Hex 音频内容，由 `output_format` 决定 |
+| `trace_id` | 本次调用的追踪 ID，排查问题时请提供 |
+| `extra_info.music_duration` | 音乐时长，单位毫秒 |
+| `extra_info.music_sample_rate` | 实际采样率，单位 Hz |
+| `extra_info.music_channel` | 声道数 |
+| `extra_info.bitrate` | 实际码率，单位 bit/s |
+| `extra_info.music_size` | 音频大小，单位字节 |
+| `base_resp.status_code` | `0` 表示供应商生成成功 |
+| `base_resp.status_msg` | 状态说明 |
+
+## 计费说明
+
+Music 3.0 按成功生成次数计费。每次成功调用记为一次音频输出用量；实际美元单价以调用时模型广场展示的价格为准。参数校验失败不会进入成功生成计费。
+
+<Warning>
+音乐生成可能需要几十秒。客户端超时时间建议设置为至少 300 秒；请求超时后不要立即使用相同内容无限重试，应先结合平台日志和 `trace_id` 确认请求是否已经成功。
+</Warning>
+
+## 常见错误
+
+| 场景 | 处理建议 |
+|---|---|
+| `stream=true` | 改为 `false` 或省略；平台当前不支持音乐流式返回 |
+| 普通歌曲未传 `lyrics` | 提供歌词，或设置 `lyrics_optimizer=true` 并提供 `prompt` |
+| 纯音乐未传 `prompt` | 提供非空的风格、情绪或场景描述 |
+| 同时设置纯音乐和歌词优化 | `is_instrumental` 与 `lyrics_optimizer` 二选一 |
+| `prompt` 或 `lyrics` 超长 | 分别控制在 2000 和 3500 个 Unicode 字符以内 |
+| `output_format` 非法 | 使用 `url` 或 `hex` |
+| URL 无法下载 | 检查是否过期，并在生成成功后及时下载 |
+| 中文内容出现乱码 | 使用 UTF-8 JSON，并设置 `Content-Type: application/json; charset=utf-8` |

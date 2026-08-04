@@ -159,6 +159,12 @@
                     ]
                   },
                   {
+                    "group": "音乐生成",
+                    "pages": [
+                      "api-reference/examples/music/minimax-music-3"
+                    ]
+                  },
+                  {
                     "group": "视频生成",
                     "pages": [
                       "api-reference/examples/videos/openai-sora2",
@@ -169,6 +175,20 @@
                       "api-reference/examples/videos/hailuo",
                       "api-reference/examples/videos/minimax-h3",
                       "api-reference/examples/videos/kling"
+                    ]
+                  },
+                  {
+                    "group": "语音合成（TTS）",
+                    "pages": [
+                      "api-reference/examples/tts/minimax"
+                    ]
+                  },
+                  {
+                    "group": "语音识别（ASR）",
+                    "pages": [
+                      "api-reference/examples/asr/volcengine",
+                      "api-reference/examples/asr/funasr",
+                      "api-reference/examples/asr/kaitian"
                     ]
                   },
                   {
