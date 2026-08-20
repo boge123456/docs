@@ -116,6 +116,12 @@
                     ]
                   },
                   {
+                    "group": "Batch API",
+                    "pages": [
+                      "api-reference/examples/batch/batch-api"
+                    ]
+                  },
+                  {
                     "group": "流式对话",
                     "pages": [
                       "api-reference/examples/streaming/openai-streaming",

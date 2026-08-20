@@ -1,0 +1,498 @@
+---
+title: 'Batch API 批量对话'
+description: '一次提交多条对话请求，异步查询批次状态，并在任务完成后按实际 Token 后扣费'
+---
+
+# Batch API 批量对话
+
+Batch API 适合离线评测、内容分类、数据清洗等无需实时返回结果的批量任务。调用方通过一个 `prompts` 数组提交多条对话请求，平台异步处理整个批次。
+
+<Note>
+本接口采用内联请求格式，无需预先生成或上传批次文件。请求体包含模型、`prompts` 及可选的批次配置。
+</Note>
+
+## 接口概览
+
+| 操作 | 方法 | 路径 | 说明 |
+|---|---|---|---|
+| 创建批次 | `POST` | `/v1/batches` | 提交 1～10,000 条对话请求 |
+| 查询批次 | `GET` | `/v1/batches/{batch_id}` | 获取批次状态和请求计数 |
+| 下载结果 | `GET` | `/v1/batches/{batch_id}/output` | 下载批次结果 JSONL 文件 |
+| 列出批次 | `GET` | `/v1/batches?limit=20&after={batch_id}` | 查询当前 API Key 创建的批次 |
+| 取消批次 | `POST` | `/v1/batches/{batch_id}/cancel` | 取消尚未结束的批次 |
+
+## 完整示例
+
+示例中的 `<API-KEY>` 表示实际 API Key，`<MODEL-NAME>` 表示已开通 Batch API 的模型名称。
+
+<CodeGroup>
+
+```bash cURL
+# 1. 创建批次
+BATCH_ID=$(curl -sS -X POST "https://model-api.skyengine.com.cn/v1/batches" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<MODEL-NAME>",
+    "name": "product-review-classification",
+    "completion_window": "24h",
+    "prompts": [
+      {
+        "custom_id": "review-001",
+        "messages": [
+          {"role": "system", "content": "判断用户评价的情感，只回答 positive、neutral 或 negative。"},
+          {"role": "user", "content": "物流很快，商品质量也很好。"}
+        ],
+        "temperature": 0,
+        "max_tokens": 16
+      },
+      {
+        "custom_id": "review-002",
+        "messages": [
+          {"role": "system", "content": "判断用户评价的情感，只回答 positive、neutral 或 negative。"},
+          {"role": "user", "content": "包装破损，而且少发了配件。"}
+        ],
+        "temperature": 0,
+        "max_tokens": 16
+      }
+    ]
+  }' | jq -r '.id')
+
+echo "batch_id=$BATCH_ID"
+
+# 2. 轮询直到进入终态
+while true; do
+  RESPONSE=$(curl -sS \
+    -H "Authorization: Bearer <API-KEY>" \
+    "https://model-api.skyengine.com.cn/v1/batches/$BATCH_ID")
+  STATUS=$(echo "$RESPONSE" | jq -r '.status')
+  echo "$RESPONSE" | jq '{id, status, request_counts, usage, output_url, errors}'
+
+  case "$STATUS" in
+    completed|failed|cancelled|expired) break ;;
+  esac
+  sleep 30
+done
+
+# 3. 批次完成后下载每条 prompt 的结果
+if [ "$STATUS" = "completed" ]; then
+  OUTPUT_URL=$(echo "$RESPONSE" | jq -r '.output_url')
+  curl -fS \
+    -H "Authorization: Bearer <API-KEY>" \
+    "$OUTPUT_URL" \
+    -o "$BATCH_ID-output.jsonl"
+fi
+```
+
+```python Python
+import time
+import requests
+
+API_KEY = "<API-KEY>"
+MODEL = "<MODEL-NAME>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json",
+}
+
+
+def create_batch():
+    response = requests.post(
+        f"{BASE_URL}/batches",
+        headers=HEADERS,
+        json={
+            "model": MODEL,
+            "name": "product-review-classification",
+            "completion_window": "24h",
+            "prompts": [
+                {
+                    "custom_id": "review-001",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "判断用户评价的情感，只回答 positive、neutral 或 negative。",
+                        },
+                        {"role": "user", "content": "物流很快，商品质量也很好。"},
+                    ],
+                    "temperature": 0,
+                    "max_tokens": 16,
+                },
+                {
+                    "custom_id": "review-002",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "判断用户评价的情感，只回答 positive、neutral 或 negative。",
+                        },
+                        {"role": "user", "content": "包装破损，而且少发了配件。"},
+                    ],
+                    "temperature": 0,
+                    "max_tokens": 16,
+                },
+            ],
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def wait_batch(batch_id, timeout=24 * 60 * 60):
+    terminal_statuses = {"completed", "failed", "cancelled", "expired"}
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        response = requests.get(
+            f"{BASE_URL}/batches/{batch_id}",
+            headers=HEADERS,
+            timeout=30,
+        )
+        response.raise_for_status()
+        batch = response.json()
+        print("status=", batch["status"], "counts=", batch.get("request_counts"))
+        if batch["status"] in terminal_statuses:
+            return batch
+        time.sleep(30)
+    raise TimeoutError(f"batch {batch_id} did not finish before timeout")
+
+
+def download_output(output_url, destination):
+    with requests.get(
+        output_url,
+        headers=HEADERS,
+        stream=True,
+        timeout=120,
+    ) as response:
+        response.raise_for_status()
+        with open(destination, "wb") as output:
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                output.write(chunk)
+
+
+created = create_batch()
+print("batch_id=", created["id"])
+result = wait_batch(created["id"])
+print(result)
+if result["status"] == "completed":
+    download_output(result["output_url"], f'{created["id"]}-output.jsonl')
+```
+
+</CodeGroup>
+
+## 下载批次结果
+
+批次状态变为 `completed` 后，详情响应会返回可下载的 `output_url`：
+
+```json
+{
+  "id": "batch_example",
+  "status": "completed",
+  "output_url": "https://model-api.skyengine.com.cn/v1/batches/batch_example/output"
+}
+```
+
+使用同一个 API Key 下载该 URL：
+
+```bash
+curl -fS \
+  -H "Authorization: Bearer <API-KEY>" \
+  "https://model-api.skyengine.com.cn/v1/batches/<BATCH-ID>/output" \
+  -o batch-output.jsonl
+```
+
+返回内容为 JSONL 文件，每一行对应一条 prompt。可通过 `custom_id` 与创建批次时的输入关联，并从该行的 `response.body` 读取模型结果。结果文件只能由创建该批次的 API Key 下载。
+
+任务尚未生成结果时，接口返回 `400`；任务已经进入终态但没有可下载结果，或批次不存在时，接口返回 `404`。
+
+### 结果文件格式
+
+结果文件不是 JSON 数组，而是 JSONL：每一行都是一条完整、非流式的 Chat Completions 结果。结果行顺序不保证与输入顺序一致，应使用 `custom_id` 关联输入。
+
+普通文本成功结果示例：
+
+```json
+{
+  "custom_id": "review-001",
+  "response": {
+    "status_code": 200,
+    "request_id": "req_example",
+    "body": {
+      "id": "chatcmpl_example",
+      "object": "chat.completion",
+      "model": "<MODEL-NAME>",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "positive"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 32,
+        "completion_tokens": 2,
+        "total_tokens": 34
+      }
+    }
+  },
+  "error": null
+}
+```
+
+普通文本读取路径：
+
+- 结果正文：`response.body.choices[0].message.content`
+- Token 用量：`response.body.usage`
+- 单条请求状态：`response.status_code`
+
+单条请求失败时，该行的 `response` 为 `null`，错误信息位于 `error`：
+
+```json
+{
+  "custom_id": "review-002",
+  "response": null,
+  "error": {
+    "code": "rate_limit",
+    "message": "request failed"
+  }
+}
+```
+
+处理结果时，应分别判断 `response != null` 和 `error != null`。响应中的 `choices[].message` 是完整的非流式结果；Batch API 不返回需要拼接的 SSE `choices[].delta` 事件。
+
+## 创建参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `model` | string | 是 | 已开通 Batch API 的模型名称 |
+| `prompts` | array | 是 | 对话请求数组，长度为 1～10,000 |
+| `prompts[].custom_id` | string | 是 | 当前批次内唯一的请求标识，用于关联输入与结果 |
+| `prompts[].messages` | array | 是 | 非空的 OpenAI Chat Completions 消息数组 |
+| `prompts[].tools` | array | 否 | 当前请求可调用的工具定义，格式与 Chat Completions `tools` 一致 |
+| `prompts[].tool_choice` | string/object | 否 | 工具选择策略，例如 `auto`、`none`、`required` 或指定函数 |
+| `prompts[].parallel_tool_calls` | boolean | 否 | 是否允许模型在一条响应中生成多个工具调用 |
+| `completion_window` | string | 否 | 完成窗口，默认 `24h` |
+| `name` | string | 否 | 便于识别批次的名称 |
+
+`prompts` 中除 `custom_id` 外的字段会作为单条 Chat Completions 请求参数处理，例如 `messages`、`temperature`、`max_tokens`、`tools` 和 `tool_choice`。顶层 `model` 会统一应用到批次中的所有请求。
+
+<Warning>
+同一批次内的 `custom_id` 不能重复。创建接口返回的 `batch_id` 用于后续查询和取消，应由业务侧妥善保存。
+</Warning>
+
+## 工具调用
+
+需要模型选择工具时，在对应 prompt 中传入 `tools` 和 `tool_choice`：
+
+```json
+{
+  "model": "<MODEL-NAME>",
+  "prompts": [
+    {
+      "custom_id": "weather-001",
+      "messages": [
+        {
+          "role": "user",
+          "content": "查询北京今天的天气，并给出出行建议。"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "查询指定城市的天气",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string",
+                  "description": "城市名称"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "日期，格式为 YYYY-MM-DD"
+                }
+              },
+              "required": ["city"]
+            }
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": false
+    }
+  ]
+}
+```
+
+模型生成的工具调用位于结果行的 `response.body.choices[].message.tool_calls`。其中 `function.arguments` 是 JSON 字符串，调用方应按工具参数定义解析和校验。
+
+工具调用结果示例：
+
+```json
+{
+  "custom_id": "weather-001",
+  "response": {
+    "status_code": 200,
+    "body": {
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_weather_001",
+                "type": "function",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"city\":\"北京\",\"date\":\"2026-08-20\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 86,
+        "completion_tokens": 18,
+        "total_tokens": 104
+      }
+    }
+  },
+  "error": null
+}
+```
+
+<Warning>
+Batch API 不会执行工具。平台只返回模型生成的工具名称和参数；调用方需要下载结果、执行工具。如果还需要模型基于工具结果继续生成内容，应创建新的批次，并在对应 prompt 的 `messages` 中依次传入原 assistant `tool_calls` 消息和 `role: "tool"` 的执行结果。
+</Warning>
+
+继续处理工具结果时，单条 prompt 的 `messages` 示例：
+
+```json
+{
+  "custom_id": "weather-follow-up-001",
+  "messages": [
+    {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "id": "call_weather_001",
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "arguments": "{\"city\":\"北京\",\"date\":\"2026-08-20\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_weather_001",
+      "content": "{\"temperature\":28,\"condition\":\"晴\"}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {"type": "string"},
+            "date": {"type": "string"}
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}
+```
+
+是否支持工具调用、并行工具调用以及指定 `tool_choice`，取决于所选模型的能力。
+
+## 状态与计费
+
+| 状态 | 含义 | 是否扣费 |
+|---|---|---|
+| `validating` | 正在校验批次请求 | 否 |
+| `in_progress` | 正在执行批次请求 | 否 |
+| `cancelling` | 已请求取消，等待任务停止 | 否 |
+| `completed` | 批次执行完成 | 按成功请求的实际 Token 后扣费 |
+| `failed` | 批次创建或执行失败 | 否 |
+| `cancelled` | 批次已取消 | 否 |
+| `expired` | 超过完成窗口 | 按已成功产生的实际 Token 后扣费 |
+
+任务完成后，`request_counts` 给出总请求数、成功数和失败数：
+
+```json
+{
+  "request_counts": {
+    "total": 2,
+    "completed": 2,
+    "failed": 0
+  }
+}
+```
+
+完成响应同时通过 `usage` 返回批次汇总 Token 用量：
+
+```json
+{
+  "usage": {
+    "input_tokens": 1400,
+    "output_tokens": 400,
+    "cache_tokens": 0
+  }
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `input_tokens` | 批次中成功请求的输入 Token 总数 |
+| `output_tokens` | 批次中成功请求的输出 Token 总数 |
+| `cache_tokens` | 批次命中的缓存 Token 总数 |
+
+`usage` 通常在批次完成后返回。平台根据成功结果的实际 Token 用量完成一次后扣费，客户端重复查询批次不会重复扣费。
+
+## 查询批次列表
+
+```bash
+curl -sS "https://model-api.skyengine.com.cn/v1/batches?limit=20" \
+  -H "Authorization: Bearer <API-KEY>"
+```
+
+继续读取下一页时，将上一页的 `last_id` 作为 `after`：
+
+```bash
+curl -sS "https://model-api.skyengine.com.cn/v1/batches?limit=20&after=<LAST-BATCH-ID>" \
+  -H "Authorization: Bearer <API-KEY>"
+```
+
+列表和详情仅返回当前 API Key 创建的批次。
+
+## 取消批次
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer <API-KEY>" \
+  "https://model-api.skyengine.com.cn/v1/batches/<BATCH-ID>/cancel"
+```
+
+取消接口可能先返回 `cancelling`，此时可继续查询详情，直到状态变为 `cancelled`。
+
+## 使用建议
+
+- 轮询间隔建议设置为 30 秒，避免高频查询。
+- `custom_id` 建议使用业务侧稳定且唯一的标识，便于关联每条结果。
+- 业务逻辑应分别处理 `failed`、`cancelled` 和 `expired` 状态。
+- 调用日志中应避免记录 API Key、完整 prompts 或批次结果正文。
