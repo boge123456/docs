@@ -17,7 +17,6 @@ Batch API 适合离线评测、内容分类、数据清洗等无需实时返回�
 |---|---|---|---|
 | 创建批次 | `POST` | `/v1/batches` | 提交 1～10,000 条对话请求 |
 | 查询批次 | `GET` | `/v1/batches/{batch_id}` | 获取批次状态和请求计数 |
-| 下载结果 | `GET` | `/v1/batches/{batch_id}/output` | 下载批次结果 JSONL 文件 |
 | 列出批次 | `GET` | `/v1/batches?limit=20&after={batch_id}` | 查询当前 API Key 创建的批次 |
 | 取消批次 | `POST` | `/v1/batches/{batch_id}/cancel` | 取消尚未结束的批次 |
 
@@ -78,7 +77,6 @@ done
 if [ "$STATUS" = "completed" ]; then
   OUTPUT_URL=$(echo "$RESPONSE" | jq -r '.output_url')
   curl -fS \
-    -H "Authorization: Bearer <API-KEY>" \
     "$OUTPUT_URL" \
     -o "$BATCH_ID-output.jsonl"
 fi
@@ -159,7 +157,6 @@ def wait_batch(batch_id, timeout=24 * 60 * 60):
 def download_output(output_url, destination):
     with requests.get(
         output_url,
-        headers=HEADERS,
         stream=True,
         timeout=120,
     ) as response:
@@ -187,22 +184,22 @@ if result["status"] == "completed":
 {
   "id": "batch_example",
   "status": "completed",
-  "output_url": "https://model-api.skyengine.com.cn/v1/batches/batch_example/output"
+  "output_url": "https://example.cos.ap-beijing.myqcloud.com/path/output.jsonl?sign=...",
+  "output_url_expires_at": 1787237496
 }
 ```
 
-使用同一个 API Key 下载该 URL：
+`output_url` 是 3 天内有效的临时签名地址，下载时无需再次携带 API Key。地址过期后，重新查询批次详情即可获取新的签名地址。请勿记录或转发完整地址。
 
 ```bash
 curl -fS \
-  -H "Authorization: Bearer <API-KEY>" \
-  "https://model-api.skyengine.com.cn/v1/batches/<BATCH-ID>/output" \
+  "<OUTPUT-URL>" \
   -o batch-output.jsonl
 ```
 
-返回内容为 JSONL 文件，每一行对应一条 prompt。可通过 `custom_id` 与创建批次时的输入关联，并从该行的 `response.body` 读取模型结果。结果文件只能由创建该批次的 API Key 下载。
+返回内容为 JSONL 文件，每一行对应一条 prompt。可通过 `custom_id` 与创建批次时的输入关联，并从该行的 `response.body` 读取模型结果。只有创建批次的 API Key 能查询批次详情并获取签名地址。
 
-任务尚未生成结果时，接口返回 `400`；任务已经进入终态但没有可下载结果，或批次不存在时，接口返回 `404`。
+任务尚未生成结果，或终态下没有可下载结果时，详情响应不会包含 `output_url`。
 
 ### 结果文件格式
 
@@ -495,4 +492,3 @@ curl -sS -X POST \
 - 轮询间隔建议设置为 30 秒，避免高频查询。
 - `custom_id` 建议使用业务侧稳定且唯一的标识，便于关联每条结果。
 - 业务逻辑应分别处理 `failed`、`cancelled` 和 `expired` 状态。
-- 调用日志中应避免记录 API Key、完整 prompts 或批次结果正文。
