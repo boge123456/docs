@@ -65,7 +65,7 @@ while true; do
     -H "Authorization: Bearer <API-KEY>" \
     "https://model-api.skyengine.com.cn/v1/batches/$BATCH_ID")
   STATUS=$(echo "$RESPONSE" | jq -r '.status')
-  echo "$RESPONSE" | jq '{id, status, request_counts, usage, output_url, errors}'
+  echo "$RESPONSE" | jq .
 
   case "$STATUS" in
     completed|failed|cancelled|expired) break ;;
@@ -176,6 +176,96 @@ if result["status"] == "completed":
 
 </CodeGroup>
 
+## 接口返回格式
+
+创建、查询和取消接口成功时都返回 Batch 对象。不同状态下，部分字段可能为 `null` 或不出现。所有时间字段均为 Unix 秒级时间戳。
+
+| 字段 | 类型 | 出现位置 | 说明 |
+|---|---|---|---|
+| `id` | string | 创建、详情、列表项、取消 | 批次 ID，格式为 `batch_...` |
+| `object` | string | 创建、详情、列表项、取消 | 对象类型，当前为 `batch` |
+| `endpoint` | string | 创建、详情、列表项、取消 | 批次中每条请求调用的接口，当前为 `/v1/chat/completions` |
+| `status` | string | 创建、详情、列表项、取消 | 批次状态，取值见“状态与计费” |
+| `completion_window` | string | 创建、详情、列表项、取消 | 批次完成窗口 |
+| `created_at` | integer | 创建、详情、列表项、取消 | 创建时间 |
+| `expires_at` | integer/null | 创建、详情、列表项、取消 | 任务执行窗口的截止时间，不是下载地址失效时间 |
+| `in_progress_at` | integer/null | 创建、详情、列表项、取消 | 开始执行时间；尚未执行时为 `null` |
+| `completed_at` | integer/null | 创建、详情、列表项、取消 | 上游任务结束时间；未结束时为 `null` |
+| `cancelled_at` | integer/null | 创建、详情、列表项、取消 | 取消完成时间；未取消时为 `null` |
+| `request_counts` | object | 创建、详情、列表项、取消 | 请求数量统计，包含 `total`、`completed`、`failed` |
+| `usage` | object | 详情、列表项 | 已汇总的 Token 用量；上游尚未产生统计时不返回 |
+| `errors` | object/null | 详情、列表项、取消 | 批次级错误，格式为 `{"data":[{"code":"...","message":"..."}]}` |
+| `error_file_id` | string/null | 创建、详情、列表项、取消 | 上游失败明细文件标识；没有失败明细时为 `null` |
+| `output_url` | string | 详情 | 结果文件的临时签名下载地址，仅在已有结果文件时返回 |
+| `output_url_expires_at` | integer | 详情 | `output_url` 的失效时间 |
+
+对外响应不会返回平台内部使用的 `input_file_id` 和 `output_file_id`。
+
+### 创建批次
+
+`POST /v1/batches` 创建成功返回 HTTP `202`。任务通常从 `validating` 开始，此时还没有 `usage` 和 `output_url`：
+
+```json
+{
+  "id": "batch_example",
+  "object": "batch",
+  "endpoint": "/v1/chat/completions",
+  "completion_window": "24h",
+  "status": "validating",
+  "created_at": 1787237196,
+  "expires_at": 1787323596,
+  "in_progress_at": null,
+  "completed_at": null,
+  "cancelled_at": null,
+  "request_counts": {
+    "total": 3,
+    "completed": 0,
+    "failed": 0
+  },
+  "error_file_id": null
+}
+```
+
+### 查询批次详情
+
+`GET /v1/batches/{batch_id}` 成功返回 HTTP `200` 和最新 Batch 对象。建议直接保存并处理完整响应，不要依赖 JSON 字段顺序。
+
+状态为 `completed` 且结果文件已经生成时，详情会额外返回 `usage`、`output_url` 和 `output_url_expires_at`。状态为 `failed` 或 `cancelled` 时，通常会返回 `errors.data`；每个错误项包含 `code` 和 `message`。
+
+### 状态与可选字段
+
+| 状态 | 重点字段 | 字段行为 |
+|---|---|---|
+| `validating` | `request_counts` | 正在校验；各时间字段通常只有 `created_at` 和 `expires_at` 有值 |
+| `in_progress` | `in_progress_at`、`request_counts` | `completed` 和 `failed` 随执行进度更新 |
+| `cancelling` | `status` | 已收到取消请求，其他字段继续沿用当前任务数据 |
+| `completed` | `completed_at`、`usage`、`output_url` | 有结果文件时返回签名下载地址 |
+| `failed` | `errors` | 批次级失败；通常不返回 `usage` 和 `output_url` |
+| `cancelled` | `cancelled_at`、`errors` | 未执行的请求不保证计入 `request_counts.failed` |
+| `expired` | `expires_at` | 可能存在部分成功结果；有结果文件时仍可能返回 `usage` 和 `output_url` |
+
+### 通用错误响应
+
+鉴权失败、参数错误、批次不存在或依赖服务异常时返回非 `2xx` 状态码，响应格式为：
+
+```json
+{
+  "error": {
+    "code": 5,
+    "message": "未找到",
+    "details": [
+      {
+        "code": 5,
+        "message": "batch not found"
+      }
+    ],
+    "trace_id": "trace_example"
+  }
+}
+```
+
+`details` 可能为空或不出现。排查问题时应提供 `trace_id`，不要只依赖 `message` 文本判断错误类型。
+
 ## 下载批次结果
 
 批次状态变为 `completed` 后，详情响应会返回可下载的 `output_url`：
@@ -183,9 +273,28 @@ if result["status"] == "completed":
 ```json
 {
   "id": "batch_example",
+  "object": "batch",
+  "endpoint": "/v1/chat/completions",
   "status": "completed",
+  "completion_window": "24h",
+  "created_at": 1787237196,
+  "expires_at": 1787323596,
+  "in_progress_at": 1787237200,
+  "completed_at": 1787237300,
+  "cancelled_at": null,
+  "request_counts": {
+    "total": 3,
+    "completed": 3,
+    "failed": 0
+  },
+  "usage": {
+    "input_tokens": 61,
+    "output_tokens": 176,
+    "cache_tokens": 0
+  },
+  "error_file_id": null,
   "output_url": "https://example.cos.ap-beijing.myqcloud.com/path/output.jsonl?sign=...",
-  "output_url_expires_at": 1787237496
+  "output_url_expires_at": 1787496500
 }
 ```
 
@@ -468,6 +577,52 @@ curl -sS "https://model-api.skyengine.com.cn/v1/batches?limit=20" \
   -H "Authorization: Bearer <API-KEY>"
 ```
 
+成功返回 HTTP `200`：
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "batch_example",
+      "object": "batch",
+      "endpoint": "/v1/chat/completions",
+      "status": "completed",
+      "completion_window": "24h",
+      "created_at": 1787237196,
+      "expires_at": 1787323596,
+      "in_progress_at": 1787237200,
+      "completed_at": 1787237300,
+      "cancelled_at": null,
+      "request_counts": {
+        "total": 3,
+        "completed": 3,
+        "failed": 0
+      },
+      "usage": {
+        "input_tokens": 61,
+        "output_tokens": 176,
+        "cache_tokens": 0
+      },
+      "error_file_id": null
+    }
+  ],
+  "first_id": "batch_example",
+  "last_id": "batch_example",
+  "has_more": false
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `object` | string | 固定为 `list` |
+| `data` | array | Batch 对象数组，按创建时间倒序排列 |
+| `first_id` | string | 当前页第一条批次 ID；空列表时不返回 |
+| `last_id` | string | 当前页最后一条批次 ID；空列表时不返回 |
+| `has_more` | boolean | 是否可能还有下一页 |
+
+列表项不会返回临时签名 `output_url`。需要下载结果时，使用对应 `id` 查询批次详情以获取新的签名地址。
+
 继续读取下一页时，将上一页的 `last_id` 作为 `after`：
 
 ```bash
@@ -486,6 +641,33 @@ curl -sS -X POST \
 ```
 
 取消接口可能先返回 `cancelling`，此时可继续查询详情，直到状态变为 `cancelled`。
+
+取消请求成功时返回最新 Batch 对象。任务进入 `cancelled` 后，常见响应为：
+
+```json
+{
+  "id": "batch_example",
+  "object": "batch",
+  "endpoint": "/v1/chat/completions",
+  "status": "cancelled",
+  "cancelled_at": 1787237300,
+  "request_counts": {
+    "total": 3,
+    "completed": 0,
+    "failed": 0
+  },
+  "errors": {
+    "data": [
+      {
+        "code": "cancelled_by_user",
+        "message": "job cancelled by user"
+      }
+    ]
+  }
+}
+```
+
+已经进入 `completed`、`failed`、`cancelled` 或 `expired` 的任务不能再次取消。
 
 ## 使用建议
 
