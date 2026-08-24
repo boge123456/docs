@@ -1,1117 +1,168 @@
 ---
 title: '豆包 Seedance 视频生成示例'
-description: '调用豆包 Seedance 视频生成模型的完整示例代码'
+description: '通过统一视频接口调用 Seedance 2.5，创建、查询并获取生成结果'
 ---
 
-# 豆包 Seedance 视频生成示例
+# 豆包 Seedance 视频生成
 
-以下示例展示如何使用豆包（Doubao）Seedance 视频生成模型通过 OpenAI 兼容接口生成高质量的视频内容。
+Seedance 2.5 支持文生视频、首帧/首尾帧图生视频，以及图片、视频和音频的多模态参考。任务采用异步模式：先创建任务，再使用任务 ID 查询结果。
 
-## 支持的模型
+## 模型与规格
 
-| 模型 ID | 能力 | 时长 | 分辨率 | 帧率 |
-|---------|------|------|--------|------|
-| **doubao-seedance-2-0-260128** | 联网搜索、音画同生、图/视频/音频多模态参考、编辑视频、延长视频、图生视频-首尾帧、图生视频-首帧、文生视频 | 4~15 秒 | 480p, 720p, 1080p | 24 fps |
-| **doubao-seedance-2-0-fast-260128** | 联网搜索、音画同生、图/视频/音频多模态参考、编辑视频、延长视频、图生视频-首尾帧、图生视频-首帧、文生视频 | 4~15 秒 | 480p, 720p | 24 fps |
-| **doubao-seedance-1-5-pro-251215** | 音画同生（有声视频）、图生视频-首尾帧、图生视频-首帧、文生视频 | 4~12 秒 | 480p, 720p, 1080p | 24 fps |
-| **doubao-seedance-1-0-pro-250528** | 图生视频-首尾帧、图生视频-首帧、文生视频 | 2~12 秒 | 480p, 720p, 1080p | 24 fps |
-| **doubao-seedance-1-0-pro-fast-251015** | 图生视频-首帧、文生视频 | 2~12 秒 | 480p, 720p, 1080p | 24 fps |
+| 模型 ID | 输出时长 | 输出分辨率 | 帧率 |
+| --- | --- | --- | --- |
+| `doubao-seedance-2-5-260628` | 4～30 秒 | 480p、720p | 24 fps |
+| `doubao-seedance-2-0-260128` | 4～15 秒 | 480p、720p、1080p、4K | 24 fps |
+| `doubao-seedance-2-0-fast-260128` | 4～15 秒 | 480p、720p | 24 fps |
 
-> **注意**: 所有 seedance 模型的参数（ratio, duration, resolution, watermark 等）统一通过请求字段传递，不要在文本中使用 `--ratio 16:9` 命令格式。
-> `doubao-seedance-1-5-pro-251215` 和 `doubao-seedance-2-0-260128` 支持生成带音频的有声视频，通过 `generate_audio` 参数启用。
+Seedance 2.x 默认使用 720p。建议显式传入 `duration` 和 `resolution`，以便调用结果与费用预估保持一致。
 
-豆包视频生成分为三个步骤：
-1. **创建视频生成任务** - 提交生成请求，获得任务ID
-2. **查询任务状态** - 定期检查任务进度
-3. **下载生成的视频** - 任务完成后下载视频文件
+## 创建任务
 
-## 步骤1：创建视频生成任务
-
-<CodeGroup>
+所有模型参数均位于请求顶层。下面的请求生成一段 5 秒、720p、带声音的视频，并要求在查询结果中返回尾帧图片。
 
 ```bash cURL
-# 文生视频
 curl --request POST \
   --url https://model-api.skyengine.com.cn/v1/videos \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "doubao-seedance-2-0-260128",
+    "model": "doubao-seedance-2-5-260628",
     "content": [
-        {
-            "type": "text",
-            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。"
-        }
-    ],
-    "ratio": "16:9",
-    "resolution": "4K",
-    "seconds": "5",
-    "watermark": false,
-    "tools": [{"type": "web_search"}]
-  }'
-
-# 有声视频（doubao-seedance-1-5-pro-251215）
-curl --request POST \
-  --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer <API-KEY>' \
-  --header 'Content-Type: application/json' \
-  --data '{
-    "model": "doubao-seedance-1-5-pro-251215",
-    "content": [
-        {
-            "type": "text",
-            "text": "一位音乐家在舞台上演奏小提琴，观众席上掌声雷动"
-        }
-    ],
-    "ratio": "16:9",
-    "seconds": "8",
-    "generate_audio": true
-        }
-    ],
-    "generate_audio": true
-  }'
-```
-
-```python Python
-import requests
-import time
-
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1"
-
-def create_doubao_video(content, model="doubao-seedance-1.0-pro-250528", **kwargs):
-    """
-    创建豆包视频生成任务
-    
-    Args:
-        content: 内容数组，支持文本和图片信息
-        model: 使用的模型名称
-        **kwargs: 其他参数（ratio, seconds等）
-    
-    Returns:
-        任务创建响应
-    """
-    url = f"{BASE_URL}/videos"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    # 构建请求数据
-    data = {
-        "model": model,
-        "content": content
-    }
-    
-    # 添加豆包特有参数
-    for key in ["ratio", "resolution", "seconds", "framespersecond", "camerafixed", "watermark", "return_last_frame"]:
-        if key in kwargs:
-            data[key] = kwargs[key]
-    
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"豆包视频生成任务已创建")
-            print(f"任务ID: {result.get('id')}")
-            print(f"状态: {result.get('status')}")
-            return result
-        else:
-            print(f"错误: {response.status_code} - {response.text}")
-            return None
-            
-    except Exception as e:
-        print(f"请求失败: {e}")
-        return None
-
-# 示例1：基础文本到视频生成
-text_content = [
-    {
+      {
         "type": "text",
-        "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。"
-    }
-]
-
-result = create_doubao_video(content=text_content)
+        "text": "电影感航拍：清晨薄雾中的山谷，镜头平稳向前推进，远处阳光穿过云层"
+      }
+    ],
+    "duration": 5,
+    "resolution": "720p",
+    "ratio": "16:9",
+    "generate_audio": true,
+    "return_last_frame": true,
+    "watermark": false
+  }'
 ```
 
-```javascript JavaScript/Node.js
-const axios = require('axios');
+创建成功后返回任务 ID：
 
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
-
-async function createDoubaoVideo(content, model = 'doubao-seedance-1.0-pro-250528', options = {}) {
-    const url = `${BASE_URL}/videos`;
-    
-    const data = {
-        model: model,
-        content: content,
-        ...options
-    };
-    
-    try {
-        const response = await axios.post(url, data, {
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        console.log('豆包视频生成任务已创建');
-        console.log(`任务ID: ${response.data.id}`);
-        console.log(`状态: ${response.data.status}`);
-        
-        return response.data;
-    } catch (error) {
-        console.error('任务创建失败:', error.response?.data || error.message);
-        return null;
-    }
-}
-
-// 示例1：基础文本到视频生成
-const textContent = [
-    {
-        type: 'text',
-        text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。'
-    }
-];
-
-const result = await createDoubaoVideo(textContent);
+```json
+{ "id": "cgt-2026******-****" }
 ```
 
-```go Go
-package main
+### 首尾帧图生视频
 
-import (
-    "bytes"
-    "encoding/json"
-    "fmt"
-    "io"
-    "net/http"
-)
-
-const (
-    APIKey  = "<API-KEY>"
-    BaseURL = "https://model-api.skyengine.com.cn/v1"
-)
-
-type DoubaoContent struct {
-    Type     string           `json:"type"`                // 内容类型：text 或 image_url
-    Text     string           `json:"text,omitempty"`      // 文本内容（当type=text时）
-    ImageURL *DoubaoImageURL  `json:"image_url,omitempty"` // 图片信息（当type=image_url时）
-    Role     string           `json:"role,omitempty"`      // 图片角色：first_frame, last_frame, reference_image
-}
-
-type DoubaoImageURL struct {
-    URL string `json:"url"` // 图片URL或Base64编码
-}
-
-type DoubaoVideoRequest struct {
-    Model           string          `json:"model"`
-    Content         []DoubaoContent `json:"content"`
-    Size            string          `json:"size,omitempty"`            // 视频尺寸，如 "1920x1088"，自动转换为宽高比
-    Resolution      string          `json:"resolution,omitempty"`      // 分辨率档位：480p, 720p, 1080p, 4K
-    Ratio           string          `json:"ratio,omitempty"`           // 宽高比：16:9, 4:3, 1:1, 3:4, 9:16, 21:9
-    Seconds         string          `json:"seconds,omitempty"`         // 时长（秒）
-    FramesPerSecond *int            `json:"framespersecond,omitempty"` // 帧率：24
-    CameraFixed     *bool           `json:"camerafixed,omitempty"`     // 是否固定摄像头
-    Watermark       *bool           `json:"watermark,omitempty"`       // 是否包含水印
-    ReturnLastFrame *bool           `json:"return_last_frame,omitempty"` // 是否返回生成视频的尾帧图像
-    GenerateAudio   *bool           `json:"generate_audio,omitempty"`  // 是否生成有声视频（Seedance 1.5/2.0）
-    ServiceTier     string          `json:"service_tier,omitempty"`    // 服务等级（Seedance 2.0）
-    Tools           []DoubaoTool    `json:"tools,omitempty"`           // 工具列表（Seedance 2.0）
-}
-
-type DoubaoTool struct {
-    Type string `json:"type"` // 工具类型，如 "web_search"
-}
-
-type DoubaoVideoResponse struct {
-    ID        string `json:"id"`
-    Object    string `json:"object"` 
-    CreatedAt int64  `json:"created_at"`
-    Status    string `json:"status"`
-}
-
-func createDoubaoVideo(request DoubaoVideoRequest) (*DoubaoVideoResponse, error) {
-    url := fmt.Sprintf("%s/videos", BaseURL)
-    
-    if request.Model == "" {
-        request.Model = "doubao-seedance-1.0-pro-250528"
-    }
-    
-    jsonData, err := json.Marshal(request)
-    if err != nil {
-        return nil, fmt.Errorf("JSON序列化失败: %v", err)
-    }
-    
-    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-    if err != nil {
-        return nil, fmt.Errorf("创建请求失败: %v", err)
-    }
-    
-    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
-    req.Header.Set("Content-Type", "application/json")
-    
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        return nil, fmt.Errorf("请求失败: %v", err)
-    }
-    defer resp.Body.Close()
-    
-    responseBody, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, fmt.Errorf("读取响应失败: %v", err)
-    }
-    
-    if resp.StatusCode != 200 {
-        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
-    }
-    
-    var result DoubaoVideoResponse
-    if err := json.Unmarshal(responseBody, &result); err != nil {
-        return nil, fmt.Errorf("解析响应失败: %v", err)
-    }
-    
-    fmt.Printf("豆包视频生成任务已创建\n")
-    fmt.Printf("任务ID: %s\n", result.ID)
-    fmt.Printf("状态: %s\n", result.Status)
-    
-    return &result, nil
-}
-
-// 示例：创建任务
-func main() {
-    // 示例1：基础文本到视频生成
-    textRequest := DoubaoVideoRequest{
-        Content: []DoubaoContent{
-            {
-                Type: "text",
-                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。",
-            },
-        },
-    }
-    
-    result, err := createDoubaoVideo(textRequest)
-    if err != nil {
-        fmt.Printf("任务创建失败: %v\n", err)
-        return
-    }
-    fmt.Printf("任务创建成功: %+v\n", result)
-}
-```
-
-</CodeGroup>
-
-### 响应示例
+使用 `role` 区分首帧和尾帧。图片 URL 必须能够被模型服务访问。
 
 ```json
 {
-  "id": "cgt-20251110203910-nmfp7",
-  "object": "video",
-  "status": "in_queue"
-}
-```
-
-## 步骤2：查询任务状态
-
-<CodeGroup>
-
-```bash cURL
-# 查询任务状态
-curl -X GET "https://model-api.skyengine.com.cn/v1/videos/cgt-20251110203910-nmfp7" \
-  --header 'Authorization: Bearer <API-KEY>'
-```
-
-```python Python
-def check_video_status(video_id):
-    """
-    检查视频生成状态
-    
-    Args:
-        video_id: 视频任务ID
-        
-    Returns:
-        任务状态信息
-    """
-    url = f"{BASE_URL}/videos/{video_id}"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}"
-    }
-    
-    try:
-        response = requests.get(url, headers=headers)
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"任务状态: {result.get('status')}")
-
-            # 显示豆包特有的响应信息
-            if 'seed' in result:
-                print(f"使用的种子值: {result.get('seed')}")
-            if 'ratio' in result:
-                print(f"实际宽高比: {result.get('ratio')}")
-            if 'seconds' in result:
-                print(f"实际时长: {result.get('seconds')}秒")
-            if 'usage' in result:
-                usage = result.get('usage', {})
-                print(f"Token使用: {usage.get('total_tokens', 0)}")
-                
-            return result
-        else:
-            print(f"查询失败: {response.status_code} - {response.text}")
-            return None
-            
-    except Exception as e:
-        print(f"请求失败: {e}")
-        return None
-
-# 示例：查询状态
-video_id = "cgt-20251110203910-nmfp7"
-status_info = check_video_status(video_id)
-```
-
-```javascript JavaScript/Node.js
-async function checkVideoStatus(videoId) {
-    const url = `${BASE_URL}/videos/${videoId}`;
-    
-    try {
-        const response = await axios.get(url, {
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`
-            }
-        });
-        
-        const result = response.data;
-        console.log(`任务状态: ${result.status}`);
-        
-        // 显示豆包特有的响应信息
-        if (result.seed) {
-            console.log(`使用的种子值: ${result.seed}`);
-        }
-        if (result.ratio) {
-            console.log(`实际宽高比: ${result.ratio}`);
-        }
-        if (result.seconds) {
-            console.log(`实际时长: ${result.seconds}秒`);
-        }
-        if (result.usage) {
-            console.log(`Token使用: ${result.usage.total_tokens || 0}`);
-        }
-        
-        return result;
-    } catch (error) {
-        console.error('状态查询失败:', error.response?.data || error.message);
-        return null;
-    }
-}
-
-// 示例：查询状态
-const videoId = 'cgt-20251110203910-nmfp7';
-const statusInfo = await checkVideoStatus(videoId);
-```
-
-```go Go
-func checkVideoStatus(videoID string) (*DoubaoVideoResponse, error) {
-    url := fmt.Sprintf("%s/videos/%s", BaseURL, videoID)
-    
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        return nil, fmt.Errorf("创建请求失败: %v", err)
-    }
-    
-    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
-    
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        return nil, fmt.Errorf("请求失败: %v", err)
-    }
-    defer resp.Body.Close()
-    
-    responseBody, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, fmt.Errorf("读取响应失败: %v", err)
-    }
-    
-    if resp.StatusCode != 200 {
-        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
-    }
-    
-    var result DoubaoVideoResponse
-    if err := json.Unmarshal(responseBody, &result); err != nil {
-        return nil, fmt.Errorf("解析响应失败: %v", err)
-    }
-    
-    fmt.Printf("任务状态: %s\n", result.Status)
-    return &result, nil
-}
-
-// 示例：查询状态
-videoID := "cgt-20251110203910-nmfp7"
-statusInfo, err := checkVideoStatus(videoID)
-```
-
-</CodeGroup>
-
-### 状态响应示例
-
-**排队中:**
-```json
-{
-  "id": "cgt-20251110203910-nmfp7",
-  "object": "video",
-  "status": "in_queue"
-}
-```
-
-**已完成:**
-```json
-{
-  "id": "cgt-20251110203910-nmfp7",
-  "object": "video",
-  "created_at": 1762778350,
-  "model": "doubao-seedance-1-0-pro-250528",
-  "status": "completed",
-  "usage": {
-    "completion_tokens": 246840,
-    "total_tokens": 246840
-  }
-}
-```
-
-## 步骤3：下载生成的视频
-
-<CodeGroup>
-
-```bash cURL
-# 下载视频文件
-curl -X GET "https://model-api.skyengine.com.cn/v1/videos/cgt-20251110203910-nmfp7/content" \
-  --header 'Authorization: Bearer <API-KEY>' \
-  --output doubao_video.mp4
-```
-
-```python Python
-def download_video(video_id, output_path="doubao_video.mp4"):
-    """
-    下载生成的视频
-    
-    Args:
-        video_id: 视频任务ID
-        output_path: 输出文件路径
-        
-    Returns:
-        是否下载成功
-    """
-    url = f"{BASE_URL}/videos/{video_id}/content"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}"
-    }
-    
-    try:
-        response = requests.get(url, headers=headers)
-        
-        if response.status_code == 200:
-            with open(output_path, "wb") as f:
-                f.write(response.content)
-            print(f"视频已保存: {output_path}")
-            return True
-        else:
-            print(f"下载失败: {response.status_code} - {response.text}")
-            return False
-            
-    except Exception as e:
-        print(f"下载失败: {e}")
-        return False
-
-# 示例：下载视频
-video_id = "cgt-20251110203910-nmfp7"
-success = download_video(video_id, "doubao_seedance_video.mp4")
-```
-
-```javascript JavaScript/Node.js
-const fs = require('fs');
-
-async function downloadVideo(videoId, outputPath = 'doubao_video.mp4') {
-    const url = `${BASE_URL}/videos/${videoId}/content`;
-    
-    try {
-        const response = await axios.get(url, {
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`
-            },
-            responseType: 'stream'
-        });
-        
-        const writer = fs.createWriteStream(outputPath);
-        response.data.pipe(writer);
-        
-        return new Promise((resolve, reject) => {
-            writer.on('finish', () => {
-                console.log(`视频已保存: ${outputPath}`);
-                resolve(true);
-            });
-            writer.on('error', reject);
-        });
-    } catch (error) {
-        console.error('视频下载失败:', error.response?.data || error.message);
-        return false;
-    }
-}
-
-// 示例：下载视频
-const videoId = 'cgt-20251110203910-nmfp7';
-const success = await downloadVideo(videoId, 'doubao_seedance_video.mp4');
-```
-
-```go Go
-import "os"
-
-func downloadVideo(videoID, outputPath string) error {
-    url := fmt.Sprintf("%s/videos/%s/content", BaseURL, videoID)
-    
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        return fmt.Errorf("创建请求失败: %v", err)
-    }
-    
-    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
-    
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        return fmt.Errorf("请求失败: %v", err)
-    }
-    defer resp.Body.Close()
-    
-    if resp.StatusCode != 200 {
-        return fmt.Errorf("下载失败: %d", resp.StatusCode)
-    }
-    
-    file, err := os.Create(outputPath)
-    if err != nil {
-        return fmt.Errorf("创建文件失败: %v", err)
-    }
-    defer file.Close()
-    
-    _, err = io.Copy(file, resp.Body)
-    if err != nil {
-        return fmt.Errorf("写入文件失败: %v", err)
-    }
-    
-    fmt.Printf("视频已保存: %s\n", outputPath)
-    return nil
-}
-
-// 示例：下载视频
-videoID := "cgt-20251110203910-nmfp7"
-err := downloadVideo(videoID, "doubao_seedance_video.mp4")
-if err != nil {
-    fmt.Printf("下载失败: %v\n", err)
-}
-```
-
-</CodeGroup>
-
-## 完整流程示例
-
-<CodeGroup>
-
-```python Python
-import requests
-import time
-
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1"
-
-def complete_doubao_video_generation(content, **kwargs):
-    """
-    完整的豆包视频生成流程
-    """
-    # 步骤1: 创建任务
-    print("步骤1: 创建视频生成任务...")
-    create_result = create_doubao_video(content, **kwargs)
-    if not create_result:
-        return False
-    
-    video_id = create_result['id'] 
-    print(f"任务ID: {video_id}")
-    
-    # 步骤2: 等待任务完成
-    print("步骤2: 等待任务完成...")
-    max_wait_time = 900  # 15分钟
-    start_time = time.time()
-    
-    while time.time() - start_time < max_wait_time:
-        status_info = check_video_status(video_id)
-        if not status_info:
-            break
-            
-        status = status_info.get('status')
-        print(f"当前状态: {status}")
-        
-        if status == 'completed':
-            print("视频生成完成！")
-            break
-        elif status == 'failed':
-            error_info = status_info.get('error', {})
-            print(f"视频生成失败: {error_info.get('message', '未知错误')}")
-            return False
-        
-        time.sleep(20)  # 每20秒检查一次
-    else:
-        print("等待超时")
-        return False
-    
-    # 步骤3: 下载视频
-    print("步骤3: 下载视频...")
-    output_path = f"doubao_video_{video_id}.mp4"
-    if download_video(video_id, output_path):
-        print(f"视频生成完成: {output_path}")
-        return True
-    
-    return False
-
-# 使用示例
-if __name__ == "__main__":
-    # 示例1: 基础文本到视频生成
-    text_content = [
-        {
-            "type": "text",
-            "text": "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。"
-        }
-    ]
-    
-    success = complete_doubao_video_generation(content=text_content)
-    
-    if success:
-        print("✅ 视频生成成功！")
-    else:
-        print("❌ 视频生成失败！")
-```
-
-```javascript JavaScript/Node.js
-const axios = require('axios');
-const fs = require('fs');
-
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
-
-async function completeDoubaoVideoGeneration(content, options = {}) {
-    try {
-        // 步骤1: 创建任务
-        console.log('步骤1: 创建视频生成任务...');
-        const createResult = await createDoubaoVideo(content, 'doubao-seedance-1.0-pro-250528', options);
-        if (!createResult) {
-            return false;
-        }
-        
-        const videoId = createResult.id;
-        console.log(`任务ID: ${videoId}`);
-        
-        // 步骤2: 等待任务完成
-        console.log('步骤2: 等待任务完成...');
-        const maxWaitTime = 15 * 60 * 1000; // 15分钟
-        const startTime = Date.now();
-        
-        while (Date.now() - startTime < maxWaitTime) {
-            const statusInfo = await checkVideoStatus(videoId);
-            if (!statusInfo) {
-                break;
-            }
-            
-            const status = statusInfo.status;
-            console.log(`当前状态: ${status}`);
-            
-            if (status === 'completed') {
-                console.log('视频生成完成！');
-                break;
-            } else if (status === 'failed') {
-                const errorMessage = statusInfo.error?.message || '未知错误';
-                console.log(`视频生成失败: ${errorMessage}`);
-                return false;
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 20000)); // 等待20秒
-        }
-        
-        // 步骤3: 下载视频
-        console.log('步骤3: 下载视频...');
-        const outputPath = `doubao_video_${videoId}.mp4`;
-        const success = await downloadVideo(videoId, outputPath);
-        
-        if (success) {
-            console.log(`视频生成完成: ${outputPath}`);
-            return true;
-        }
-        
-        return false;
-        
-    } catch (error) {
-        console.error('完整流程执行失败:', error);
-        return false;
-    }
-}
-
-// 使用示例
-(async () => {
-    const textContent = [
-        {
-            type: 'text',
-            text: '多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。'
-        }
-    ];
-    
-    const success = await completeDoubaoVideoGeneration(textContent);
-    
-    if (success) {
-        console.log('✅ 视频生成成功！');
-    } else {
-        console.log('❌ 视频生成失败！');
-    }
-})();
-```
-
-```go Go
-package main
-
-import (
-    "fmt"
-    "time"
-)
-
-func completeDoubaoVideoGeneration(request DoubaoVideoRequest) error {
-    // 步骤1: 创建任务
-    fmt.Println("步骤1: 创建视频生成任务...")
-    createResult, err := createDoubaoVideo(request)
-    if err != nil {
-        return fmt.Errorf("创建任务失败: %v", err)
-    }
-    
-    videoID := createResult.ID
-    fmt.Printf("任务ID: %s\n", videoID)
-    
-    // 步骤2: 等待任务完成
-    fmt.Println("步骤2: 等待任务完成...")
-    maxWaitTime := 15 * time.Minute
-    startTime := time.Now()
-    
-    for time.Since(startTime) < maxWaitTime {
-        statusInfo, err := checkVideoStatus(videoID)
-        if err != nil {
-            return fmt.Errorf("查询状态失败: %v", err)
-        }
-        
-        status := statusInfo.Status
-        fmt.Printf("当前状态: %s\n", status)
-        
-        if status == "completed" {
-            fmt.Println("视频生成完成！")
-            break
-        } else if status == "failed" {
-            return fmt.Errorf("视频生成失败")
-        }
-        
-        time.Sleep(20 * time.Second) // 等待20秒
-    }
-    
-    // 步骤3: 下载视频
-    fmt.Println("步骤3: 下载视频...")
-    outputPath := fmt.Sprintf("doubao_video_%s.mp4", videoID)
-    if err := downloadVideo(videoID, outputPath); err != nil {
-        return fmt.Errorf("下载视频失败: %v", err)
-    }
-    
-    fmt.Printf("视频生成完成: %s\n", outputPath)
-    return nil
-}
-
-// 使用示例
-func main() {
-    textRequest := DoubaoVideoRequest{
-        Content: []DoubaoContent{
-            {
-                Type: "text",
-                Text: "多个镜头。一名侦探进入一间光线昏暗的房间。他检查桌上的线索，手里拿起桌上的某个物品。镜头转向他正在思索。",
-            },
-        },
-    }
-    
-    err := completeDoubaoVideoGeneration(textRequest)
-    
-    if err != nil {
-        fmt.Printf("❌ 视频生成失败: %v\n", err)
-    } else {
-        fmt.Println("✅ 视频生成成功！")
-    }
-}
-```
-
-</CodeGroup>
-
-## 支持的参数
-
-### 基础参数
-
-| 参数名 | 类型 | 必填 | 描述 |
-|--------|------|------|------|
-| **model** | String | 是 | 使用的模型名称，如 `doubao-seedance-1.0-pro-250528` |
-| **content** | Array | 是 | 内容数组，支持文本和图片信息 |
-
-### 内容类型 (content 数组元素)
-
-| 参数名 | 类型 | 必填 | 描述 |
-|--------|------|------|------|
-| **type** | String | 是 | 内容类型：`text`（文本）、`image_url`（图片）、`video_url`（视频）、`audio_url`（音频） |
-| **text** | String | 条件必填 | 文本内容（当 type=text 时必填） |
-| **image_url** | Object | 条件必填 | 图片信息对象（当 type=image_url 时必填），包含 `url` 字段 |
-| **video_url** | Object | 条件必填 | 视频信息对象（当 type=video_url 时必填），包含 `url` 字段，用于视频参考或编辑（Seedance 2.0） |
-| **audio_url** | Object | 条件必填 | 音频信息对象（当 type=audio_url 时必填），包含 `url` 字段，用于有声视频的音频参考 |
-| **role** | String | 否 | 内容角色：`first_frame`（首帧图片）、`last_frame`（尾帧图片）、`reference_image`（参考图片）、`reference_video`（参考视频）、`mask_image`（遮罩图片）、`first_clip`（首段视频）、`video_outpainting`（视频延展） |
-
-### 视频生成参数
-
-| 参数名 | 类型 | 必填 | 描述 |
-|--------|------|------|------|
-| **size** | String | 否 | 视频尺寸，格式为 `宽x高`（如 `1920x1088`），系统会自动转换为对应的宽高比 |
-| **ratio** | String | 否 | 宽高比，可选值：`16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`keep_ratio`、`adaptive`。可通过 size 参数自动推导 |
-| **resolution** | String | 否 | 分辨率等级：`480p`、`720p`、`1080p`、`4K`。如需输出 4K 视频，直接设置 `"resolution": "4K"` |
-| **seconds** | String | 否 | 视频时长（秒），范围取决于模型：2.0 支持 4~15秒，1.5 支持 4~12秒，1.0 支持 2~12秒 |
-| **framespersecond** | Integer | 否 | 帧率，支持值：`24` |
-| **camerafixed** | Boolean | 否 | 是否固定摄像头 |
-| **watermark** | Boolean | 否 | 是否包含水印 |
-| **return_last_frame** | Boolean | 否 | 是否返回生成视频的尾帧图像 |
-| **generate_audio** | Boolean | 否 | 是否生成有声视频（仅 Seedance 1.5/2.0 支持） |
-| **tools** | Array | 否 | 工具列表，如联网搜索：`[{"type": "web_search"}]`（仅 Seedance 2.0 支持） |
-| **service_tier** | String | 否 | 服务等级，如 `premium`（仅 Seedance 2.0 支持） |
-
-> **参数传递方式**: 所有 seedance 模型的参数（ratio, resolution, duration 等）统一通过请求字段传递，不要在文本中追加 `--ratio 16:9` 命令。
-
-### Size 参数映射表
-
-通过 `size` 参数可以自动设置宽高比，不同模型版本支持的尺寸有所不同。
-
-#### doubao-seedance-1-5-pro-251215 支持的尺寸
-
-**480p:**
-| Size (宽x高) | 宽高比 |
-|-------------|--------|
-| 864x496 | 16:9 |
-| 752x560 | 4:3 |
-| 640x640 | 1:1 |
-| 560x752 | 3:4 |
-| 496x864 | 9:16 |
-| 992x432 | 21:9 |
-
-**720p:**
-| Size (宽x高) | 宽高比 |
-|-------------|--------|
-| 1280x720 | 16:9 |
-| 1112x834 | 4:3 |
-| 960x960 | 1:1 |
-| 834x1112 | 3:4 |
-| 720x1280 | 9:16 |
-| 1470x630 | 21:9 |
-
-**1080p:**
-| Size (宽x高) | 宽高比 |
-|-------------|--------|
-| 1920x1080 | 16:9 |
-| 1664x1248 | 4:3 |
-| 1440x1440 | 1:1 |
-| 1248x1664 | 3:4 |
-| 1080x1920 | 9:16 |
-| 2206x946 | 21:9 |
-
-#### doubao-seedance-1-0-pro-250528 支持的尺寸
-
-
-**480p:**
-| Size (宽x高) | 宽高比 |
-|-------------|--------|
-| 864x480 | 16:9 |
-| 736x544 | 4:3 |
-| 640x640 | 1:1 |
-| 544x736 | 3:4 |
-| 480x864 | 9:16 |
-| 960x416 | 21:9 |
-
-**720p:**
-| Size (宽x高) | 宽高比 |
-|-------------|--------|
-| 1248x704 | 16:9 |
-| 1120x832 | 4:3 |
-| 960x960 | 1:1 |
-| 832x1120 | 3:4 |
-| 704x1248 | 9:16 |
-| 1504x640 | 21:9 |
-
-**1080p:**
-| Size (宽x高) | 宽高比 |
-|-------------|--------|
-| 1920x1088 | 16:9 |
-| 1664x1248 | 4:3 |
-| 1440x1440 | 1:1 |
-| 1248x1664 | 3:4 |
-| 1088x1920 | 9:16 |
-| 2176x928 | 21:9 |
-
-## 任务状态说明
-
-- **in_queue**: 任务已提交，正在排队等待处理
-- **running**: 任务正在处理中
-- **completed**: 任务已完成，可以下载视频
-- **failed**: 任务失败
-
-## 内容格式示例
-
-### 文生视频（请求字段传递参数）
-```json
-{
-  "model": "doubao-seedance-2-0-260128",
+  "model": "doubao-seedance-2-5-260628",
   "content": [
-    {
-      "type": "text",
-      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨"
-    }
-  ],
-  "ratio": "16:9",
-  "seconds": "5",
-  "watermark": false
-}
-```
-> 所有 seedance 模型的参数通过请求字段传递，**不要**在文本中追加 `--` 命令参数
-
-### 联网搜索（web_search）
-```json
-{
-  "model": "doubao-seedance-2-0-260128",
-  "content": [
-    {
-      "type": "text",
-      "text": "根据最新新闻生成一段关于科技发展的视频"
-    }
-  ],
-  "ratio": "16:9",
-  "tools": [{"type": "web_search"}]
-}
-```
-
-### 使用 size 参数设置分辨率
-```json
-{
-  "model": "doubao-seedance-1.0-pro-250528",
-  "content": [
-    {
-      "type": "text",
-      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨"
-    }
-  ],
-  "size": "1920x1088",
-  "seconds": "6"
-}
-```
-> 使用 `size: "1920x1088"` 会自动设置为 1080p 分辨率和 16:9 宽高比
-
-### 输出 4K 视频
-
-在我们平台使用 Seedance 输出 4K 视频时，直接在创建视频任务的请求体中设置 `"resolution": "4K"`。`ratio` 仍用于控制视频宽高比，`seconds` 用于控制时长。
-
-```json
-{
-  "model": "doubao-seedance-2-0-260128",
-  "content": [
-    {
-      "type": "text",
-      "text": "一只猫在阳光下睡觉，微风轻抚，画面温馨"
-    }
-  ],
-  "ratio": "16:9",
-  "resolution": "4K",
-  "seconds": "5",
-  "watermark": false
-}
-```
-
-> 不要在文本提示词中追加 `--resolution 4K`、`--4k` 等命令式参数；Seedance 参数仍通过请求字段传递，4K 输出能力以官方文档和模型实际支持为准。
-
-### 文本+参考图片
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "基于这张图片生成一段动态视频"
-    },
+    { "type": "text", "text": "从白天自然过渡到黄昏，保持主体一致，镜头缓慢拉远" },
     {
       "type": "image_url",
-      "image_url": {
-        "url": "https://example.com/image.jpg"
-      },
-      "role": "reference_image"
-    }
-  ]
-}
-```
-
-### 首帧指定
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "从这个场景开始，展现一个故事"
-    },
-    {
-      "type": "image_url",
-      "image_url": {
-        "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
-      },
+      "image_url": { "url": "https://example.com/first-frame.png" },
       "role": "first_frame"
-    }
-  ]
-}
-```
-
-### 有声视频（generate_audio）
-
-> **注意**: `generate_audio` 仅 `doubao-seedance-1-5-pro-251215` 模型支持，生成带有音频的视频。
-
-```json
-{
-  "model": "doubao-seedance-1-5-pro-251215",
-  "content": [
+    },
     {
-      "type": "text",
-      "text": "一位音乐家在舞台上演奏小提琴，观众席上掌声雷动。镜头聚焦音乐家的手指在琴弦上舞动，音乐厅的灯光洒在他专注的脸上。"
+      "type": "image_url",
+      "image_url": { "url": "https://example.com/last-frame.png" },
+      "role": "last_frame"
     }
   ],
-  "generate_audio": true
+  "duration": 6,
+  "resolution": "720p",
+  "ratio": "16:9",
+  "generate_audio": true,
+  "return_last_frame": true
 }
 ```
 
-### 有声视频 + 参考音频（audio_url）
+### 多模态参考
 
-通过传入参考音频为生成视频提供音频风格参考：
+参考素材使用 `reference_image`、`reference_video` 和 `reference_audio` 角色。提示词可用“图片 1”“视频 1”“音频 1”等自然语言指代对应素材。
 
 ```json
 {
-  "model": "doubao-seedance-1-5-pro-251215",
+  "model": "doubao-seedance-2-5-260628",
   "content": [
+    { "type": "text", "text": "保持图片 1 中人物外观，参考视频 1 的运镜，并按照音频 1 的节奏剪辑" },
     {
-      "type": "text",
-      "text": "一只狗在雪地里欢快奔跑，阳光透过树梢洒在洁白的大地上"
+      "type": "image_url",
+      "image_url": { "url": "https://example.com/character.png" },
+      "role": "reference_image"
+    },
+    {
+      "type": "video_url",
+      "video_url": { "url": "https://example.com/camera-motion.mp4" },
+      "role": "reference_video"
     },
     {
       "type": "audio_url",
-      "audio_url": {
-        "url": "https://example.com/reference_audio.wav"
-      }
+      "audio_url": { "url": "https://example.com/rhythm.mp3" },
+      "role": "reference_audio"
     }
   ],
+  "duration": 10,
+  "resolution": "720p",
+  "ratio": "16:9",
   "generate_audio": true
 }
 ```
+
+Seedance 2.5 多模态参考最多支持 30 张图片；参考视频和参考音频各最多 10 个，单类素材总时长不超过 30 秒。具体素材格式、大小及组合限制以厂商最新规则为准。
+
+## 查询任务
+
+```bash cURL
+curl --request GET \
+  --url https://model-api.skyengine.com.cn/v1/videos/<TASK-ID> \
+  --header 'Authorization: Bearer <API-KEY>'
+```
+
+统一接口状态包括 `in_queue`、`in_progress`、`completed`、`failed` 和 `expired`。成功响应示例：
+
+```json
+{
+  "id": "cgt-2026******-****",
+  "model": "doubao-seedance-2-5-260628",
+  "status": "completed",
+  "content": {
+    "video_url": "https://example.com/generated-video.mp4",
+    "last_frame_url": "https://example.com/generated-last-frame.png"
+  },
+  "seed": 42,
+  "resolution": "720p",
+  "ratio": "16:9",
+  "duration": 5,
+  "framespersecond": 24,
+  "generate_audio": true,
+  "service_tier": "default",
+  "usage": { "completion_tokens": 108900, "total_tokens": 108900 }
+}
+```
+
+`expired` 表示任务超过执行有效期，不能再继续处理，应重新创建任务。
+
+## 常用参数
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 是 | 模型 ID，例如 `doubao-seedance-2-5-260628` |
+| `content` | array | 是 | 文本及图片、视频、音频输入 |
+| `duration` | integer | 否 | Seedance 2.5 为 4～30 秒 |
+| `resolution` | string | 否 | Seedance 2.5 支持 `480p`、`720p`，默认 `720p` |
+| `ratio` | string | 否 | 输出宽高比，例如 `16:9`、`9:16`、`1:1` 或 `adaptive` |
+| `generate_audio` | boolean | 否 | 是否生成同步音频，默认由厂商模型决定 |
+| `return_last_frame` | boolean | 否 | 是否在成功结果中返回尾帧图片 |
+| `camerafixed` | boolean | 否 | 是否固定摄像机 |
+| `service_tier` | string | 否 | 服务等级，透传给厂商校验 |
+| `watermark` | boolean | 否 | 是否添加水印 |
+| `seed` | integer | 否 | 随机种子；不传时由厂商生成 |
+
+<Warning>
+`camerafixed` 和 `service_tier` 会原样透传给厂商，但 Seedance 2.5 文生视频当前不接受这两个参数。仅在所用模型和生成模式明确支持时传入；厂商不支持时接口会返回参数错误。
+</Warning>
+
+<Note>
+查询接口返回的下载 URL 可能有有效期。任务成功后请及时下载并保存视频；应用侧轮询时建议采用递增间隔，避免高频请求。
+</Note>
