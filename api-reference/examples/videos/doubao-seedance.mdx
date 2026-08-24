@@ -11,7 +11,7 @@ Seedance 2.5 支持文生视频、首帧/首尾帧图生视频，以及图片、
 
 | 模型 ID | 输出时长 | 输出分辨率 | 帧率 |
 | --- | --- | --- | --- |
-| `doubao-seedance-2-5-260628` | 4～30 秒 | 480p、720p | 24 fps |
+| `doubao-seedance-2.5` | 4～30 秒 | 480p、720p | 24 fps |
 | `doubao-seedance-2-0-260128` | 4～15 秒 | 480p、720p、1080p、4K | 24 fps |
 | `doubao-seedance-2-0-fast-260128` | 4～15 秒 | 480p、720p | 24 fps |
 
@@ -27,7 +27,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "doubao-seedance-2-5-260628",
+    "model": "doubao-seedance-2.5",
     "content": [
       {
         "type": "text",
@@ -55,7 +55,7 @@ curl --request POST \
 
 ```json
 {
-  "model": "doubao-seedance-2-5-260628",
+  "model": "doubao-seedance-2.5",
   "content": [
     { "type": "text", "text": "从白天自然过渡到黄昏，保持主体一致，镜头缓慢拉远" },
     {
@@ -82,7 +82,7 @@ curl --request POST \
 
 ```json
 {
-  "model": "doubao-seedance-2-5-260628",
+  "model": "doubao-seedance-2.5",
   "content": [
     { "type": "text", "text": "保持图片 1 中人物外观，参考视频 1 的运镜，并按照音频 1 的节奏剪辑" },
     {
@@ -123,7 +123,7 @@ curl --request GET \
 ```json
 {
   "id": "cgt-2026******-****",
-  "model": "doubao-seedance-2-5-260628",
+  "model": "doubao-seedance-2.5",
   "status": "completed",
   "content": {
     "video_url": "https://example.com/generated-video.mp4",
@@ -146,7 +146,7 @@ curl --request GET \
 
 | 参数 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `model` | string | 是 | 模型 ID，例如 `doubao-seedance-2-5-260628` |
+| `model` | string | 是 | 模型 ID，例如 `doubao-seedance-2.5` |
 | `content` | array | 是 | 文本及图片、视频、音频输入 |
 | `duration` | integer | 否 | Seedance 2.5 为 4～30 秒 |
 | `resolution` | string | 否 | Seedance 2.5 支持 `480p`、`720p`，默认 `720p` |
