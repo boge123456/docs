@@ -71,7 +71,6 @@ curl --request POST \
   ],
   "duration": 6,
   "resolution": "720p",
-  "ratio": "16:9",
   "generate_audio": true,
   "return_last_frame": true
 }
@@ -160,7 +159,7 @@ curl --request GET \
 | `seed` | integer | 否 | 随机种子；不传时由厂商生成 |
 
 <Warning>
-`camerafixed` 和 `service_tier` 会原样透传给厂商，但 Seedance 2.5 文生视频当前不接受这两个参数。仅在所用模型和生成模式明确支持时传入；厂商不支持时接口会返回参数错误。
+`camerafixed` 和 `service_tier` 会原样透传给厂商。经正式环境实测，Seedance 2.5 文生视频场景当前不接受这两个参数；是否支持应以具体模型、生成模式及厂商实际校验结果为准。
 </Warning>
 
 <Note>
