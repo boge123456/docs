@@ -41,7 +41,11 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
 
 ### 图片编辑
 
-精细编辑推荐使用 Sunburst。以下示例上传本地图片并要求以 JPEG 返回：
+精细编辑推荐使用 Sunburst。图片编辑同时支持 `multipart/form-data` 和 `application/json`。
+
+#### multipart/form-data：上传本地图片
+
+以下示例上传本地图片并要求以 JPEG 返回：
 
 ```bash cURL
 curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
@@ -56,6 +60,31 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
   -F output_compression="80" \
   -F response_format="url"
 ```
+
+#### application/json：传入 URL 或 Base64
+
+JSON 请求中的 `image` 是字符串数组，每个元素可以是 HTTP(S) URL、纯 Base64，或带 `data:image/...;base64,` 前缀的 Base64。可选的 `mask` 是单个 URL 或 Base64 字符串。
+
+```bash cURL
+curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "保留主体构图，将画面转换为干净的水彩海报",
+    "image": [
+      "https://example.com/original.png"
+    ],
+    "size": "1024x1024",
+    "quality": "medium",
+    "input_fidelity": "high",
+    "output_format": "jpeg",
+    "output_compression": 80,
+    "response_format": "url"
+  }'
+```
+
+如需局部编辑，可在 JSON body 中增加 `"mask": "https://example.com/mask.png"`。使用 Base64 时，建议避免在日志中记录完整字符串。
 
 <Warning>
 `input_fidelity=high` 仅用于 `gpt-image-2.5-sunburst`。向 `gpt-image-2.5-flare` 传该值会返回 HTTP 400。
@@ -318,7 +347,7 @@ async function editImage(imagePath, prompt, {
 
 ### 方式 B：application/json（推荐，接入更简单）
 
-`image` 是**字符串数组**，每个元素可以是 `http(s)://` URL 或 base64 字符串（**不要**带 `data:image/png;base64,` 前缀）。`mask` 是单个字符串，同样规则。平台会自动下载 / 解码，再透传到底层模型。
+`image` 是**字符串数组**，每个元素可以是 `http(s)://` URL、纯 Base64，或带 `data:image/...;base64,` 前缀的 Base64。`mask` 是单个字符串，同样规则。平台会自动下载 / 解码，再透传到底层模型。
 
 <CodeGroup>
 
@@ -473,7 +502,7 @@ r = requests.post(
     json={
         "model": "gpt-image-2-2026-04-21",
         "prompt": "把苹果变成蓝色",
-        "image": [b64],   # 注意：不要带 "data:image/png;base64," 前缀
+        "image": [b64],   # 也兼容带 "data:image/png;base64," 前缀的 Base64
         "size": "1024x1024",
         "quality": "low",
     },
@@ -515,7 +544,7 @@ r = requests.post(
 | `mask` | file（form-data）<br/>string（JSON，URL 或 base64） | 可选 PNG mask（alpha 通道透明区域表示"编辑此处"），尺寸必须与 `image` 一致。**仅 `/v1/images/edits` 支持**，方式 C 不支持 |
 | `input_fidelity` | string | 图片编辑保真度。当前 `high` 仅支持 `gpt-image-2.5-sunburst`；Flare 请求请省略该字段 |
 
-**JSON body 下 base64 字符串约定**：直接放 base64 内容即可，**不要**带 `data:image/png;base64,` 前缀。
+**JSON body 下 Base64 字符串约定**：纯 Base64 和带 `data:image/...;base64,` 前缀的 Base64 均支持。
 
 ### 尺寸约束（gpt-image-2）
 
