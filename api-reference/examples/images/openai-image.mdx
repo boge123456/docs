@@ -150,11 +150,40 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
       "image_tokens": 196,
       "text_tokens": 0
     }
-  }
+  },
+  "generate_image": 1
 }
 ```
 
-响应会保留模型返回的 `usage` token 总量与输入/输出明细。这两个模型分别按文本输入 token、图片输入 token 和图片输出 token 计费；缓存命中时使用对应的缓存输入计费项。具体单价、币种、折扣和舍入规则以模型广场展示及实际账单为准，不要根据本页示例数字直接推算最终扣费。
+#### 返回字段矩阵
+
+| 字段路径 | 类型 | 是否一定返回 | 出现条件 / 含义 | 与计费的关系 |
+|---|---|:---:|---|---|
+| `created` | integer | 是 | 图片创建时间，Unix 秒级时间戳 | 无 |
+| `data` | array | 是 | 生成结果列表；GPT Image 2.5 同步接口当前包含 1 项 | 无 |
+| `data[].b64_json` | string | 条件 | `response_format=b64_json` 或未传时返回的图片 Base64 | 无；只影响交付方式 |
+| `data[].url` | string | 条件 | `response_format=url` 时由平台转存并返回签名 URL | 无；只影响交付方式，URL 会过期 |
+| `data[].revised_prompt` | string | 条件 | 上游返回的修订后提示词，主要用于 DALL·E 3；GPT Image 2.5 通常不返回 | 无 |
+| `background` | string | 条件 | OpenAI 兼容保留字段；上游可能回传 `transparent` / `opaque` | 无；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
+| `output_format` | string | 条件 | OpenAI 兼容保留字段，表示实际上游输出格式 | 无；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
+| `quality` | string | 条件 | OpenAI 兼容保留字段，表示实际质量档位 | 会影响图片输出 token 数及费用；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
+| `size` | string | 条件 | OpenAI 兼容保留字段，表示实际尺寸，例如 `1024x1024` | 会影响图片输出 token 数及费用；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
+| `usage` | object | 条件 | GPT Image 模型的 token 用量；仅在上游提供 usage 时出现 | 计费依据 |
+| `usage.input_tokens` | integer | 条件 | 文本与图片输入 token 合计 | 输入计费合计依据 |
+| `usage.input_tokens_details.text_tokens` | integer | 条件 | 提示词等文本输入 token | 按文本输入单价计费 |
+| `usage.input_tokens_details.image_tokens` | integer | 条件 | 图片编辑场景的输入图片 token；以渠道实际上报为准 | 按图片输入单价计费 |
+| `usage.output_tokens` | integer | 条件 | 模型生成的输出 token 合计 | 输出计费合计依据 |
+| `usage.output_tokens_details.image_tokens` | integer | 条件 | 图片输出 token | 按图片输出单价计费 |
+| `usage.output_tokens_details.text_tokens` | integer | 条件 | 输出文本 token；GPT Image 2.5 纯图片响应通常为 `0` 或省略 | GPT Image 2.5 不产生计费文本输出 |
+| `usage.total_tokens` | integer | 条件 | 输入与输出 token 总计，通常等于 `input_tokens + output_tokens` | 汇总展示；不要与明细重复计费 |
+| `generate_image` | integer | 条件 | 平台扩展字段，表示本次成功生成的图片张数 | 不是 token，不要加到 `total_tokens` |
+| `generate_image_r1` / `generate_image_r2` | integer | 条件 | 平台扩展的分辨率档位图片数，仅部分按张/档位计费的模型返回 | GPT Image 2.5 按 token 计费时通常省略 |
+
+<Warning>
+`b64_json` 与 `url` 按 `response_format` 二选一，不应假设两者同时存在。所有标记为“条件”的字段都应使用可选字段方式解析；字段缺失不等于数值为 `0`。
+</Warning>
+
+响应会保留模型返回的 `usage` token 总量与输入/输出明细。这两个模型分别按文本输入 token、图片输入 token 和图片输出 token 计费；缓存命中时使用对应的缓存输入计费项。当前 Images API 响应没有稳定约定 `cached_tokens` 返回字段，客户端不应通过重复请求或费用差额自行推断是否命中缓存。具体单价、币种、折扣和舍入规则以模型广场展示及实际账单为准，不要根据本页示例数字直接推算最终扣费。
 
 ## 图片生成（文生图）
 

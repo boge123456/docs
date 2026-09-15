@@ -1282,10 +1282,6 @@
                     "summary": "图像生成成功",
                     "value": {
                       "created": 1589478378,
-                      "background": "auto",
-                      "output_format": "png",
-                      "quality": "high",
-                      "size": "1024x1024",
                       "data": [
                         {
                           "url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-abc123/user-abc123/img-abc123.png"
@@ -1297,9 +1293,14 @@
                           "image_tokens": 0,
                           "text_tokens": 15
                         },
-                        "output_tokens": 1,
-                        "total_tokens": 16
-                      }
+                        "output_tokens": 196,
+                        "output_tokens_details": {
+                          "image_tokens": 196,
+                          "text_tokens": 0
+                        },
+                        "total_tokens": 211
+                      },
+                      "generate_image": 1
                     }
                   }
                 }
@@ -1403,10 +1404,6 @@
                     "summary": "图像编辑成功",
                     "value": {
                       "created": 1589478378,
-                      "background": "auto",
-                      "output_format": "png",
-                      "quality": "high",
-                      "size": "1024x1024",
                       "data": [
                         {
                           "url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-xyz/user-abc/img-edited.png"
@@ -1418,9 +1415,14 @@
                           "image_tokens": 5,
                           "text_tokens": 13
                         },
-                        "output_tokens": 1,
-                        "total_tokens": 19
-                      }
+                        "output_tokens": 205,
+                        "output_tokens_details": {
+                          "image_tokens": 205,
+                          "text_tokens": 0
+                        },
+                        "total_tokens": 223
+                      },
+                      "generate_image": 1
                     }
                   }
                 }
@@ -5905,8 +5907,8 @@
         "properties": {
           "background": {
             "type": "string",
-            "enum": ["transparent", "opaque"],
-            "description": "用于图像生成的背景参数。transparent 或 opaque"
+            "enum": ["transparent", "opaque", "auto"],
+            "description": "OpenAI 兼容保留字段，上游可能回传实际背景设置。当前 Azure / QNAIGC GPT Image 2.5 适配器不返回"
           },
           "created": {
             "type": "integer",
@@ -5924,21 +5926,35 @@
           "output_format": {
             "type": "string",
             "enum": ["png", "webp", "jpeg"],
-            "description": "图像生成的输出格式。png、webp 或 jpeg"
+            "description": "OpenAI 兼容保留字段，上游可能回传实际图片格式。当前 Azure / QNAIGC GPT Image 2.5 适配器不返回"
           },
           "quality": {
             "type": "string",
-            "enum": ["low", "medium", "high"],
-            "description": "生成图像的质量。low、medium 或 high"
+            "enum": ["low", "medium", "high", "xhigh", "max", "auto"],
+            "description": "OpenAI 兼容保留字段，上游可能回传实际质量档位。当前 Azure / QNAIGC GPT Image 2.5 适配器不返回"
           },
           "size": {
             "type": "string",
-            "enum": ["1024x1024", "1024x1536", "1536x1024"],
-            "description": "生成图像的尺寸。1024x1024、1024x1536 或 1536x1024"
+            "description": "OpenAI 兼容保留字段，上游可能回传实际图片尺寸，例如 1024x1024。当前 Azure / QNAIGC GPT Image 2.5 适配器不返回"
           },
           "usage": {
             "$ref": "#/components/schemas/ImageUsage",
-            "description": "仅适用于 gpt-image-1，图像生成的 token 使用信息"
+            "description": "GPT Image 模型的 token 使用信息。仅在上游提供 usage 时出现"
+          },
+          "generate_image": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "平台扩展字段，本次成功生成的图片张数。它不是 token，不应加到 total_tokens"
+          },
+          "generate_image_r1": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "平台扩展字段，R1 分辨率计费档位的图片张数；仅部分按张或档位计费的模型返回"
+          },
+          "generate_image_r2": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "平台扩展字段，R2 分辨率计费档位的图片张数；仅部分按张或档位计费的模型返回"
           }
         }
       },
@@ -5947,7 +5963,7 @@
         "properties": {
           "b64_json": {
             "type": "string",
-            "description": "生成图像的 base64 编码 JSON。gpt-image-1 的默认值，仅当 dall-e-2 和 dall-e-3 的 response_format 设置为 b64_json 时才存在"
+            "description": "response_format=b64_json 或未传时返回的图片 Base64。与 url 按返回格式二选一"
           },
           "revised_prompt": {
             "type": "string",
@@ -5956,14 +5972,15 @@
           },
           "url": {
             "type": "string",
-            "description": "使用 dall-e-2 或 dall-e-3 时，如果 response_format 设置为 url（默认值），则为生成图像的 URL。gpt-image-1 不支持",
-            "example": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-abc123/user-abc123/img-abc123.png"
+            "format": "uri",
+            "description": "response_format=url 时由平台转存并返回的签名 URL。与 b64_json 按返回格式二选一，URL 会过期",
+            "example": "https://model-static.skyengine.com.cn/<uid>/images/generated_xxx.png"
           }
         }
       },
       "ImageUsage": {
         "type": "object",
-        "description": "仅适用于 gpt-image-1，图像生成的 token 使用信息",
+        "description": "GPT Image 模型的 token 使用信息。字段缺失不等于数值为 0，以渠道实际上报为准",
         "properties": {
           "input_tokens": {
             "type": "integer",
@@ -5976,6 +5993,10 @@
           "output_tokens": {
             "type": "integer",
             "description": "模型生成的输出 token 数量"
+          },
+          "output_tokens_details": {
+            "$ref": "#/components/schemas/ImageOutputTokensDetails",
+            "description": "图像生成的输出 token 详细信息"
           },
           "total_tokens": {
             "type": "integer",
@@ -5994,6 +6015,20 @@
           "text_tokens": {
             "type": "integer",
             "description": "输入提示中的文本 token 数量"
+          }
+        }
+      },
+      "ImageOutputTokensDetails": {
+        "type": "object",
+        "description": "图像生成的输出 token 详细信息",
+        "properties": {
+          "image_tokens": {
+            "type": "integer",
+            "description": "图片输出 token，按图片输出单价计费"
+          },
+          "text_tokens": {
+            "type": "integer",
+            "description": "输出文本 token；GPT Image 2.5 纯图片响应通常为 0 或省略，且不产生计费文本输出"
           }
         }
       },
