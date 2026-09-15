@@ -1217,7 +1217,7 @@
                   "Images"
               ],
         "summary": "创建图像",
-        "description": "根据给定的文本提示创建图像。支持多种模型包括gpt-image-1和DALL·E 3，提供不同的质量、尺寸和风格选项。",
+        "description": "根据文本提示创建图像。GPT Image 2.5 还支持在 JSON body 中传入 image（URL 或 Base64）进行图片编辑；需要 mask 时请使用 /v1/images/edits。",
         "security": [
           {
                       "OpenAIAuth": [
@@ -1326,7 +1326,7 @@
                   "Images"
               ],
         "summary": "创建图像编辑",
-        "description": "通过上传图像和描述所需更改的提示来创建编辑图像或扩展图像。要求图像必须是有效的PNG文件，小于4MB，并且是正方形。如果mask未提供，图像必须具有透明度，将被用作mask。",
+        "description": "根据一张或多张输入图片和提示词创建编辑图像。支持 multipart/form-data 上传本地文件，也支持 application/json 传入图片 URL、纯 Base64 或 Data URI。",
         "security": [
           {
                       "OpenAIAuth": [
@@ -1350,6 +1350,40 @@
                     "prompt": "在图片中添加一朵红色的玫瑰花",
                     "n": 1,
                     "size": "1024x1024"
+                  }
+                }
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImageEditJSONRequest"
+              },
+              "examples": {
+                "url_edit": {
+                  "summary": "使用图片 URL 编辑",
+                  "value": {
+                    "model": "gpt-image-2.5-sunburst",
+                    "prompt": "保留主体构图，将画面转换为干净的水彩海报",
+                    "image": [
+                      "https://example.com/original.png"
+                    ],
+                    "size": "1024x1024",
+                    "quality": "medium",
+                    "input_fidelity": "high",
+                    "output_format": "jpeg",
+                    "output_compression": 80,
+                    "response_format": "url"
+                  }
+                },
+                "base64_edit": {
+                  "summary": "使用 Base64 图片编辑",
+                  "value": {
+                    "model": "gpt-image-2.5-flare",
+                    "prompt": "给主体加上一顶红色帽子",
+                    "image": [
+                      "data:image/png;base64,<BASE64_DATA>"
+                    ],
+                    "quality": "low"
                   }
                 }
               }
@@ -5370,12 +5404,13 @@
       "CreateImageRequest": {
         "type": "object",
               "required": [
+                  "model",
                   "prompt"
               ],
         "properties": {
           "prompt": {
             "type": "string",
-            "description": "描述所需图像的文本提示。gpt-image-1 最大长度为 32000 个字符，dall-e-2 最大长度为 1000 个字符，dall-e-3 最大长度为 4000 个字符",
+            "description": "描述所需图像的文本提示。GPT Image 系列最大长度为 32000 个字符，dall-e-2 最大长度为 1000 个字符，dall-e-3 最大长度为 4000 个字符",
             "maxLength": 32000,
             "example": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格"
           },
@@ -5389,21 +5424,21 @@
                 "type": "null"
               }
             ],
-            "description": "设置生成图像背景的透明度。此参数仅支持 gpt-image-1。必须是 transparent、opaque 或 auto（默认值）之一。当使用 auto 时，模型将自动确定图像的最佳背景。如果是 transparent，输出格式需要支持透明度，因此应设置为 png（默认值）或 webp",
+            "description": "设置生成图像背景。GPT Image 2.5 支持 transparent、opaque 或 auto；transparent 请配合 png 输出格式",
             "default": "auto"
           },
           "model": {
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["dall-e-2", "dall-e-3", "gpt-image-1"]
+                "enum": ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst", "gpt-image-2-2026-04-21", "gpt-image-2", "gpt-image-1.5", "gpt-image-1-mini", "gpt-image-1", "dall-e-2", "dall-e-3"]
               },
               {
                 "type": "null"
               }
             ],
-            "description": "用于图像生成的模型。dall-e-2、dall-e-3 或 gpt-image-1 之一。",
-            "example": "gpt-image-1"
+            "description": "用于图像生成的模型。新接入推荐 gpt-image-2.5-flare（速度优先）或 gpt-image-2.5-sunburst（编辑精度优先）",
+            "example": "gpt-image-2.5-flare"
           },
           "moderation": {
             "anyOf": [
@@ -5433,6 +5468,22 @@
             "default": 1,
             "example": 1
           },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "maxItems": 16
+              }
+            ],
+            "description": "平台扩展的图片编辑输入。可传单个字符串或最多 16 个字符串；每项支持 HTTP(S) URL、纯 Base64 或 data:image/...;base64,... Data URI。传入后平台按图片编辑处理；需要 mask 时请改用 /v1/images/edits"
+          },
           "output_compression": {
             "anyOf": [
               {
@@ -5444,7 +5495,7 @@
                 "type": "null"
               }
             ],
-            "description": "生成图像的压缩级别（0-100%）。此参数仅支持使用 webp 或 jpeg 输出格式的 gpt-image-1，默认为 100",
+            "description": "生成图像的压缩级别（0-100）。GPT Image 2.5 当前平台接入仅在 output_format=jpeg 时使用",
             "default": 100
           },
           "output_format": {
@@ -5457,7 +5508,7 @@
                 "type": "null"
               }
             ],
-            "description": "生成图像返回的格式。此参数仅支持 gpt-image-1。必须是 png、jpeg 或 webp 之一",
+            "description": "输出图片格式。GPT Image 2.5 当前平台接入支持 png 或 jpeg，暂不支持 webp",
             "default": "png"
           },
           "partial_images": {
@@ -5471,13 +5522,13 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["auto", "high", "medium", "low", "hd", "standard"]
+                "enum": ["auto", "max", "xhigh", "high", "medium", "low", "hd", "standard"]
               },
               {
                 "type": "null"
               }
             ],
-            "description": "将要生成的图像质量。auto（默认值）将自动为给定模型选择最佳质量。gpt-image-1 支持 high、medium 和 low。dall-e-3 支持 hd 和 standard。dall-e-2 仅支持 standard",
+            "description": "图像质量。GPT Image 2.5 支持 auto、low、medium、high、xhigh 和 max；dall-e-3 支持 hd 和 standard；dall-e-2 仅支持 standard",
             "default": "auto"
           },
           "response_format": {
@@ -5490,8 +5541,8 @@
                 "type": "null"
               }
             ],
-            "description": "dall-e-2 和 dall-e-3 生成图像的返回格式。必须是 url 或 b64_json 之一。URL 仅在生成图像后的 60 分钟内有效。此参数不支持 gpt-image-1，后者始终返回 base64 编码的图像",
-            "default": "url"
+            "description": "平台响应格式。b64_json 直接返回图片 Base64；url 会由平台转存图片并返回签名 URL",
+            "default": "b64_json"
           },
           "size": {
             "anyOf": [
@@ -5541,6 +5592,7 @@
         "type": "object",
               "required": [
                   "image",
+                  "model",
                   "prompt"
               ],
         "properties": {
@@ -5582,8 +5634,7 @@
           "input_fidelity": {
             "type": "string",
             "enum": ["high", "low"],
-            "description": "控制模型匹配输入图像的风格和特征（特别是面部特征）的努力程度。此参数仅支持 gpt-image-1。gpt-image-1-mini 不支持。支持 high 和 low，默认为 low",
-            "default": "low"
+            "description": "控制模型匹配输入图片风格和特征的努力程度。GPT Image 2.5 当前仅 gpt-image-2.5-sunburst 支持 high；Flare 请省略此字段。其他模型以模型说明为准"
           },
           "mask": {
             "type": "string",
@@ -5594,14 +5645,14 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["dall-e-2", "gpt-image-1"]
+                "enum": ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst", "gpt-image-2-2026-04-21", "gpt-image-2", "gpt-image-1.5", "gpt-image-1-mini", "gpt-image-1", "dall-e-2"]
               },
               {
                 "type": "null"
               }
             ],
-            "description": "用于图像生成的模型。仅支持 dall-e-2 和 gpt-image-1。默认为 dall-e-2，除非使用特定于 gpt-image-1 的参数",
-            "default": "dall-e-2"
+            "description": "用于图片编辑的模型。新接入推荐 gpt-image-2.5-sunburst；低延迟场景可选 gpt-image-2.5-flare",
+            "example": "gpt-image-2.5-sunburst"
           },
           "n": {
             "anyOf": [
@@ -5641,7 +5692,7 @@
                 "type": "null"
               }
             ],
-            "description": "生成图像返回的格式。此参数仅支持 gpt-image-1。必须是 png、jpeg 或 webp 之一。默认值为 png",
+            "description": "输出图片格式。GPT Image 2.5 当前平台接入支持 png 或 jpeg，暂不支持 webp",
             "default": "png"
           },
           "partial_images": {
@@ -5655,13 +5706,13 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["auto", "high", "medium", "low", "standard"]
+                "enum": ["auto", "max", "xhigh", "high", "medium", "low", "standard"]
               },
               {
                 "type": "null"
               }
             ],
-            "description": "将要生成的图像质量。gpt-image-1 仅支持 high、medium 和 low。dall-e-2 仅支持 standard 质量。默认为 auto",
+            "description": "图像质量。GPT Image 2.5 支持 auto、low、medium、high、xhigh 和 max；dall-e-2 仅支持 standard",
             "default": "auto"
           },
           "response_format": {
@@ -5674,8 +5725,8 @@
                 "type": "null"
               }
             ],
-            "description": "生成图像的返回格式。必须是 url 或 b64_json 之一。URL 仅在生成图像后的 60 分钟内有效。此参数仅支持 dall-e-2，因为 gpt-image-1 始终返回 base64 编码的图像",
-            "default": "url"
+            "description": "平台响应格式。b64_json 直接返回图片 Base64；url 会由平台转存图片并返回签名 URL",
+            "default": "b64_json"
           },
           "size": {
             "anyOf": [
@@ -5705,6 +5756,92 @@
           "user": {
             "type": "string",
             "description": "代表您的最终用户的唯一标识符，可以帮助 OpenAI 监控和检测滥用"
+          }
+        }
+      },
+      "CreateImageEditJSONRequest": {
+        "type": "object",
+        "required": ["model", "prompt", "image"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "enum": ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst", "gpt-image-2-2026-04-21", "gpt-image-2", "gpt-image-1.5", "gpt-image-1-mini", "gpt-image-1"],
+            "description": "用于图片编辑的模型",
+            "example": "gpt-image-2.5-sunburst"
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 32000,
+            "description": "描述需要对输入图片进行的修改",
+            "example": "保留主体构图，将画面转换为干净的水彩海报"
+          },
+          "image": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "maxItems": 16,
+            "description": "最多 16 张图片，即使只有一张也需使用数组。每项支持 HTTP(S) URL、纯 Base64 或 data:image/...;base64,... Data URI"
+          },
+          "mask": {
+            "type": "string",
+            "description": "可选遮罩图片，支持 HTTP(S) URL、纯 Base64 或 Data URI。PNG 透明区域表示需要编辑的位置，尺寸须与第一张输入图一致"
+          },
+          "n": {
+            "type": "integer",
+            "enum": [1],
+            "default": 1,
+            "description": "GPT Image 2.5 同步接口当前每次返回一张图片"
+          },
+          "size": {
+            "type": "string",
+            "enum": ["1024x1024", "1536x1024", "1024x1536", "auto"],
+            "default": "auto",
+            "description": "输出图片尺寸"
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["auto", "low", "medium", "high", "xhigh", "max"],
+            "default": "auto",
+            "description": "图片质量；档位越高，通常耗时、输出 token 和费用越高"
+          },
+          "output_format": {
+            "type": "string",
+            "enum": ["png", "jpeg"],
+            "default": "png",
+            "description": "当前平台接入暂不支持 webp"
+          },
+          "output_compression": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "当前仅在 output_format=jpeg 时使用"
+          },
+          "background": {
+            "type": "string",
+            "enum": ["auto", "opaque", "transparent"],
+            "default": "auto",
+            "description": "透明背景请配合 output_format=png"
+          },
+          "moderation": {
+            "type": "string",
+            "enum": ["auto", "low"],
+            "default": "auto",
+            "description": "内容审核强度"
+          },
+          "input_fidelity": {
+            "type": "string",
+            "enum": ["high"],
+            "description": "仅 gpt-image-2.5-sunburst 支持；Flare 请省略"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": ["b64_json", "url"],
+            "default": "b64_json",
+            "description": "url 为平台转存后返回的签名 URL"
+          },
+          "user": {
+            "type": "string",
+            "description": "业务侧最终用户标识，便于审计"
           }
         }
       },

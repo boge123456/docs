@@ -12,6 +12,19 @@ description: '使用 OpenAI 兼容接口（GPT Image 2.5 / gpt-image-2 / gpt-ima
 
 两者都走 OpenAI 兼容协议。新接入推荐使用 `gpt-image-2.5-flare` 或 `gpt-image-2.5-sunburst`；已有业务仍可继续使用 `gpt-image-2-2026-04-21`、`gpt-image-1` / `gpt-image-1.5`。
 
+## 接口与传图方式速查
+
+| 场景 | Endpoint | Content-Type | 图片字段怎么传 | 是否支持多图 | 是否支持 mask |
+|---|---|---|---|---|---|
+| 文生图 | `/v1/images/generations` | `application/json` | 不传 `image` | - | 否 |
+| 图片编辑（本地文件） | `/v1/images/edits` | `multipart/form-data` | `image=@original.png`；多图时重复传 `image` | 是，最多 16 张 | 是，`mask=@mask.png` |
+| 图片编辑（URL / Base64） | `/v1/images/edits` | `application/json` | `image` 传字符串数组；每项可为 URL、纯 Base64 或 Data URI | 是，最多 16 张 | 是，`mask` 传单个字符串 |
+| 统一生成入口（平台扩展） | `/v1/images/generations` | `application/json` | 增加 `image`，传单个字符串或字符串数组；平台按图片编辑处理 | 是，最多 16 张 | 否 |
+
+<Note>
+OpenAI 标准的图片编辑使用 `multipart/form-data`。为方便服务端直接传 URL 或 Base64，平台额外支持 JSON body；不需要先把远程图片下载成本地文件。
+</Note>
+
 ## GPT Image 2.5（推荐）
 
 平台提供两个独立模型名，请按场景明确选择，不要使用 `gpt-image-2.5` 作为模型名：
@@ -63,7 +76,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
 
 #### application/json：传入 URL 或 Base64
 
-JSON 请求中的 `image` 是字符串数组，每个元素可以是 HTTP(S) URL、纯 Base64，或带 `data:image/...;base64,` 前缀的 Base64。可选的 `mask` 是单个 URL 或 Base64 字符串。
+JSON 请求中的 `image` 是字符串数组，每个元素可以是 HTTP(S) URL、纯 Base64，或带 `data:image/...;base64,` 前缀的 Base64。即使只有一张图片也需要使用数组。可选的 `mask` 是单个 URL 或 Base64 字符串。
 
 ```bash cURL
 curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
@@ -96,18 +109,22 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
 
 ### GPT Image 2.5 参数
 
-| 参数 | 类型 | 说明 |
-|---|---|---|
-| `model` | string | `gpt-image-2.5-flare` 或 `gpt-image-2.5-sunburst` |
-| `prompt` | string | 图片描述，必填 |
-| `size` | string | `auto` 或 `WIDTHxHEIGHT`；推荐使用 `1024x1024`、`1536x1024`、`1024x1536` |
-| `quality` | string | `low` / `medium` / `high` / `xhigh` / `max` / `auto`；质量越高，通常耗时和输出 token 越多 |
-| `output_format` | string | `png`（默认）/ `jpeg`；当前平台接入暂不支持 `webp` |
-| `output_compression` | integer | `0` ~ `100`；当前仅在 `output_format=jpeg` 时使用，不传则使用模型默认值 |
-| `background` | string | `auto` / `opaque` / `transparent`；透明背景请使用 `png` |
-| `moderation` | string | `auto`（默认）/ `low` |
-| `input_fidelity` | string | 图片编辑参数；`high` 仅由 `gpt-image-2.5-sunburst` 支持，Flare 请省略 |
-| `response_format` | string | `b64_json`（默认）/ `url` |
+| 参数 | 类型 | 必填 | generations | edits | 默认值 / 可选值 | 说明 |
+|---|---|---:|:---:|:---:|---|---|
+| `model` | string | 是 | ✓ | ✓ | `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` | Flare 偏速度，Sunburst 偏编辑精度 |
+| `prompt` | string | 是 | ✓ | ✓ | 最长 32000 字符 | 描述要生成的画面或对输入图的修改要求 |
+| `image` | file / file[]；string / string[] | edits 是 | 扩展支持 | ✓ | 最多 16 张 | form-data 传文件；`edits` 的 JSON body 必须传字符串数组；`generations` 扩展兼容单个字符串或数组。内容可为 URL、纯 Base64 或 Data URI |
+| `mask` | file 或 string | 否 | - | ✓ | PNG | 透明区域表示需要编辑的位置；尺寸须与第一张输入图一致 |
+| `n` | integer | 否 | ✓ | ✓ | GPT Image 2.5 当前为 `1` | 同步接口每次返回一张图片 |
+| `size` | string | 否 | ✓ | ✓ | `auto`；推荐 `1024x1024` / `1536x1024` / `1024x1536` | 不支持的自定义尺寸返回 HTTP 400 |
+| `quality` | string | 否 | ✓ | ✓ | `auto` / `low` / `medium` / `high` / `xhigh` / `max` | 档位越高，通常耗时、输出 token 和费用越高 |
+| `output_format` | string | 否 | ✓ | ✓ | `png`（默认）/ `jpeg` | 当前平台接入暂不支持 `webp` |
+| `output_compression` | integer | 否 | ✓ | ✓ | `0`～`100` | 当前仅对 `output_format=jpeg` 生效 |
+| `background` | string | 否 | ✓ | ✓ | `auto` / `opaque` / `transparent` | 透明背景请配合 `output_format=png` |
+| `moderation` | string | 否 | ✓ | ✓ | `auto`（默认）/ `low` | 内容审核强度 |
+| `input_fidelity` | string | 否 | - | ✓ | `high` | 仅 `gpt-image-2.5-sunburst` 支持；Flare 请省略 |
+| `response_format` | string | 否 | ✓ | ✓ | `b64_json`（默认）/ `url` | `url` 为平台转存后返回的签名 URL |
+| `user` | string | 否 | ✓ | ✓ | - | 业务侧最终用户标识，便于审计 |
 
 同步文生图每次返回一张图片。建议优先使用表格中的标准尺寸；其他自定义尺寸是否可用以接口实际校验结果为准，不支持的尺寸会返回 HTTP 400。
 
@@ -540,7 +557,7 @@ r = requests.post(
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `image` | file / file[]（form-data）<br/>string / string[]（JSON，URL 或 base64） | 参考图。JSON 下多图就是数组；form-data 下同名字段重复即可多图。GPT Image 2.5 与 `gpt-image-1/2` 家族在 `/v1/images/generations` 也支持此字段（见方式 C） |
+| `image` | file / file[]（form-data）<br/>string[]（edits JSON）<br/>string / string[]（generations JSON） | 参考图。`/v1/images/edits` 的 JSON body 即使单图也要传数组；form-data 下同名字段重复即可多图。GPT Image 2.5 与 `gpt-image-1/2` 家族在 `/v1/images/generations` 也支持此字段（见方式 C） |
 | `mask` | file（form-data）<br/>string（JSON，URL 或 base64） | 可选 PNG mask（alpha 通道透明区域表示"编辑此处"），尺寸必须与 `image` 一致。**仅 `/v1/images/edits` 支持**，方式 C 不支持 |
 | `input_fidelity` | string | 图片编辑保真度。当前 `high` 仅支持 `gpt-image-2.5-sunburst`；Flare 请求请省略该字段 |
 
