@@ -122,6 +122,12 @@
                     ]
                   },
                   {
+                    "group": "实时对话（Realtime）",
+                    "pages": [
+                      "api-reference/examples/realtime/openai-realtime"
+                    ]
+                  },
+                  {
                     "group": "流式对话",
                     "pages": [
                       "api-reference/examples/streaming/openai-streaming",

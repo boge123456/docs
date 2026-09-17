@@ -1,0 +1,313 @@
+---
+title: "GPT-Realtime 2.0 / 2.1 使用示例"
+description: "通过 ModelHub WebSocket 接口使用 GPT-Realtime 2.0 和 2.1，完成中文文本、语音、图片和工具调用"
+---
+
+# GPT-Realtime 2.0 / 2.1 使用示例
+
+Realtime API 通过 WebSocket 双向传递 JSON 事件，适合中文语音助手和实时交互。以下示例使用 ModelHub API Key 和平台入口，事件字段参考 OpenAI 官方 Realtime API。
+
+## 模型与连接地址
+
+| 版本 | 请求中的模型 ID |
+| --- | --- |
+| GPT-Realtime 2.0 | `gpt-realtime-2` |
+| GPT-Realtime 2.1 | `gpt-realtime-2.1` |
+
+OpenAI 将 2.0 的 API 模型 ID 命名为 `gpt-realtime-2`，请勿直接填写 `gpt-realtime-2.0`。平台模型的可用性以模型列表和 API Key 权限为准。
+
+```text
+wss://model-api.skyengine.com.cn/v1/realtime?model=gpt-realtime-2.1
+```
+
+连接时设置 `api-key: <MODELHUB_API_KEY>` 请求头。下面的代码运行在服务端；浏览器原生 WebSocket 无法设置该请求头，网页应用应通过自己的服务端接入并保管 API Key。
+
+## 安装与运行
+
+需要 Python 3.11 或更新版本，以及支持 `additional_headers` 的 websockets：
+
+```bash
+pip install "websockets>=14,<16"
+```
+
+<CodeGroup>
+
+```bash macOS / Linux
+export MODELHUB_API_KEY="<API-KEY>"
+export MODELHUB_REALTIME_MODEL="gpt-realtime-2.1"
+python realtime_example.py text
+```
+
+```powershell Windows PowerShell
+$env:MODELHUB_API_KEY = "<API-KEY>"
+$env:MODELHUB_REALTIME_MODEL = "gpt-realtime-2.1"
+python realtime_example.py text
+```
+
+</CodeGroup>
+
+切换到 2.0 时，将 `MODELHUB_REALTIME_MODEL` 改为 `gpt-realtime-2`。如果使用其他平台域名，可通过 `MODELHUB_REALTIME_URL` 设置完整的 `wss://域名/v1/realtime`，不包含查询参数。
+
+## 完整 Python 示例
+
+保存为 `realtime_example.py`。同一份代码提供四种模式：`text`（文本）、`audio`（语音输入输出）、`image`（图片输入）、`tools`（函数调用）。代码等待会话配置确认，检查错误和响应终态，并在结束时关闭连接。
+
+```python Python
+import asyncio
+import base64
+import json
+import os
+import sys
+import wave
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from urllib.parse import urlencode
+
+from websockets.asyncio.client import connect
+
+
+async def send(ws, event):
+    await ws.send(json.dumps(event, ensure_ascii=False))
+
+
+async def receive(ws):
+    event = json.loads(await ws.recv())
+    if event["type"] == "error":
+        raise RuntimeError(json.dumps(event.get("error"), ensure_ascii=False))
+    return event
+
+
+async def wait_for(ws, event_type):
+    while True:
+        event = await receive(ws)
+        if event["type"] == event_type:
+            return event
+
+
+async def read_response(ws):
+    pcm = bytearray()
+    while True:
+        event = await receive(ws)
+        if event["type"] in (
+            "response.output_text.delta",
+            "response.output_audio_transcript.delta",
+        ):
+            print(event["delta"], end="", flush=True)
+        elif event["type"] == "response.output_audio.delta":
+            pcm.extend(base64.b64decode(event["delta"]))
+        elif event["type"] == "response.done":
+            response = event["response"]
+            print()
+            if response["status"] != "completed":
+                raise RuntimeError(json.dumps(
+                    response.get("status_details") or response["status"],
+                    ensure_ascii=False,
+                ))
+            print("本轮用量：", json.dumps(response.get("usage"), ensure_ascii=False))
+            return response, pcm
+
+
+async def run(mode, input_path):
+    key = os.environ["MODELHUB_API_KEY"]
+    model = os.getenv("MODELHUB_REALTIME_MODEL", "gpt-realtime-2.1")
+    base = os.getenv(
+        "MODELHUB_REALTIME_URL", "wss://model-api.skyengine.com.cn/v1/realtime"
+    )
+    url = base + "?" + urlencode({"model": model})
+    session = {
+        "type": "realtime",
+        "instructions": "请用简体中文简洁回答。",
+        "output_modalities": ["audio" if mode == "audio" else "text"],
+        "reasoning": {"effort": "low"},
+        "max_output_tokens": 2048,
+        "audio": {"input": {"turn_detection": None}},
+    }
+    if mode == "audio":
+        session["audio"] = {
+            "input": {
+                "format": {"type": "audio/pcm", "rate": 24000},
+                "turn_detection": None,
+            },
+            "output": {
+                "format": {"type": "audio/pcm", "rate": 24000},
+                "voice": "marin",
+            },
+        }
+    if mode == "tools":
+        session["tools"] = [{
+            "type": "function",
+            "name": "get_beijing_time",
+            "description": "查询当前北京时间。",
+            "parameters": {
+                "type": "object", "properties": {},
+                "required": [], "additionalProperties": False,
+            },
+        }]
+
+    # 总超时覆盖建连、上传及生成；按业务需要调整。
+    async with asyncio.timeout(120):
+        async with connect(
+            url, additional_headers={"api-key": key},
+            open_timeout=15, close_timeout=5, max_size=10 * 1024 * 1024,
+        ) as ws:
+            created = await wait_for(ws, "session.created")
+            print("会话模型：", created["session"].get("model"))
+            await send(ws, {"type": "session.update", "session": session})
+            await wait_for(ws, "session.updated")
+
+            if mode == "audio":
+                data = Path(input_path).read_bytes()
+                if len(data) < 4800 or len(data) % 2:
+                    raise ValueError("请提供至少 100 毫秒、完整 16-bit 采样的裸 PCM。")
+                # 100 毫秒一片；这里只演示文件上传，不模拟麦克风采集。
+                for offset in range(0, len(data), 4800):
+                    await send(ws, {
+                        "type": "input_audio_buffer.append",
+                        "audio": base64.b64encode(data[offset:offset + 4800]).decode(),
+                    })
+                await send(ws, {"type": "input_audio_buffer.commit"})
+                await wait_for(ws, "input_audio_buffer.committed")
+            else:
+                prompt = "请用一句话介绍你能如何帮助我。"
+                if mode == "tools":
+                    prompt = "请调用工具查询现在的北京时间，然后告诉我结果。"
+                content = [{"type": "input_text", "text": prompt}]
+                if mode == "image":
+                    content[0]["text"] = "请描述这张图片。"
+                    content.append({
+                        "type": "input_image",
+                        "image_url": "data:image/png;base64," +
+                            base64.b64encode(Path(input_path).read_bytes()).decode(),
+                    })
+                await send(ws, {
+                    "type": "conversation.item.create",
+                    "item": {"type": "message", "role": "user", "content": content},
+                })
+
+            config = {}
+            if mode == "tools":
+                config["tool_choice"] = {"type": "function", "name": "get_beijing_time"}
+            await send(ws, {"type": "response.create", "response": config})
+            response, pcm = await read_response(ws)
+
+            if mode == "tools":
+                calls = [item for item in response["output"]
+                         if item["type"] == "function_call"]
+                if not calls:
+                    raise RuntimeError("没有收到预期的函数调用。")
+                for call in calls:
+                    if call["name"] != "get_beijing_time" or json.loads(call["arguments"]) != {}:
+                        raise ValueError("未知工具或不符合约定的工具参数。")
+                    now = datetime.now(timezone(timedelta(hours=8))).isoformat()
+                    await send(ws, {
+                        "type": "conversation.item.create",
+                        "item": {
+                            "type": "function_call_output", "call_id": call["call_id"],
+                            "output": json.dumps({"beijing_time": now}),
+                        },
+                    })
+                await send(ws, {
+                    "type": "response.create", "response": {"tool_choice": "none"},
+                })
+                await read_response(ws)
+
+            if mode == "audio":
+                if not pcm:
+                    raise RuntimeError("没有收到音频数据。")
+                with wave.open("reply.wav", "wb") as output:
+                    output.setnchannels(1)
+                    output.setsampwidth(2)
+                    output.setframerate(24000)
+                    output.writeframes(pcm)
+                print("语音回答已保存为 reply.wav")
+
+
+if __name__ == "__main__":
+    mode = sys.argv[1] if len(sys.argv) > 1 else "text"
+    if mode not in {"text", "audio", "image", "tools"}:
+        raise SystemExit("模式必须是 text、audio、image 或 tools。")
+    if mode in {"audio", "image"} and len(sys.argv) < 3:
+        raise SystemExit("audio / image 模式需要指定输入文件。")
+    asyncio.run(run(mode, sys.argv[2] if len(sys.argv) > 2 else None))
+```
+
+### 文本对话
+
+```bash
+python realtime_example.py text
+```
+
+流程为：等待 `session.created` → 配置会话并等待 `session.updated` → 创建用户消息 → `response.create` → 接收文本增量 → `response.done`。
+
+### 语音输入与语音回答
+
+输入要求为 **24 kHz、单声道、16-bit little-endian 裸 PCM**，不包含 WAV 文件头。先转换音频，再运行示例：
+
+```bash
+ffmpeg -i question.wav -f s16le -acodec pcm_s16le -ac 1 -ar 24000 question.pcm
+python realtime_example.py audio question.pcm
+```
+
+程序将语音回答保存为 `reply.wav`，并打印回答的文本转写。`response.output_audio.delta` 中的 Base64 数据才是音频内容；`response.done` 不携带完整音频。
+
+本例将 `audio.input.turn_detection` 设为 `null`，手动发送 `input_audio_buffer.commit` 和 `response.create`，便于演示一轮文件输入。仅发送音频片段不会在此配置下自动生成回答。
+
+### 图片输入
+
+```bash
+python realtime_example.py image picture.png
+```
+
+示例读取 PNG 并通过 `input_image.image_url` 发送 Base64 Data URL。两个模型均支持图片输入；此模式生成文本回答，不生成图片。其他图片格式需要同步修改 Data URL 的 MIME 类型。
+
+### 工具调用
+
+```bash
+python realtime_example.py tools
+```
+
+模型先生成 `function_call`，应用校验工具名和参数后查询北京时间，通过相同的 `call_id` 返回 `function_call_output`，再创建下一轮回答。函数的业务逻辑由应用执行。
+
+## 连续语音与 VAD
+
+麦克风连续输入可以使用服务端 VAD。在语音模式的会话配置中，将 `audio.input.turn_detection` 改为：
+
+```json
+{
+  "type": "server_vad",
+  "create_response": true,
+  "interrupt_response": true
+}
+```
+
+持续发送 `input_audio_buffer.append`，并持续接收事件；服务端会检测说话结束并触发回答。开启自动回答后，不要再对每次停顿手动重复发送 `response.create`。连续语音需要同时运行音频发送和事件接收任务，不能直接沿用上面的单轮文件流程。
+
+WebSocket 客户端还需自行管理播放队列。用户打断时，应停止播放并清空尚未播放的音频；按实际已播放时长发送 `conversation.item.truncate`，让会话上下文与用户听到的内容一致。具体事件参数参考 [OpenAI 对话与打断说明](https://developers.openai.com/api/docs/guides/realtime-conversations)。
+
+## 推理与用量
+
+两个模型支持 `session.reasoning.effort`。示例使用 `low`；提高推理强度可能增加生成时间和输出用量。推理 token 不等同于可读取的完整思考过程。
+
+每轮 `response.done.response.usage` 提供该轮用量。文本、音频、图片和缓存分别出现在 `input_token_details`、`output_token_details` 中。`reasoning_tokens` 是文本输出的细分项，统计费用时不要在已包含它的 `text_tokens` 之外再次叠加。同一连接的多轮用量应逐轮汇总；缓存命中仍按缓存价格计费，不能视为免费。
+
+## 常用事件
+
+| 事件 | 含义 |
+| --- | --- |
+| `session.created` / `session.updated` | 会话建立 / 配置确认 |
+| `conversation.item.create` | 发送用户消息或工具执行结果 |
+| `input_audio_buffer.append` / `input_audio_buffer.commit` | 上传音频 / 手动提交一轮音频 |
+| `response.create` | 手动触发回答 |
+| `response.output_text.delta` | 文本回答增量 |
+| `response.output_audio.delta` | Base64 音频增量 |
+| `response.output_audio_transcript.delta` | 语音回答的文本转写增量 |
+| `response.done` | 本轮生成结束，仍需检查 `response.status` |
+| `error` | 事件处理失败，检查 `error.code` 和 `error.message` |
+
+## 官方参考
+
+- [GPT-Realtime 2.0 模型说明](https://developers.openai.com/api/docs/models/gpt-realtime-2)
+- [GPT-Realtime 2.1 模型说明](https://developers.openai.com/api/docs/models/gpt-realtime-2.1)
+- [Realtime WebSocket 连接](https://developers.openai.com/api/docs/guides/voice-websockets)
+- [Realtime 对话与音频事件](https://developers.openai.com/api/docs/guides/realtime-conversations)
+- [Realtime 工具调用](https://developers.openai.com/api/docs/guides/realtime-mcp)
