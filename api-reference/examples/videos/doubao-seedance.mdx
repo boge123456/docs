@@ -38,6 +38,7 @@ curl --request POST \
     ],
     "duration": 5,
     "resolution": "720p",
+    "output_format": "mov",
     "ratio": "16:9",
     "generate_audio": true,
     "return_last_frame": true,
@@ -128,10 +129,10 @@ curl --request GET \
   "model": "doubao-seedance-2.5",
   "status": "completed",
   "content": {
-    "video_url": "https://example.com/generated-video.mp4",
+    "video_url": "https://example.com/generated-video.mov",
     "last_frame_url": "https://example.com/generated-last-frame.png"
   },
-  "seed": 42,
+  "output_format": "mov",
   "resolution": "720p",
   "ratio": "16:9",
   "duration": 5,
@@ -149,18 +150,25 @@ curl --request GET \
 | --- | --- | --- | --- |
 | `model` | string | 是 | 模型 ID，例如 `doubao-seedance-2.5` |
 | `content` | array | 是 | 文本及图片、视频、音频输入 |
-| `duration` | integer | 否 | Seedance 2.5 为 4～30 秒 |
+| `duration` | integer | 否 | Seedance 2.5 为 4～30 秒，或 `-1` 智能选择；默认 `-1`，视频编辑必须使用 `-1` |
+| `output_format` | string | 否 | Seedance 2.5 支持 `mp4`、`mov`，默认 `mp4`；MOV 适用于专业后期，转存与下载保留实际格式 |
+| `omni_reference_task_type` | string | 否 | Seedance 2.5 全模态任务类型：`auto`、`reference`、`edit`、`extend`；编辑与延长需参考视频及 `ratio: adaptive` |
+| `execution_expires_after` | integer | 否 | 任务执行有效期，单位秒；范围 3600～259200，官方默认 172800 |
+| `priority` | integer | 否 | 同一推理接入点的排队优先级，范围 0～9，官方默认 0 |
+| `safety_identifier` | string | 否 | 固定且唯一的终端用户标识，最多 64 个字符，推荐使用哈希值 |
+| `callback_url` | string | 否 | 厂商任务状态回调地址，通知体采用厂商原生查询格式 |
 | `resolution` | string | 否 | 支持 `480p`、`720p`、`1080p`，默认 `720p`；不同分辨率的计费档位不同 |
-| `ratio` | string | 否 | 文生视频支持 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`adaptive`；首帧/首尾帧模式不要传，输出比例跟随首帧 |
+| `ratio` | string | 否 | 文生视频支持 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`adaptive`；首帧/首尾帧、编辑及延长仅支持 `adaptive`，输出比例跟随原素材 |
 | `generate_audio` | boolean | 否 | 是否生成与画面同步的音频；建议显式传入，避免依赖厂商默认值 |
 | `return_last_frame` | boolean | 否 | 是否在成功结果中返回尾帧图片 |
-| `camerafixed` | boolean | 否 | 统一接口透传字段；Seedance 2.5 当前实测不支持，不建议传入 |
-| `service_tier` | string | 否 | 统一接口透传字段；Seedance 2.5 当前实测不支持，不建议传入 |
+| `camera_fixed` | boolean | 否 | 官方字段，兼容旧拼写 `camerafixed`；仅适用于支持此能力的旧模型，Seedance 2.5 不支持 |
+| `service_tier` | string | 否 | 厂商服务等级；Seedance 2.5 不支持 `flex`，建议省略 |
+| `draft` | boolean | 否 | Seedance 1.5 pro 样片模式；正式生成可通过 `content[].draft_task.id` 引用样片，Seedance 2.5 不支持 |
 | `watermark` | boolean | 否 | 是否添加水印 |
-| `seed` | integer | 否 | 范围 `[-1, 4294967295]`；`-1` 或不传表示由厂商随机生成 |
+| `seed` | integer | 否 | 仅支持该能力的旧模型；范围 `[-1, 2147483647]`，显式 `0` 保留；Seedance 2.5 不支持 |
 
 <Warning>
-`camerafixed` 和 `service_tier` 会原样透传给厂商。经正式环境实测，Seedance 2.5 文生视频场景当前不接受这两个参数；是否支持应以具体模型、生成模式及厂商实际校验结果为准。首帧或首尾帧模式显式传入 `ratio` 也会被厂商拒绝。
+参数会按调用方显式传入的值交由厂商校验，省略时使用厂商默认值。`seed`、`camera_fixed`、`draft` 和 `service_tier: flex` 属于旧模型能力，不能用于 Seedance 2.5。创建参数依据[官方创建接口文档](https://docs.volcengine.com/docs/82379/1520757)整理。
 </Warning>
 
 <Note>
