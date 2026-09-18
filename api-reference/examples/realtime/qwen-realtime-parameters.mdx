@@ -1,0 +1,94 @@
+---
+title: "Qwen Realtime 参数兼容矩阵"
+description: "Qwen Audio 3.0 Plus / Flash 的统一协议参数、百炼扩展、事件映射及验收限制"
+---
+
+适用于 `qwen-audio-3.0-realtime-plus` 和 `qwen-audio-3.0-realtime-flash`。两款使用同一参数契约。以下描述平台当前统一接口的支持范围，不表示所有 OpenAI Realtime 参数都受支持。[中文使用示例](/api-reference/examples/realtime/qwen-realtime)
+
+## 会话参数
+
+下表字段均相对 `session.update.session`。所有更新必须等待 `session.updated`，之后才能发送下一次更新或音频。上游拒绝更新时，不应按请求值更新客户端本地配置。
+
+| 字段 | Plus / Flash | 值与限制 |
+| --- | --- | --- |
+| `type` | 支持 | `realtime` |
+| `model` | 不支持修改 | 在连接URL的 `model` 查询参数中选模型 |
+| `instructions` | 支持 | 字符串，会话级指令 |
+| `output_modalities` | 支持 | 仅 `["text"]` 或 `["audio"]`；audio包含音频及转写 |
+| `audio.input.format` | 支持 | `{ "type": "audio/pcm", "rate": 16000或24000 }`；PCM16小端单声道 |
+| `audio.output.format` | 支持 | `{ "type": "audio/pcm", "rate": 24000 }` |
+| `audio.output.voice` | 支持 | 五种内置音色或已创建的复刻 `voice_id`；仅首轮配置 |
+| `audio.input.turn_detection` | 支持 | `null` 手动模式，或以下两种VAD；首次音频前配置 |
+| `audio.input.turn_detection.type` | 支持 | `server_vad` 或 `semantic_vad`；后者映射为百炼 `smart_turn` |
+| `audio.input.turn_detection.threshold` | 支持 | -1到1；仅server_vad生效，smart_turn忽略 |
+| `audio.input.turn_detection.silence_duration_ms` | 支持 | 整数200到6000；仅server_vad生效 |
+| `audio.input.turn_detection.create_response` | 有限支持 | 省略或true；false明确拒绝 |
+| `audio.input.turn_detection.interrupt_response` | 有限支持 | 省略或true；false明确拒绝 |
+| `audio.input.turn_detection.voiceprint_audio_urls` | 百炼扩展 | 最多五个公网HTTP(S)地址；16k PCM/WAV；仅首轮且type=semantic_vad |
+| `enable_speech_emotion` | 百炼扩展 | 布尔值；上游默认true |
+| `max_history_turns` | 百炼扩展 | 整数1到50；上游默认20 |
+| `enable_search` | 百炼扩展 | 布尔值；上游默认false |
+| `search_options.enable_source` | 百炼扩展 | 布尔值；是否返回搜索来源 |
+| `tools` | 支持 | OpenAI风格扁平function定义：type、name、description、parameters；空数组关闭工具 |
+| `tool_choice` | 有限支持 | 省略或auto；不支持required、none、指定函数 |
+| `provider_options.qwen` | 不支持 | 扩展直接写入上表对应字段，不使用厂商层级 |
+| `reasoning` / `max_output_tokens` / `temperature` | 不支持 | 不能沿用GPT示例中的这些字段 |
+| `audio.input.transcription` / `noise_reduction` | 不支持配置 | 不接受OpenAI的转写模型或降噪配置 |
+| `audio.input.turn_detection.eagerness` | 不支持 | semantic_vad不代表OpenAI所有语义VAD参数可用 |
+
+输入未指定采样率时，网关按24kHz解码；上游输入为16kHz，网关负责24k到16k重采样。不要输入16k音频却声明24k。音频开始后不能改变输入采样率或VAD；开始前可更新。首轮后重复设置音色或声纹地址会明确返回错误，避免上游静默忽略。
+
+搜索与非空工具互斥，检查的是整个会话状态。切换时在同一次更新中先关闭另一项，例如 `{"tools": [], "enable_search": true}`；反向为 `{"enable_search": false, "tools": [...]}`。这条完整动态切换流程尚未做专项真实验收。
+
+## 客户端事件
+
+| 事件或内容 | 支持范围 |
+| --- | --- |
+| `session.update` | 上述会话字段；等待确认后继续 |
+| `input_audio_buffer.append` | Base64原始PCM，使用已确认采样率 |
+| `input_audio_buffer.commit` | 手动模式提交，之后仍需response.create；VAD模式由上游决定轮次 |
+| `input_audio_buffer.clear` | 手动模式清空尚未提交音频 |
+| `conversation.item.create` | 文本、input_audio、function_call及function_call_output |
+| `conversation.item.retrieve` / `delete` | 查询或删除指定item |
+| `response.create` | 可省略response或设置output_modalities、audio.output.format、audio.output.voice；音色仍受首轮限制 |
+| `response.cancel` | 取消生成；不代表有完整usage或客户端播放已停止 |
+| `conversation.item.truncate` | 不支持；无法声明已播放时长并截断上下文 |
+| 图片、视频输入 | 不支持这两个模型 |
+| MCP工具及其他未列字段/事件 | 明确拒绝 |
+
+错误事件使用 `error.type=invalid_request_error`、`error.code=unsupported_or_invalid_parameter`，并关联客户端的event_id。错误后连接可继续用于合法请求。
+
+## 服务端事件与字段映射
+
+| 对外统一字段或事件 | 说明 |
+| --- | --- |
+| `response.output_text.*` | 文本增量及完成事件 |
+| `response.output_audio.*` | 24kHz PCM音频增量及完成事件 |
+| `response.output_audio_transcript.*` | 输出音频转写 |
+| `conversation.item.added` / `done` | 标准会话项生命周期 |
+| `conversation.item.input_audio_transcription.*` | 输入语音转写 |
+| `response.done.response.usage.input_token_details` | 对应百炼原生复数input_tokens_details |
+| `response.done.response.usage.output_token_details` | 对应百炼原生复数output_tokens_details |
+| `response.done.response.usage.plugins.search` | 搜索实际调用次数及策略，存在时保留 |
+| `response.done.response.search_info` | 搜索来源，存在时保留search_results |
+| `modelhub.voiceprint_audio_list.in_progress` / `completed` / `failed` | 声纹加载状态，保留item_id关联 |
+| `modelhub.conversation.item.ambient_audio_transcription.*` | 背景声音转写扩展 |
+
+## 验收范围与已知限制
+
+截至2026-09-18，开发环境两模型已验证文本/音频、16k/24k输入、两种VAD、有效语音打断、五种内置音色、工具往返、搜索来源、历史窗口1/50的实际效果、正常完成响应的用量和钱包费用、8并发隔离、超过两分钟的20轮连接复用。上述结果不代表正式环境已经完成部署。
+
+smart_turn专项12条用例均通过：空闲和输出中分别输入合成“嗯”“啊”及噪声，无额外回答或取消；随后明确问题能自动应答。尚未覆盖真实麦克风混音、扬声器回声或所有环境噪声。
+
+| 功能 | 验收边界 |
+| --- | --- |
+| 声纹 | 注册和目标音色直接自动应答通过；另一TTS音色的干扰过滤未通过，暂不作为上线阻塞项，不宣称过滤可靠 |
+| 克隆音色 | 配置入口已实现，已有voice_id尚未实测；不能通过Realtime创建音色 |
+| 情绪增强 | 开关配置、回显通过，实际听感尚未评估 |
+| 搜索收费 | 搜索次数已上报，但独立搜索费用尚未计入平台账单；已知问题暂不作为上线阻塞项，不能将其视为官方免费能力 |
+| 取消/打断/断线用量 | 未完成响应存在usage缺口，百炼侧实际费用未核清；不能把无usage当作零消耗；暂不作为上线阻塞项 |
+| 配置失败恢复 | 本地状态回退测试已有覆盖；真实上游拒绝后的完整专项验收尚未完成 |
+
+正常完成的音频响应附带文本不另收费；独立纯文本输出仍收费。混合会话按每个响应的模态处理，usage中的文本token仍保留。对外支持范围应与此矩阵一致，不能把未测或豁免项描述为已通过。
+
+官方参考：[百炼客户端事件](https://help.aliyun.com/zh/model-studio/fun-audiochat-client-events)、[服务端事件](https://help.aliyun.com/zh/model-studio/qwen-audio-realtime-server-events)。参数转换和明确拒绝行为以平台适配实现为准。

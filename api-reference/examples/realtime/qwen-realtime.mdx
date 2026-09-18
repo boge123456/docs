@@ -1,0 +1,262 @@
+---
+title: "Qwen Realtime 使用示例"
+description: "通过统一 /v1/realtime 接口使用 Qwen Audio 3.0 Plus / Flash，完成中文文本、语音、函数调用和联网搜索"
+---
+
+## 模型与连接
+
+以下两个模型使用同一套 WebSocket 事件结构：
+
+| 模型 ID | 连接地址 |
+| --- | --- |
+| `qwen-audio-3.0-realtime-plus` | `wss://model-api.skyengine.com.cn/v1/realtime?model=qwen-audio-3.0-realtime-plus` |
+| `qwen-audio-3.0-realtime-flash` | `wss://model-api.skyengine.com.cn/v1/realtime?model=qwen-audio-3.0-realtime-flash` |
+
+连接时设置 `api-key: <MODELHUB_API_KEY>` 请求头。模型是否可用，以模型列表及 Key 权限为准。示例在服务端运行；浏览器原生 WebSocket 无法设置这个请求头，需要通过自己的服务端接入。
+
+会话、文本、音频及函数调用采用 OpenAI GA 风格字段；百炼扩展直接放在 `session` 或对应的音频配置中，**不使用 `provider_options.qwen`**。切换 GPT 模型时，请按[参数矩阵](/api-reference/examples/realtime/qwen-realtime-parameters)调整字段，不能只替换模型 ID。
+
+## 安装与运行
+
+需要 Python 3.11+：
+
+```bash
+pip install "websockets>=14,<17"
+```
+
+<CodeGroup>
+
+```bash macOS / Linux
+export MODELHUB_API_KEY="<API-KEY>"
+export MODELHUB_REALTIME_MODEL="qwen-audio-3.0-realtime-plus"
+python qwen_realtime.py text
+python qwen_realtime.py audio input.wav
+python qwen_realtime.py vad input.wav
+python qwen_realtime.py tools
+python qwen_realtime.py search
+```
+
+```powershell Windows PowerShell
+$env:MODELHUB_API_KEY = "<API-KEY>"
+$env:MODELHUB_REALTIME_MODEL = "qwen-audio-3.0-realtime-flash"
+python qwen_realtime.py text
+python qwen_realtime.py audio input.wav
+python qwen_realtime.py vad input.wav
+python qwen_realtime.py tools
+python qwen_realtime.py search
+```
+
+</CodeGroup>
+
+音频输入必须为 **16位、有符号、小端、单声道 PCM**，采样率为16kHz或24kHz。WAV文件只读取音频帧，不把WAV头放入 `input_audio_buffer.append`。输出始终为24kHz PCM。示例将音频回答保存为 `qwen-output.wav`。
+
+## 完整 Python 示例
+
+保存为 `qwen_realtime.py`。`audio` 使用手动提交；`vad` 使用语义轮次检测，不发送 commit 或 response.create。示例有120秒超时，适用于短音频验证。
+
+```python Python
+import asyncio
+import base64
+import json
+import os
+import sys
+import uuid
+import wave
+from urllib.parse import urlencode
+
+from websockets.asyncio.client import connect
+
+
+async def send(ws, kind, **fields):
+    await ws.send(json.dumps({
+        "type": kind, "event_id": uuid.uuid4().hex, **fields
+    }, ensure_ascii=False))
+
+
+async def receive(ws):
+    event = json.loads(await ws.recv())
+    if event["type"] == "error":
+        raise RuntimeError(json.dumps(event["error"], ensure_ascii=False))
+    return event
+
+
+async def wait_for(ws, kind):
+    while True:
+        event = await receive(ws)
+        if event["type"] == kind:
+            return event
+
+
+async def user_text(ws, text):
+    await send(ws, "conversation.item.create", item={
+        "type": "message", "role": "user",
+        "content": [{"type": "input_text", "text": text}],
+    })
+    await wait_for(ws, "conversation.item.added")
+
+
+async def read_response(ws):
+    pcm = bytearray()
+    while True:
+        event = await receive(ws)
+        kind = event["type"]
+        if kind in ("response.output_text.delta",
+                    "response.output_audio_transcript.delta"):
+            print(event["delta"], end="", flush=True)
+        elif kind == "response.output_audio.delta":
+            pcm.extend(base64.b64decode(event["delta"]))
+        elif kind.startswith("modelhub."):
+            print("扩展事件：", kind)
+        elif kind == "response.done":
+            response = event["response"]
+            if response["status"] != "completed":
+                raise RuntimeError(json.dumps(response, ensure_ascii=False))
+            print("\n本轮用量：", json.dumps(response.get("usage"), ensure_ascii=False))
+            if response.get("search_info"):
+                print("搜索来源：", json.dumps(response["search_info"], ensure_ascii=False))
+            return response, pcm
+
+
+async def feed_audio(ws, pcm, rate, auto):
+    # 每帧20ms；自动模式按实时速度发送，末尾追加静音。
+    payload = pcm + (bytes(rate * 2 * 3) if auto else b"")
+    chunk = rate * 2 // 50
+    for offset in range(0, len(payload), chunk):
+        await send(ws, "input_audio_buffer.append",
+                   audio=base64.b64encode(payload[offset:offset + chunk]).decode())
+        if auto:
+            await asyncio.sleep(0.02)
+
+
+async def run(mode, path):
+    audio_mode = mode in ("audio", "vad")
+    pcm, rate = b"", 24000
+    if audio_mode:
+        with wave.open(path, "rb") as source:
+            rate = source.getframerate()
+            if (source.getnchannels(), source.getsampwidth()) != (1, 2) or rate not in (16000, 24000):
+                raise ValueError("需要16kHz或24kHz、16位、单声道WAV")
+            pcm = source.readframes(source.getnframes())
+    session = {
+        "type": "realtime",
+        "instructions": "请用中文简洁回答，工具结果返回后再回答用户。",
+        "output_modalities": ["audio" if audio_mode else "text"],
+        "audio": {
+            "input": {
+                "format": {"type": "audio/pcm", "rate": rate},
+                "turn_detection": {"type": "semantic_vad"} if mode == "vad" else None,
+            },
+            "output": {
+                "format": {"type": "audio/pcm", "rate": 24000},
+                "voice": "longanqian",
+            },
+        },
+        "enable_speech_emotion": True,
+        "max_history_turns": 20,
+    }
+    if mode == "tools":
+        session["tools"] = [{
+            "type": "function", "name": "get_weather",
+            "description": "查询城市天气；天气问题必须先查询该工具。",
+            "parameters": {"type": "object", "properties": {
+                "city": {"type": "string"}}, "required": ["city"]},
+        }]
+    if mode == "search":
+        session.update(enable_search=True, search_options={"enable_source": True})
+    base = os.getenv("MODELHUB_REALTIME_URL", "wss://model-api.skyengine.com.cn/v1/realtime")
+    model = os.getenv("MODELHUB_REALTIME_MODEL", "qwen-audio-3.0-realtime-plus")
+    async with connect(base + "?" + urlencode({"model": model}),
+                       additional_headers={"api-key": os.environ["MODELHUB_API_KEY"]},
+                       open_timeout=20, close_timeout=3) as ws:
+        await wait_for(ws, "session.created")
+        await send(ws, "session.update", session=session)
+        await wait_for(ws, "session.updated")
+        if audio_mode:
+            if mode == "vad":
+                task = asyncio.create_task(feed_audio(ws, pcm, rate, True))
+                try:
+                    response, output = await read_response(ws)
+                finally:
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+            else:
+                await feed_audio(ws, pcm, rate, False)
+                await send(ws, "input_audio_buffer.commit")
+                await send(ws, "response.create")
+                response, output = await read_response(ws)
+        else:
+            prompt = {"text": "用一句话介绍你自己。", "tools": "北京天气怎么样？",
+                      "search": "请联网查询阿里云百炼最近的产品更新，并提供来源。"}[mode]
+            await user_text(ws, prompt)
+            await send(ws, "response.create")
+            response, output = await read_response(ws)
+        calls = [item for item in response.get("output", []) if item["type"] == "function_call"]
+        if mode == "tools":
+            if not calls:
+                raise RuntimeError("本轮没有工具调用；模型只支持自动工具选择")
+            for call in calls:
+                if call["name"] != "get_weather":
+                    raise ValueError("未知工具")
+                arguments = json.loads(call["arguments"])
+                # 演示固定结果；生产应用应查询自己的天气服务。
+                await send(ws, "conversation.item.create", item={
+                    "type": "function_call_output", "call_id": call["call_id"],
+                    "output": json.dumps({"city": arguments["city"], "weather": "晴",
+                                          "temperature": 26}, ensure_ascii=False),
+                })
+                await wait_for(ws, "conversation.item.added")
+            await send(ws, "response.create")
+            response, output = await read_response(ws)
+        if output:
+            with wave.open("qwen-output.wav", "wb") as target:
+                target.setnchannels(1)
+                target.setsampwidth(2)
+                target.setframerate(24000)
+                target.writeframes(output)
+
+
+if __name__ == "__main__":
+    mode = sys.argv[1] if len(sys.argv) > 1 else "text"
+    if mode not in ("text", "audio", "vad", "tools", "search"):
+        raise SystemExit("模式：text / audio / vad / tools / search")
+    path = sys.argv[2] if len(sys.argv) > 2 else "input.wav"
+    asyncio.run(asyncio.wait_for(run(mode, path), timeout=120))
+```
+
+## 音色、搜索与声纹
+
+两款模型均支持五种内置输出音色：`longanqian`、`longanlingxin`、`longanlingxi`、`longanxiaoxin`、`longanlufeng`。通过 `session.audio.output.voice` 配置，只能在首次 `session.update` 设置。克隆音色需先通过独立声音复刻 API 创建；已有 `voice_id` 的接入尚未完成平台实测。
+
+联网搜索通过 `session.enable_search` 和 `session.search_options.enable_source` 设置；来源位于 `response.done.response.search_info`，搜索次数可能位于 `usage.plugins.search.count`。启用搜索不代表每轮都会搜索，不能与非空 `tools` 同时启用。
+
+声纹注册使用以下首轮会话配置；占位地址需替换为真实公网可访问的16kHz PCM/WAV文件：
+
+```json
+{
+  "type": "session.update",
+  "session": {
+    "type": "realtime",
+    "output_modalities": ["audio"],
+    "audio": {
+      "input": {
+        "format": {"type": "audio/pcm", "rate": 16000},
+        "turn_detection": {
+          "type": "semantic_vad",
+          "voiceprint_audio_urls": ["https://your-domain.example/speaker.wav"]
+        }
+      },
+      "output": {"voice": "longanqian"}
+    }
+  }
+}
+```
+
+最多配置五个地址。等待 `session.updated` 及声纹加载事件；`modelhub.voiceprint_audio_list.completed` 表示加载完成，`failed` 表示加载失败。加载成功不代表干扰过滤效果已通过验收，具体限制见[参数矩阵](/api-reference/examples/realtime/qwen-realtime-parameters#验收范围与已知限制)。
+
+## 事件与用量
+
+文本使用 `response.output_text.*`，音频使用 `response.output_audio.*`，音频转写使用 `response.output_audio_transcript.*`。客户端扩展事件以 `modelhub.` 开头，例如 `modelhub.conversation.item.ambient_audio_transcription.*`。其他未识别事件可以忽略，错误事件应显式处理。
+
+用量字段为 `input_token_details` 和 `output_token_details`。音频附带文本保留实际 tokens，但正常完成响应中不对附带文本另收费；独立文本响应仍收费。百炼取消响应可能没有 usage，不能将其解释为零消耗；计费及其他验收限制见[参数矩阵](/api-reference/examples/realtime/qwen-realtime-parameters#验收范围与已知限制)。
+
+官方参考：[客户端事件](https://help.aliyun.com/zh/model-studio/fun-audiochat-client-events)、[服务端事件](https://help.aliyun.com/zh/model-studio/qwen-audio-realtime-server-events)。本页字段以平台统一接口实现为准，不能直接使用百炼原生扁平 `voice`、`modalities` 或 `smart_turn` 字段。

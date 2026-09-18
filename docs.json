@@ -124,7 +124,9 @@
                   {
                     "group": "实时对话（Realtime）",
                     "pages": [
-                      "api-reference/examples/realtime/openai-realtime"
+                      "api-reference/examples/realtime/openai-realtime",
+                      "api-reference/examples/realtime/qwen-realtime",
+                      "api-reference/examples/realtime/qwen-realtime-parameters"
                     ]
                   },
                   {

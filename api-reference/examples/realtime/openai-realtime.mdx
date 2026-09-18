@@ -7,6 +7,8 @@ description: "通过 ModelHub WebSocket 接口使用 GPT-Realtime 2.0 和 2.1，
 
 Realtime API 通过 WebSocket 双向传递 JSON 事件，适合中文语音助手和实时交互。以下示例使用 ModelHub API Key 和平台入口，事件字段参考 OpenAI 官方 Realtime API。
 
+Qwen Audio 3.0 Plus / Flash 也使用 `/v1/realtime` 入口，但音色、VAD、扩展字段及支持范围不同，请使用 [Qwen 中文示例](/api-reference/examples/realtime/qwen-realtime) 和[参数兼容矩阵](/api-reference/examples/realtime/qwen-realtime-parameters)，不要直接复制本页的 reasoning 或 max_output_tokens 参数。
+
 ## 模型与连接地址
 
 | 版本 | 请求中的模型 ID |
