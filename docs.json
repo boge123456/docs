@@ -194,7 +194,8 @@
                   {
                     "group": "语音合成（TTS）",
                     "pages": [
-                      "api-reference/examples/tts/minimax"
+                      "api-reference/examples/tts/minimax",
+                      "api-reference/examples/tts/elevenlabs"
                     ]
                   },
                   {
