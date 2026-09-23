@@ -1,0 +1,266 @@
+---
+title: "开天语音合成"
+description: "使用开天 TTS 进行非流式和流式语音合成"
+---
+
+# 开天语音合成
+
+通过 `POST /v1/audio/speech` 调用开天 TTS。当前可用模型为 `ktian-speechv4.3`。请只使用本页列出的参数和值；未列出的组合不属于当前支持范围。
+
+<Warning>
+模型 ID 的实际拼写是 `ktian-speechv4.3`，其中是 `ktian`，调用时不要改写为 `kaitian`。
+</Warning>
+
+使用前，请确保 API Key 已开通该模型。可以通过 `GET /v1/models` 检查当前 API Key 是否能看到 `ktian-speechv4.3`。
+
+## 非流式语音合成
+
+非流式请求会在音频生成并转存完成后返回 JSON。使用响应中的 `url` 下载或播放音频；响应本身不是音频二进制。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/audio/speech \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "ktian-speechv4.3",
+    "input": "你好，这是开天语音合成测试。",
+    "voice": "F02_female",
+    "speed": 1.0,
+    "response_format": "wav",
+    "stream": false
+  }'
+```
+
+```python Python
+import os
+import requests
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/audio/speech",
+    headers={
+        "Authorization": f"Bearer {os.environ['MODELHUB_API_KEY']}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "model": "ktian-speechv4.3",
+        "input": "你好，这是开天语音合成测试。",
+        "voice": "F02_female",
+        "speed": 1.0,
+        "response_format": "wav",
+        "stream": False,
+    },
+    timeout=120,
+)
+response.raise_for_status()
+result = response.json()
+
+# 音频 URL 是临时访问地址，请使用 GET 及时下载并转存。
+audio = requests.get(result["url"], timeout=60)
+audio.raise_for_status()
+with open("speech.wav", "wb") as audio_file:
+    audio_file.write(audio.content)
+
+print("request_id:", result["request_id"])
+print("duration_ms:", result.get("duration_ms"))
+```
+
+```javascript JavaScript/Node.js
+import { writeFile } from "node:fs/promises";
+
+const response = await fetch("https://model-api.skyengine.com.cn/v1/audio/speech", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer <API-KEY>",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "ktian-speechv4.3",
+    input: "你好，这是开天语音合成测试。",
+    voice: "F02_female",
+    speed: 1.0,
+    response_format: "wav",
+    stream: false
+  })
+});
+
+if (!response.ok) throw new Error(await response.text());
+const result = await response.json();
+
+const audioResponse = await fetch(result.url);
+if (!audioResponse.ok) throw new Error(await audioResponse.text());
+await writeFile("speech.wav", Buffer.from(await audioResponse.arrayBuffer()));
+```
+
+</CodeGroup>
+
+响应示例（字段值仅作示意）：
+
+```json
+{
+  "request_id": "example-request-id",
+  "url": "https://model-static.skyengine.com.cn/tts/example.wav?...",
+  "duration_ms": 2720,
+  "token": 26
+}
+```
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `request_id` | string | 本次合成请求 ID，可用于问题排查。 |
+| `url` | string | 音频临时访问地址。需要长期保存时，请使用 `GET` 下载到自己的存储。 |
+| `duration_ms` | integer | 音频时长，单位为毫秒。无法计算时可能不返回。 |
+| `token` | integer | 本次请求的字符计费用量。它不是大语言模型 Token 数。 |
+
+<Note>
+部分签名音频地址不支持 `HEAD` 请求。验证或下载音频时请使用 `GET`。
+</Note>
+
+## 流式语音合成
+
+设置 `stream: true` 后，接口返回 `text/event-stream`。每条 SSE 消息的 `audio` 字段是 Base64 编码的音频分片。按接收顺序解码并拼接；响应以连接正常结束表示完成，不发送 `[DONE]`。
+
+<Warning>
+当前流式分片不包含 RIFF/WAV 或 MP3 文件头，不能直接视为完整的 WAV 或 MP3 文件。流式模式适合能够处理裸音频分片的自定义播放器或音频管线；如果需要可直接下载和播放的标准文件，请使用非流式模式。
+</Warning>
+
+<CodeGroup>
+
+```bash cURL
+curl --no-buffer --request POST \
+  --url https://model-api.skyengine.com.cn/v1/audio/speech \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "ktian-speechv4.3",
+    "input": "你好，这是开天流式语音合成测试。",
+    "voice": "F02_female",
+    "speed": 1.0,
+    "response_format": "wav",
+    "stream": true
+  }'
+```
+
+```python Python
+import base64
+import json
+import os
+import requests
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/audio/speech",
+    headers={"Authorization": f"Bearer {os.environ['MODELHUB_API_KEY']}"},
+    json={
+        "model": "ktian-speechv4.3",
+        "input": "你好，这是开天流式语音合成测试。",
+        "voice": "F02_female",
+        "speed": 1.0,
+        "response_format": "wav",
+        "stream": True,
+    },
+    stream=True,
+    timeout=120,
+)
+response.raise_for_status()
+
+with open("speech.pcm", "wb") as audio_file:
+    for line in response.iter_lines(decode_unicode=True):
+        if not line or not line.startswith("data:"):
+            continue
+        event = json.loads(line.removeprefix("data:").strip())
+        if event.get("error"):
+            raise RuntimeError(event["error"]["message"])
+        if event.get("audio"):
+            audio_file.write(base64.b64decode(event["audio"]))
+```
+
+</CodeGroup>
+
+SSE 数据示例：
+
+```text
+data: {"audio":"<base64-audio-chunk>"}
+
+data: {"audio":"<base64-audio-chunk>"}
+```
+
+## 参数矩阵
+
+### 顶层参数
+
+| 参数 | 类型 | 必填 | 默认值 | 非流式 | 流式 | 开天处理规则 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `model` | string | 是 | - | 支持 | 支持 | 固定使用 `ktian-speechv4.3`。 |
+| `input` | string | 是 | - | 支持 | 支持 | 待合成文本，不能为空；会参与字符计费。 |
+| `voice` | string | 是 | - | 支持 | 支持 | 音色名称。当前公开并已验证的音色为 `F02_female`。 |
+| `speed` | number | 否 | `1.0` | 支持 | 支持 | 语速，公开支持范围为 `0.5`～`2.0`。请不要依赖越界值的当前处理行为。 |
+| `response_format` | string | 是 | - | 支持 | 仅作为请求参数 | 对外调用请显式使用 `wav`。流式分片不包含 WAV 文件头。 |
+| `stream` | boolean | 否 | `false` | `false` | `true` | `false` 返回音频 URL；`true` 返回 SSE Base64 音频分片。 |
+| `model_extra` | object | 否 | - | 支持 | 支持 | 开天扩展参数容器；对外仅支持下表中的字段。 |
+
+### `model_extra` 参数
+
+| 参数 | 类型 | 必填 | 默认值 | 状态 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `model_extra.language` | string | 否 | 上游默认值 | 已验证 | 语言标识。当前已验证 `zh`；中文合成也可以省略此字段。其他值不在当前对外支持范围内。 |
+
+### 已验证组合
+
+下表采用边界值和成对组合验证。只有标记为“支持”的组合属于当前公开能力；未列出的组合需要先完成兼容性验证。
+
+| `stream` | `response_format` | `speed` | `language` | 验证结果 | 对外支持结论 |
+| --- | --- | --- | --- | --- | --- |
+| `false` | `wav` | `0.5` | 省略 | HTTP 200；下载内容为 `audio/wave`，文件头为 `RIFF` | 支持 |
+| `false` | `wav` | `1.0` | 省略 | HTTP 200；下载内容为 `audio/wave`，文件头为 `RIFF` | 支持，推荐组合 |
+| `false` | `wav` | `2.0` | 省略 | HTTP 200；下载内容为 `audio/wave`，文件头为 `RIFF` | 支持 |
+| `false` | `wav` | `1.0` | `zh` | HTTP 200；下载内容为 `audio/wave`，文件头为 `RIFF` | 支持 |
+| `true` | `wav` | `1.0` | 省略 | HTTP 200；返回 SSE Base64 分片，但分片无 WAV 文件头 | 有条件支持，仅用于裸音频处理 |
+| `false` | `mp3` | `1.0` | 省略 | HTTP 200，但下载内容仍为 `audio/wave` / `RIFF` | 不作为 MP3 对外支持 |
+| `true` | `mp3` | `1.0` | 省略 | HTTP 200，但分片无 MP3 文件头 | 不作为 MP3 对外支持 |
+
+<Warning>
+当前对外只承诺非流式 WAV 文件输出。虽然接口当前会接受 `mp3`，但生产验证中返回内容仍可能是 WAV，因此请勿将 `mp3` 作为已支持格式。
+</Warning>
+
+### 输入校验
+
+| 场景 | HTTP 状态 | 结果 |
+| --- | --- | --- |
+| `input` 为空 | `400` | 返回 `input is empty`。 |
+| `voice` 不存在 | `400` | 返回参数错误，并在错误消息中包含无效音色。 |
+
+## 音色
+
+| 音色 | 状态 | 说明 |
+| --- | --- | --- |
+| `F02_female` | 已验证 | 女性音色，可用于非流式和流式请求。 |
+
+音色名称由开天模型配置决定。传入不存在的音色时，接口会返回 HTTP 400，例如：
+
+```json
+{
+  "error": {
+    "code": 2001,
+    "message": "请求出错: '<voice>'",
+    "trace_id": "example-trace-id"
+  }
+}
+```
+
+## 当前不支持的参数
+
+当前没有提供以下参数或能力，请勿在请求中使用：
+
+| 参数或能力 | 状态 |
+| --- | --- |
+| 音量 `volume` / `vol` | 不支持 |
+| 音调 `pitch` | 不支持 |
+| 采样率 `sample_rate` / `audio_sample_rate` | 不支持 |
+| 比特率 `bitrate` | 不支持 |
+| 情绪 `emotion` | 不支持 |
+| 随机种子 `seed` | 不支持 |
+| 字幕生成 | 不支持 |
+| 混合音色 | 不支持 |
+| `model_extra.output_format` | 不属于对外参数；请使用顶层 `response_format` |
