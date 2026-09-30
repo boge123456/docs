@@ -141,7 +141,34 @@ with requests.post(
                 print("字符用量:", event["token"])
 ```
 
-流式响应不会生成云存储 URL。响应头 `X-Request-Id` 是本次上游语音请求的标识。
+### SSE 响应示例
+
+成功响应的 `Content-Type` 为 `text/event-stream`。一次响应通常包含多个音频事件和一个末尾用量事件，例如：
+
+```text
+data: {"audio":"SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjMuMTAw..."}
+
+data: {"audio":"//uQZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..."}
+
+data: {"token":23}
+
+```
+
+每个事件均以 `data: ` 开头，并以一个空行结束。最后一个事件发送完成后服务器关闭连接；接口不发送 `[DONE]` 标记。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `audio` | string | 当前音频块的 Base64 编码。每个块需要独立解码，再按事件接收顺序拼接二进制数据。用量事件不包含此字段。 |
+| `token` | integer | 厂商返回的字符计费用量。正常情况下仅在音频发送结束时出现一次；音频事件不包含此字段。 |
+| `error` | object | 流已经建立后发生错误时返回，出现后本次流结束。正常事件不包含此字段。 |
+| `error.code` | integer | 平台错误码。 |
+| `error.message` | string | 错误说明，可用于问题排查。 |
+
+流式响应不会生成云存储 URL，也不包含非流式响应中的 `url`、`duration_ms` 或正文 `request_id`。使用响应头 `x-model-service-trace-id` 关联日志，并作为 `GET /v1/usage?request_id=...` 的查询参数。
+
+<Note>
+示例中的 Base64 内容已截断，不能直接作为音频播放。不要拼接 Base64 字符串后再统一解码，应逐块解码后拼接字节。
+</Note>
 
 ## 请求参数
 
