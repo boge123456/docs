@@ -66,6 +66,25 @@
                     ]
                   },
                   {
+                    "group": "悠船 MJ 图片接口",
+                    "pages": [
+                      "api-reference/endpoint/youchuan-diffusion",
+                      "api-reference/endpoint/youchuan-job",
+                      "api-reference/endpoint/youchuan-variation",
+                      "api-reference/endpoint/youchuan-upscale",
+                      "api-reference/endpoint/youchuan-reroll",
+                      "api-reference/endpoint/youchuan-pan",
+                      "api-reference/endpoint/youchuan-outpaint",
+                      "api-reference/endpoint/youchuan-inpaint",
+                      "api-reference/endpoint/youchuan-remix",
+                      "api-reference/endpoint/youchuan-edit",
+                      "api-reference/endpoint/youchuan-upload-paint",
+                      "api-reference/endpoint/youchuan-retexture",
+                      "api-reference/endpoint/youchuan-remove-background",
+                      "api-reference/endpoint/youchuan-enhance"
+                    ]
+                  },
+                  {
                     "group": "Claude接口",
                     "pages": [
                       "api-reference/endpoint/messages"
@@ -169,7 +188,8 @@
                       "api-reference/examples/images/qwen",
                       "api-reference/examples/images/nanobanana",
                       "api-reference/examples/images/jimeng",
-                      "api-reference/examples/images/async-image"
+                      "api-reference/examples/images/async-image",
+                      "api-reference/examples/images/midjourney"
                     ]
                   },
                   {

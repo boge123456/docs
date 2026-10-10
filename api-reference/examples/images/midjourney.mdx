@@ -1,0 +1,656 @@
+---
+title: 'Midjourney 图片生成与编辑示例'
+description: '使用悠船 MJ 独立接口提交图片任务、轮询结果，以及进行 variation、remix、pan、outpaint 等编辑'
+---
+
+# Midjourney 图片生成与编辑示例
+
+Midjourney 使用独立的 `/v1/tob/*` 图片接口。提交后保存响应中的 `id`，再通过 `GET /v1/tob/job/{jobId}` 查询结果。
+
+<Note>
+使用平台 API Key：`Authorization: Bearer <API-KEY>`。不需要填写悠船 AK/SK。
+MJ 不支持通用 `/v1/images/generations`、`/v1/images/generations/async` 或 `/v1/images/edits`，通过这些接口调用 MJ 会返回 HTTP 400。
+</Note>
+
+## 接口概览
+
+所有提交接口都接收 `application/json`，返回同一种任务响应；二次编辑也会创建新的任务 `id`。
+
+| 操作 | 方法与路径 | 参数入口 |
+| --- | --- | --- |
+| 文生图、图片提示 | `POST /v1/tob/diffusion` | `model`、`text` |
+| 变化 | `POST /v1/tob/variation` | 来源 `jobId`、`imageNo`、`type` |
+| 高清 | `POST /v1/tob/upscale` | 来源 `jobId`、`imageNo`、`type` |
+| 重新生成 | `POST /v1/tob/reroll` | 来源 `jobId` |
+| 延展 | `POST /v1/tob/pan` | 来源图片、`direction`、`scale` |
+| 扩图 | `POST /v1/tob/outpaint` | 来源图片、`scale` |
+| 区域重绘 | `POST /v1/tob/inpaint` | 来源图片、`mask` |
+| 重塑 | `POST /v1/tob/remix` | 来源图片、`remixPrompt` |
+| 画布编辑 | `POST /v1/tob/edit` | 来源图片、`canvas`、`imgPos` |
+| 上传图片编辑 | `POST /v1/tob/upload-paint` | `model`、`imgUrl`、蒙版与画布 |
+| 转绘 | `POST /v1/tob/retexture` | `model`、`imgUrl`、`remixPrompt` |
+| 去背景 | `POST /v1/tob/remove-background` | `model`、`imgUrl` |
+| Draft 增强 | `POST /v1/tob/enhance` | Draft 来源图片 |
+| 查询任务 | `GET /v1/tob/job/{jobId}` | 路径参数 `jobId` |
+
+## 快速开始：提交与轮询
+
+下面以平台路由名 `midjourney` 为例。调用前请确认平台为你的账号开通的模型名；示例名称不表示生产环境已经完成开通。生产地址与其他平台 API 一致；也可以通过环境变量切换到你的测试地址。
+
+### 模型名与版本选择
+
+阿里悠船原生接口没有 `model` 请求字段。平台增加 `model` 用于路由与计费，上游版本选择仍沿用阿里云的参数格式，写在 `text` 中；不要将版本名称自行拼成新的平台模型名。
+
+| 阿里云版本 | `text` 中的版本参数 |
+| --- | --- |
+| V6 | `--v 6` |
+| V6.1 | `--v 6.1` |
+| V7 | `--v 7` |
+| V8.1 | `--v 8.1` |
+| V8.2 | `--v 8.2` |
+| Niji 6 | `--niji 6` |
+| Niji 7 | `--niji 7` |
+
+版本名称和参数格式参见[阿里云产品说明](https://help.aliyun.com/zh/marketplace/product-quick-start)。生产环境的 `model` 路由名以平台实际开通记录为准。
+
+<CodeGroup>
+
+```bash cURL
+# 需要安装 curl 和 jq；把占位符替换为平台 API Key。
+export TOKENOPS_API_KEY="<API-KEY>"
+BASE_URL="https://model-api.skyengine.com.cn"
+
+# 1. 提交一次并保存原始 jobId。
+SUBMITTED=$(curl --fail-with-body --max-time 60 -sS \
+  "$BASE_URL/v1/tob/diffusion" \
+  -H "Authorization: Bearer $TOKENOPS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"midjourney","text":"A red ceramic mug on a white table --v 7 --ar 1:1 --raw --seed 42"}') || exit 1
+JOB_ID=$(printf '%s' "$SUBMITTED" | jq -er '.id | select(type == "string" and length > 0)') || exit 1
+echo "jobId=$JOB_ID"
+
+# 2. 最多查询 360 次，间隔 5 秒；超时后继续查询同一个 jobId。
+for attempt in $(seq 1 360); do
+  RESULT=$(curl --fail-with-body --max-time 60 -sS \
+    "$BASE_URL/v1/tob/job/$JOB_ID" \
+    -H "Authorization: Bearer $TOKENOPS_API_KEY") || exit 1
+  STATUS=$(printf '%s' "$RESULT" | jq -r '.status')
+  case "$STATUS" in
+    2) printf '%s' "$RESULT" | jq -er '.urls | select(type == "array" and length > 0) | .[]'; exit $? ;;
+    3) printf '%s' "$RESULT" | jq -r '.comment'; exit 1 ;;
+    0|1) sleep 5 ;;
+    *) echo "Unexpected status: $STATUS"; exit 1 ;;
+  esac
+done
+echo "仍未完成，请继续查询 jobId=$JOB_ID；不要因此重新提交生成请求。"
+```
+
+```python Python
+import os
+import time
+from urllib.parse import quote
+import requests
+
+BASE_URL = os.getenv("TOKENOPS_BASE_URL", "https://model-api.skyengine.com.cn").rstrip("/")
+session = requests.Session()
+session.headers["Authorization"] = f"Bearer {os.environ['TOKENOPS_API_KEY']}"
+
+
+def submit(operation, payload):
+    response = session.post(f"{BASE_URL}/v1/tob/{operation}", json=payload, timeout=60)
+    response.raise_for_status()
+    result = response.json()
+    if not result.get("id"):
+        raise RuntimeError("提交响应缺少任务 id")
+    return result["id"]
+
+
+def wait_job(job_id, timeout=1800):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        response = session.get(
+            f"{BASE_URL}/v1/tob/job/{quote(job_id, safe='')}", timeout=60
+        )
+        response.raise_for_status()
+        result = response.json()
+        if result["status"] == 2:
+            if not result.get("urls"):
+                raise RuntimeError("任务成功但缺少图片地址，请保留任务 id 排查")
+            return result
+        if result["status"] == 3:
+            raise RuntimeError(result.get("comment") or "生成失败")
+        if result["status"] not in (0, 1):
+            raise RuntimeError(f"未知任务状态：{result['status']}")
+        time.sleep(5)
+    raise TimeoutError(f"任务仍未完成；保留 {job_id}，稍后继续查询")
+
+
+job_id = submit("diffusion", {
+    "model": "midjourney",
+    "text": "A red ceramic mug on a white table --v 7 --ar 1:1 --raw --seed 42",
+})
+print("jobId:", job_id)  # 在等待之前持久保存，方便超时或断线后恢复查询。
+result = wait_job(job_id)
+for url in result["urls"]:
+    print(url)
+```
+
+```javascript JavaScript/Node.js
+// Node.js 18+；先设置 TOKENOPS_API_KEY 环境变量。
+const baseUrl = (process.env.TOKENOPS_BASE_URL || "https://model-api.skyengine.com.cn").replace(/\/$/, "");
+const apiKey = process.env.TOKENOPS_API_KEY;
+if (!apiKey) throw new Error("请设置 TOKENOPS_API_KEY");
+
+async function request(path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+  return response.json();
+}
+
+async function waitJob(jobId, timeoutMs = 1800000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const result = await request(`/v1/tob/job/${encodeURIComponent(jobId)}`);
+    if (result.status === 2) {
+      if (!Array.isArray(result.urls) || result.urls.length === 0) throw new Error("任务成功但缺少图片地址");
+      return result;
+    }
+    if (result.status === 3) throw new Error(result.comment || "生成失败");
+    if (result.status !== 0 && result.status !== 1) throw new Error("未知任务状态");
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+  throw new Error(`任务仍未完成；保留 ${jobId}，稍后继续查询`);
+}
+
+const submitted = await request("/v1/tob/diffusion", {
+  model: "midjourney",
+  text: "A red ceramic mug on a white table --v 7 --ar 1:1 --raw --seed 42",
+});
+if (!submitted.id) throw new Error("提交响应缺少任务 id");
+console.log("jobId:", submitted.id);
+const result = await waitJob(submitted.id);
+result.urls.forEach(url => console.log(url));
+```
+
+</CodeGroup>
+
+## 请求参数约定
+
+| 参数 | 使用范围 | 说明 |
+| --- | --- | --- |
+| `model` | `diffusion`、`upload-paint`、`retexture`、`remove-background` 必填 | 使用账号已开通的 MJ 模型名 |
+| `text` | `diffusion` 必填 | 提示词、参考图 URL 和 MJ 参数写在同一个字符串中 |
+| `jobId` | 二次编辑必填 | 平台返回的来源任务 `id`；建议等待来源任务成功后再编辑 |
+| `imageNo` | 除 `reroll` 外的二次编辑必填 | 来源任务 `urls` 的图片下标，当前允许 `0`～`3` |
+| `remixPrompt` | `remix`、`edit`、`upload-paint`、`retexture` 必填；其他部分编辑选填 | 新的提示词；不要使用 `prompt` 代替 |
+
+二次编辑继承来源任务的模型与账号，**不要再传 `model`**，并使用提交来源任务时的同一个平台 API Key。未知请求字段会被拒绝。首期只支持轮询，**不要传 `callback`，即使值为 `null` 也会被拒绝**。
+
+## 任务响应与状态
+
+提交和查询都返回任务对象。下面是示意结构，任务提交时 `urls` 通常为空；查询成功后从 `urls` 取图片地址。
+
+```json
+{
+  "id": "<job_id>",
+  "text": "A red ceramic mug on a white table --v 7",
+  "urls": [],
+  "status": 1,
+  "comment": "执行中",
+  "cost": {
+    "jobId": "<job_id>",
+    "fastCost": 1,
+    "relaxCost": 0,
+    "feeCost": 60,
+    "costAt": "2026-10-10T01:00:00Z"
+  }
+}
+```
+
+| `status` | 含义 | 客户端处理 |
+| --- | --- | --- |
+| `0` | 等待执行 | 继续查询 |
+| `1` | 执行中 | 继续查询 |
+| `2` | 成功 | 读取 `urls` |
+| `3` | 失败 | 读取 `comment`，停止轮询 |
+
+`id` 是任务 ID，提交编辑操作时放入 `jobId`，查询时放入 URL 路径。`status` 是数字，不是通用异步图片接口的 `queued` / `completed` 字符串；图片在 `urls`，不在 `data[].url`。`cost`、`audits`、`seed` 等上游字段可能返回，任务完成前的费用不是最终费用。
+
+建议间隔 5 秒查询。客户端等待超时不等于任务失败；已经拿到 `id` 时，继续查询原任务即可。任务记录保留 30 天，图片地址按返回 URL 的有效期使用，建议及时保存图片。
+
+## 版本与 MJ 参数
+
+在 `text` 中写参数，而不是增加 `size`、`ratio`、`quality`、`seed`、`n` 等独立 JSON 字段。
+
+| 用法 | `text` 示例 |
+| --- | --- |
+| V6 + 宽高比 | `A red ceramic mug --v 6 --ar 16:9` |
+| V6.1 | `A red ceramic mug --v 6.1 --ar 1:1` |
+| V7 + Raw | `A red ceramic mug --v 7 --raw --ar 1:1` |
+| V7 Draft | `A red ceramic mug --v 7 --draft` |
+| 平铺纹理 | `A geometric ceramic pattern --v 7 --tile` |
+| V8.2 | `A red ceramic mug --v 8.2 --raw` |
+| V8.1 | `A red ceramic mug --v 8.1 --raw` |
+| Niji 6 | `A red ceramic mug, anime illustration --niji 6` |
+| Niji 7 | `A red ceramic mug, anime illustration --niji 7` |
+| 图片提示 | `https://example.com/reference.png A red ceramic mug --v 7 --iw 1` |
+| 多图提示 | `https://example.com/first.png https://example.com/second.png A ceramic mug --v 7 --iw 1` |
+| 角色参考 | `A person holding a ceramic mug --v 6.1 --cref https://example.com/person.png --cw 100` |
+| 风格参考 | `A ceramic mug --v 7 --sref https://example.com/style.png --sw 100` |
+| 万物引用 | `A ceramic mug on a table --v 7 --oref https://example.com/object.png --ow 100` |
+
+图片 URL 请替换为上游可访问的真实地址。平台原样转发 `text`；`--ar`、`--raw`、`--tile`、`--seed`、`--chaos`、`--stylize`、`--weird`、`--quality`、速度模式及参考图参数均在这个字段中传入。各参数的可用版本、取值和组合限制由上游决定，不能将示例理解为所有版本均支持同一组参数。
+
+参数和编辑能力受来源任务的版本限制，不是所有版本都支持全部操作。例如 V8.1 / V8.2 不支持 `pan`、`outpaint`、`inpaint` 和 `enhance`；需要这些操作时，使用支持它们的版本生成来源任务。V7 Draft 不要与 `--tile` 或 `--oref` 同时使用。版本能力参见[阿里云 V8 系列说明](https://help.aliyun.com/zh/marketplace/v8-series-model-guide)；图片引导参数参见[悠船接口参考](https://help.aliyun.com/zh/marketplace/youchuan-text2image-reference)。
+
+### 参数支持矩阵
+
+以下矩阵按 2026-10-10 核对的阿里云版本指南整理。✅ 表示上游文档列明支持，❌ 表示明确不支持，？表示未明确或存在冲突；这些标记不是平台逐组合实测结果。参数统一写入 `text`，平台不额外提供同名 JSON 字段。
+
+| 参数 / 语法 | V6 | V6.1 | V7 | V8.1 | V8.2 | Niji 6 | Niji 7 | 默认值 / 含义 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `--ar` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `1:1`；宽高比，正整数比值 |
+| `--raw` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 默认不添加；原始模式 |
+| `--tile` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | 默认不添加；无缝平铺 |
+| `--chaos` | 0–100 | 0–100 | 0–100 | 0–100 | 0–100 | 0–100 | 0–100 | `0`；结果多样性 |
+| `--seed` | 0–4294967295 | 0–4294967295 | 0–4294967295 | 0–4294967295 | 0–4294967295 | 0–4294967295 | 0–4294967295 | 随机；种子 |
+| `--stylize` | 0–1000 | 0–1000 | 0–1000 | 0–1000 | 0–1000 | 0–1000 | 0–1000 | `100`；风格化强度 |
+| `--weird` | 0–3000 | 0–3000 | 0–3000 | 0–3000 | 0–3000 | 0–3000 | 0–3000 | `0`；超现实程度 |
+| `--quality` / `--q` | 0.25 / 0.5 / 1 | 0.5 / 1 / 2 | 1 / 2 / 4 | 1 / 4 | 1 / 2 / 3 / 4 | 0.25 / 0.5 / 1 | ❌ | `1`；质量，不等于输出像素尺寸 |
+| `--stop` | 10–100 | 10–100 | ❌ | ❌ | ❌ | 10–100 | ❌ | `100`；提前停止 |
+| `--no` | ❌ | ✅ | ✅ | ✅ | ✅ | ？ | ？ | 默认不添加；否定提示文本 |
+| `--iw` | 0–3 | 0–3 | 0–3 | 0–3 | 0–3 | ？（0–2 / 0–3） | 0–2 | `1`；图片提示权重 |
+| `--sref` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 默认不添加；最多 20 个风格参考 URL |
+| `--sw` | 0–1000 | 0–1000 | 0–1000 | 0–1000 | 0–1000 | 0–1000 | 0–1000 | `100`；风格参考权重 |
+| `--sv` | 1–4 | 1–4 | 1–6 | 6 | 6 | 1–4 | 4–6 | V8 为 `6`，其他为 `4`；风格算法 |
+| `--sref random` | sv=4 | sv=4 | ？ | ？ | ？ | sv=4 | ✅ | 随机风格参考；？表示版本指南未明确 |
+| `--cref` | ✅ | ✅ | ❌ | ❌¹ | ❌¹ | ✅ | ❌ | 默认不添加；角色参考 URL |
+| `--cw` | 0–100 | 0–100 | ❌ | ❌ | ❌ | 0–100 | ❌ | `100`；角色参考权重 |
+| `--oref` | ❌ | ❌ | 单张 URL | ❌¹ | ❌¹ | ❌ | ❌ | 默认不添加；万物引用 |
+| `--ow` | ❌ | ❌ | 1–1000 | ❌¹ | ❌¹ | ❌ | ❌ | `100`；万物引用权重 |
+| `--draft` | ❌ | ❌ | ✅ | ？ | ✅² | ❌ | ❌ | 默认不添加；草图 / 批量模式 |
+| `--hd` | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | 默认不添加；原生高清 |
+| `--exp` | ❌ | ❌ | 0–100 | 0–100 | 0–100 | ❌ | ❌ | `0`；实验参数 |
+| `--personalize` | ？ | ？ | ❌ | ✅ | ✅ | ？ | ？ | 默认不添加；个性化配置，需上游有效配置 |
+| `--fast` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 上游默认速度模式 |
+| `--turbo` | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | 默认不添加；极速模式 |
+| `--relax` | ？ | ？ | ？ | ？ | ？ | ？ | ？ | 通用接口涉及慢速额度，但各版本表未完整列出；需账号权限 |
+| 多提示词 `::` | 最多 7 个 | 最多 7 个 | ❌ | ❌ | ❌ | 最多 7 个 | ❌ | 默认不拆分；提示词权重语法 |
+| 图片 URL 提示 | 最多 20 张 | 最多 20 张 | 最多 20 张 | 最多 20 张 | 最多 20 张 | 最多 20 张 | 最多 20 张 | 默认不使用；URL 写在描述文本前 |
+| `--bs` | ？ | ？ | ？ | ❌ | ❌ | ？ | ？ | 版本表未完整列出；不要用它代替平台 `n` |
+
+¹ `--cref` 的通用接口说明仅列 V6 / V6.1 / Niji 6；`--oref` / `--ow` 仅列 V7，不能因版本更高推断 V8 支持。
+
+² V8 指南的参数表将 `--draft` 描述为每任务 24 张、费用与标准任务一致；这与 V7 草图模式的语义不同。
+
+范围与默认值来源：[V6 / V6.1](https://help.aliyun.com/zh/marketplace/v6-model-guide)、[V7](https://help.aliyun.com/zh/marketplace/v7-model-guide)、[V8.1 / V8.2](https://help.aliyun.com/zh/marketplace/v8-series-model-guide)、[Niji 6 / 7](https://help.aliyun.com/zh/marketplace/niji-model-guide)、[通用接口参数](https://help.aliyun.com/zh/marketplace/youchuan-text2image-reference)。
+
+### 版本功能矩阵
+
+以下按上游版本指南的接口支持表整理；平台已提供所有列出的图片接口，但来源任务仍须满足版本与参数限制。上传编辑、转绘、去背景的请求体没有独立版本字段，此表不表示可以给它们新增 `version` 字段。
+
+| 图片接口 | V6 | V6.1 | V7 | V8.1 | V8.2 | Niji 6 | Niji 7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `diffusion` 生图 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `variation` 变化 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `upscale` 高清 | ✅ | ✅ | ✅ | 特殊³ | 特殊³ | ✅ | ✅ |
+| `reroll` 重新执行 | 通用⁴ | 通用⁴ | 通用⁴ | 通用⁴ | 通用⁴ | 通用⁴ | 通用⁴ |
+| `pan` 延展 | ✅ | ✅ | ✅⁵ | ❌ | ❌ | ✅ | ✅ |
+| `outpaint` 扩图 | ✅ | ✅ | ✅⁵ | ❌ | ❌ | ✅ | ✅ |
+| `inpaint` 区域重绘 | ✅ | ✅ | ✅⁵ | ❌ | ❌ | ✅ | ✅ |
+| `remix` 重塑 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `edit` 画布编辑 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `upload-paint` 上传编辑 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `retexture` 转绘 | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `remove-background` 去背景 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `enhance` 增强 | ❌ | ❌ | 仅 Draft | ❌ | ❌ | ❌ | ❌ |
+| `GET job/{jobId}` 查询 | 通用 | 通用 | 通用 | 通用 | 通用 | 通用 | 通用 |
+
+³ V8 高清采用 `diffusion` + `--hd --seed`；不要按旧版标准 / 创意高清的语义理解。使用相同描述与种子生成高清仍属于新任务。
+
+⁴ `reroll` 在[通用接口定义](https://help.aliyun.com/zh/marketplace/youchuan-text2image-reference)中提供，但版本指南没有逐版本列出，未据此标为逐版本已验证。
+
+⁵ V7 的 `--oref` 来源任务不兼容延展、扩图及区域重绘。
+
+支持状态来源：[V6 系列接口表](https://help.aliyun.com/zh/marketplace/v6-model-guide)、[V7 接口表](https://help.aliyun.com/zh/marketplace/v7-model-guide)、[V8 系列接口表](https://help.aliyun.com/zh/marketplace/v8-series-model-guide)、[Niji 系列接口表](https://help.aliyun.com/zh/marketplace/niji-model-guide)。视频、Moodboard、供应商账户及消费历史接口不在当前平台 MJ 图片接入范围内。
+
+### 参数组合限制与上游文档差异
+
+- V7 `--draft` 不可与 `--tile`、`--oref`、速度模式或 `--q 4` 组合；`enhance` 需要支持增强的 Draft 来源任务。
+- V7 `--oref` 只接收一张图，并且不兼容 `pan`、`outpaint`、`inpaint`。V7 / V8 不支持多提示词 `::` 或 `--stop`。
+- V8 仅接受 `--sv 6`，不支持 `--turbo`、`--bs`；V8.1 的质量值为 1 / 4，V8.2 为 1 / 2 / 3 / 4。V8 的 Draft 不能照搬 V7 的增强流程。
+- V6 / V6.1 / Niji 6 使用 `--sref random` 时要求 `--sv 4`；Niji 7 不支持 `--tile`、`--quality`、`--stop` 或 `--cref`。
+
+<Note>
+阿里云文档存在以下不一致，暂不作为稳定能力承诺：
+
+- Niji 的参数表称支持 `--no`，限制表称不支持。
+- Niji 6 的版本表给出 `--iw 0–3`，通用接口表给出 `0–2`；在确认前使用共同范围 `0–2`。
+- V6 的 `--personalize` 支持标记与“仅 V8.1 支持”的备注冲突；Niji 个性化参数缺少完整使用约束。
+- V8 参数表列出 Draft，但增强接口备注又称 V8.1 没有 Draft。当前应将 Draft 生成与 `enhance` 分开处理，不能据此调用增强接口。
+
+这些差异来自上面链接的版本指南与通用接口文档；以当前上游实际校验为准。
+</Note>
+
+## 二次编辑示例
+
+以下请求中的 `<source_job_id>` 替换为成功的来源任务 `id`。每次操作都会返回新的任务，再使用同一个查询接口等待结果。
+
+<CodeGroup>
+
+```bash cURL — variation
+curl --fail-with-body -sS "https://model-api.skyengine.com.cn/v1/tob/variation" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"jobId":"<source_job_id>","imageNo":0,"type":1}'
+```
+
+```python Python — remix
+# 复用快速开始中的 submit、wait_job。
+remix_id = submit("remix", {
+    "jobId": job_id,
+    "imageNo": 0,
+    "remixPrompt": "A blue ceramic mug on a white table",
+    "mode": 1,
+})
+print("remix jobId:", remix_id)
+remix_result = wait_job(remix_id)
+print(remix_result["urls"])
+```
+
+```javascript JavaScript — pan
+// 复用快速开始中的 request、waitJob。
+const pan = await request("/v1/tob/pan", {
+  jobId: submitted.id,
+  imageNo: 0,
+  direction: 1,
+  scale: 1.5,
+});
+console.log("pan jobId:", pan.id);
+const panResult = await waitJob(pan.id);
+console.log(panResult.urls);
+```
+
+</CodeGroup>
+
+### 各操作的请求体
+
+下面给出完整字段组合。所有请求均为 `POST /v1/tob/{operation}`，共用 Bearer 鉴权。
+
+<AccordionGroup>
+
+<Accordion title="variation：变化">
+`type=0` 为强变化，`type=1` 为细微变化；可选 `remixPrompt`。
+
+```json
+{"jobId":"<source_job_id>","imageNo":0,"type":0,"remixPrompt":"A blue ceramic mug"}
+```
+</Accordion>
+
+<Accordion title="upscale：高清">
+`type=0` 为标准高清，`type=1` 为创意高清。`type=2` / `3` 是 V5 任务的 2 倍 / 4 倍高清，不能任意用于其他版本的来源图。
+
+```json
+{"jobId":"<source_job_id>","imageNo":0,"type":0}
+```
+</Accordion>
+
+<Accordion title="reroll：重新生成">
+```json
+{"jobId":"<source_job_id>"}
+```
+</Accordion>
+
+<Accordion title="pan：延展">
+`direction`：`0` 下、`1` 右、`2` 上、`3` 左；`scale`：`1.1`～`3`。可选 `remixPrompt`。
+
+```json
+{"jobId":"<source_job_id>","imageNo":0,"direction":1,"scale":1.5}
+```
+</Accordion>
+
+<Accordion title="outpaint：扩图">
+`scale`：`1.1`～`2`。可选 `remixPrompt`。扩图表示扩大画面视野，不保证输出像素尺寸按相同比例增加。
+
+```json
+{"jobId":"<source_job_id>","imageNo":0,"scale":1.5}
+```
+</Accordion>
+
+<Accordion title="inpaint：区域重绘">
+`mask` 使用坐标区域 `areas` 或蒙版图片 `url`。坐标示例见下一节，可选 `remixPrompt`。
+
+```json
+{"jobId":"<source_job_id>","imageNo":0,"mask":{"url":"https://example.com/mask.png"},"remixPrompt":"A blue ceramic mug"}
+```
+</Accordion>
+
+<Accordion title="remix：重塑">
+`mode` 可省略，`0` 为强烈模式，`1` 为细微模式。
+
+```json
+{"jobId":"<source_job_id>","imageNo":0,"remixPrompt":"A blue ceramic mug on a white table","mode":1}
+```
+</Accordion>
+
+<Accordion title="edit：画布编辑">
+```json
+{"jobId":"<source_job_id>","imageNo":0,"canvas":{"width":1024,"height":1024},"imgPos":{"width":512,"height":512,"x":256,"y":256},"remixPrompt":"A ceramic mug on a larger white table"}
+```
+`mask` 可选。
+</Accordion>
+
+<Accordion title="upload-paint：上传图片编辑">
+```json
+{"model":"midjourney","imgUrl":"https://example.com/source.png","mask":{"url":"https://example.com/mask.png"},"canvas":{"width":1024,"height":1024},"imgPos":{"width":512,"height":512,"x":256,"y":256},"remixPrompt":"A blue ceramic mug"}
+```
+</Accordion>
+
+<Accordion title="retexture：转绘">
+```json
+{"model":"midjourney","imgUrl":"https://example.com/source.png","remixPrompt":"A ceramic mug in watercolor"}
+```
+</Accordion>
+
+<Accordion title="remove-background：去背景">
+```json
+{"model":"midjourney","imgUrl":"https://example.com/source.png"}
+```
+</Accordion>
+
+<Accordion title="enhance：Draft 增强">
+来源任务需要为支持增强的 Draft 任务，例如 V7 Draft。
+
+```json
+{"jobId":"<draft_job_id>","imageNo":0}
+```
+</Accordion>
+
+</AccordionGroup>
+
+### 蒙版与画布参数
+
+`mask.areas` 中每个区域包含参考尺寸 `width`、`height`，以及按 `[x1, y1, x2, y2, ...]` 排列的多边形坐标 `points`。以下示例选取 1024 × 1024 来源图的中间区域；请按实际图片尺寸调整坐标。
+
+```json
+{
+  "jobId": "<source_job_id>",
+  "imageNo": 0,
+  "mask": {
+    "areas": [
+      {"width": 1024, "height": 1024, "points": [300, 300, 300, 700, 700, 700, 700, 300]}
+    ]
+  },
+  "remixPrompt": "A blue ceramic mug"
+}
+```
+
+| 对象 | 字段 | 约束 |
+| --- | --- | --- |
+| `canvas` | `width`、`height` | 正整数，表示目标画布尺寸 |
+| `imgPos` | `width`、`height` | 正整数，表示图片在画布中的尺寸 |
+| `imgPos` | `x`、`y` | 整数，表示水平和垂直位移 |
+| `mask` | `areas` 或 `url` | 使用坐标区域或可访问的蒙版图片 URL |
+
+示例中的 `example.com` 地址只是占位符，使用前需替换为上游可访问的真实图片地址。`imgUrl`、参考图及蒙版 URL 不使用平台 Bearer Key 下载。
+
+## 计费与错误处理
+
+- 提交时不扣费；成功且有图片结果后按任务计费，失败不扣费。
+- 一次任务即使返回多张图片，也按一次任务结算；不同操作、版本与模式的费用可能不同。
+- `cost` 是上游任务消耗信息，不是平台钱包流水或最终实付账单；最终实付以平台消费记录为准。
+- 独立新任务使用提交时的价格版本；二次编辑沿用来源任务的价格版本。
+- 客户端查询超时不会取消任务。拿到 `id` 后保留并继续查询；不要自动重复提交来代替查询。
+
+## 正常返回与失败返回
+
+以下均为结构示例，任务 ID、图片地址、时间与消耗值为占位值。所有提交操作共享任务响应结构；提交成功通常表示已受理，最终结果仍需查询。`cost`、`seed`、`audits` 可能缺省或因任务而不同。
+
+### 提交成功：HTTP 200
+
+```json
+{
+  "id": "<job_id>",
+  "text": "A red ceramic mug --v 7",
+  "status": 1,
+  "urls": [],
+  "comment": "JobStatusRunning"
+}
+```
+
+### 排队等待：查询 HTTP 200
+
+```json
+{
+  "id": "<job_id>",
+  "status": 0,
+  "urls": [],
+  "comment": "JobStatusQueued"
+}
+```
+
+保存原任务 ID，继续轮询；不要因 `urls` 为空重新提交。
+
+### 生成完成：查询 HTTP 200
+
+```json
+{
+  "id": "<job_id>",
+  "text": "A red ceramic mug --v 7",
+  "status": 2,
+  "urls": [
+    "https://example.com/result-0.png",
+    "https://example.com/result-1.png",
+    "https://example.com/result-2.png",
+    "https://example.com/result-3.png"
+  ],
+  "comment": "JobStatusSuccess",
+  "cost": {
+    "jobId": "<job_id>",
+    "fastCost": 1,
+    "relaxCost": 0,
+    "feeCost": 60,
+    "costAt": "2026-10-10T01:00:00Z"
+  },
+  "audits": [],
+  "seed": 42
+}
+```
+
+`urls` 数量随操作和模式变化，不固定为四张。二次编辑的 `imageNo` 当前只接受 0–3，即使 Draft 返回更多图片，也不能直接提交下标 4 及以上。消费示例不构成价格承诺。
+
+### 任务生成失败：查询仍为 HTTP 200
+
+```json
+{
+  "id": "<job_id>",
+  "status": 3,
+  "urls": [],
+  "comment": "JobStatusInvalidImagePromptLink"
+}
+```
+
+此例表示参考图片地址无效或下载超时。停止轮询，修正图片地址后再发起新任务。失败原因可能是英文标识或其他说明，客户端应以数字 `status` 判定终态，不要依赖 `comment` 固定文案。
+
+| 常见 `comment` 标识 | 含义 / 处理 |
+| --- | --- |
+| `JobStatusBadPrompt` / `JobStatusInvalidParameter` | 提示词或参数错误；检查参数及版本组合 |
+| `JobStatusTextReject` / `JobStatusReject` / `JobStatusImagePromptDenied` | 文本或图片审核未通过；调整内容 |
+| `JobStatusInvalidImagePromptLink` | 参考图片链接无效或获取超时；检查可访问性 |
+| `JobStatusTimeout` / `JobStatusRequestTimeout` | 任务超时；保留任务 ID 排查 |
+| `JobStatusMaxConcurrentLimited` | 上游并发受限；降低并发 |
+| `JobStatusCreditNotEnough` | 上游任务额度不足；联系平台处理 |
+| `JobStatusFail` / `JobStatusError` | 其他生成错误；保留任务 ID 排查 |
+
+标识来源：[阿里云任务状态说明](https://help.aliyun.com/zh/marketplace/youchuan-text2image-reference)。HTTP 错误按平台的 `error` 对象处理；查询 HTTP 200 本身不代表生成成功。
+
+### 请求参数错误：HTTP 400
+
+例如提交 `callback`（包括 `null`）会被拒绝：
+
+```json
+{
+  "error": {
+    "code": 2004,
+    "message": "unsupported field \"callback\""
+  }
+}
+```
+
+例如查询不存在、已过期或属于其他 API Key 的任务：
+
+```json
+{
+  "error": {
+    "code": 2004,
+    "message": "job not found"
+  }
+}
+```
+
+### 请求并发受限：HTTP 429
+
+```json
+{
+  "error": {
+    "code": 2007,
+    "message": "too many active image jobs"
+  }
+}
+```
+
+降低同时执行的任务数量，等待已有任务结束后再提交。
+
+### 使用通用图片接口：HTTP 400
+
+```json
+{
+  "error": {
+    "code": 2004,
+    "message": "Midjourney only supports the /v1/tob/* image APIs"
+  }
+}
+```
+
+上述错误表示使用了不支持 MJ 的通用图片入口。请改用本页的独立接口。
+
+| HTTP 状态 | 平台错误码 / 场景 | 建议处理 |
+| --- | --- | --- |
+| 400 | `2004`：必填项缺失、未知字段、范围错误、来源任务无效 | 修正请求后提交 |
+| 401 | API Key 认证失败或已过期 | 检查平台 Key |
+| 403 | 模型访问权限、Key 状态或账户条件不满足 | 检查模型授权与账户配置 |
+| 429 | `2007`：任务并发或 RPM 受限；也可能是其他配额限制 | 降低并发，检查配额 |
+| 424 | `2002`：下游调用不可用，例如提交网络错误或任务查询失败 | 查询失败时继续查询同一 ID；提交未拿到 ID 时先排查受理情况 |
+| 500 | 内部或上游异常转换错误 | 保存错误及请求标识，联系平台排查 |
+
+错误对象还可能包含 `details` 与 `trace_id`。上游原生 `{code, message, reason}` 不保证原样返回，也不保证其 HTTP 状态与平台一致；请以本平台实际 HTTP 状态和 `error.code` 处理。拿到任务 ID 后，HTTP 查询错误不等于任务终态失败，不要自动用重复提交代替查询。
+
+详细字段及可交互的响应示例可在侧栏「悠船 MJ 图片接口」中查看。

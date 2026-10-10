@@ -1,0 +1,2152 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TokenOPS 悠船 MJ 图片 API",
+    "version": "1.0.0",
+    "description": "平台独立MJ图片协议。Bearer API Key鉴权；直接请求必填model，二次编辑继承来源模型；仅支持轮询。"
+  },
+  "servers": [
+    {
+      "url": "https://model-api.skyengine.com.cn",
+      "description": "平台API地址；模型须已开通。"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "悠船 MJ 图片"
+    }
+  ],
+  "paths": {
+    "/v1/tob/diffusion": {
+      "post": {
+        "operationId": "youchuanDiffusion",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "文生图与图片提示",
+        "description": "直接生成；支持图片URL与文本提示组合，具体参数随版本变化。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanDiffusionRequest"
+              },
+              "example": {
+                "model": "midjourney",
+                "text": "A red ceramic mug on a white table --v 7 --ar 1:1 --raw"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/variation": {
+      "post": {
+        "operationId": "youchuanVariation",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "变化",
+        "description": "根据来源图片生成变化；不再传model。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanVariationRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>",
+                "imageNo": 0,
+                "type": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/upscale": {
+      "post": {
+        "operationId": "youchuanUpscale",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "高清",
+        "description": "提升来源图片清晰度；操作类型与源版本必须兼容。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanUpscaleRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>",
+                "imageNo": 0,
+                "type": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/reroll": {
+      "post": {
+        "operationId": "youchuanReroll",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "重新生成",
+        "description": "使用来源任务参数重新生成；不传imageNo。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanRerollRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/pan": {
+      "post": {
+        "operationId": "youchuanPan",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "延展",
+        "description": "向指定方向补充画面；使用支持该操作的来源版本。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanPanRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>",
+                "imageNo": 0,
+                "direction": 1,
+                "scale": 1.5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/outpaint": {
+      "post": {
+        "operationId": "youchuanOutpaint",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "扩图",
+        "description": "扩展画面视野；不保证像素尺寸按scale增加。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanOutpaintRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>",
+                "imageNo": 0,
+                "scale": 1.5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/inpaint": {
+      "post": {
+        "operationId": "youchuanInpaint",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "区域重绘",
+        "description": "按蒙版区域重新生成；坐标应与来源图匹配。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanInpaintRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>",
+                "imageNo": 0,
+                "mask": {
+                  "areas": [
+                    {
+                      "width": 1024,
+                      "height": 1024,
+                      "points": [
+                        300,
+                        300,
+                        300,
+                        700,
+                        700,
+                        700,
+                        700,
+                        300
+                      ]
+                    }
+                  ]
+                },
+                "remixPrompt": "A blue ceramic mug"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/remix": {
+      "post": {
+        "operationId": "youchuanRemix",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "重塑",
+        "description": "使用新提示词调整来源图片。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanRemixRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>",
+                "imageNo": 0,
+                "remixPrompt": "A blue ceramic mug",
+                "mode": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/edit": {
+      "post": {
+        "operationId": "youchuanEdit",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "画布编辑",
+        "description": "在目标画布中设置来源图片的位置与尺寸。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanEditRequest"
+              },
+              "example": {
+                "jobId": "<source_job_id>",
+                "imageNo": 0,
+                "canvas": {
+                  "width": 1024,
+                  "height": 1024
+                },
+                "imgPos": {
+                  "width": 512,
+                  "height": 512,
+                  "x": 256,
+                  "y": 256
+                },
+                "remixPrompt": "A mug on a larger white table"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/upload-paint": {
+      "post": {
+        "operationId": "youchuanUploadPaint",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "上传图片编辑",
+        "description": "通过图片URL和画布发起独立编辑；不是multipart上传接口。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanUploadPaintRequest"
+              },
+              "example": {
+                "model": "midjourney",
+                "imgUrl": "https://example.com/source.png",
+                "mask": {
+                  "areas": [
+                    {
+                      "width": 1024,
+                      "height": 1024,
+                      "points": [
+                        300,
+                        300,
+                        300,
+                        700,
+                        700,
+                        700,
+                        700,
+                        300
+                      ]
+                    }
+                  ]
+                },
+                "canvas": {
+                  "width": 1024,
+                  "height": 1024
+                },
+                "imgPos": {
+                  "width": 512,
+                  "height": 512,
+                  "x": 256,
+                  "y": 256
+                },
+                "remixPrompt": "A blue ceramic mug"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/retexture": {
+      "post": {
+        "operationId": "youchuanRetexture",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "转绘",
+        "description": "根据新提示词对图片进行转绘。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanRetextureRequest"
+              },
+              "example": {
+                "model": "midjourney",
+                "imgUrl": "https://example.com/source.png",
+                "remixPrompt": "A ceramic mug in watercolor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/remove-background": {
+      "post": {
+        "operationId": "youchuanRemoveBackground",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "去背景",
+        "description": "通过可访问的图片URL发起去背景任务。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanRemoveBackgroundRequest"
+              },
+              "example": {
+                "model": "midjourney",
+                "imgUrl": "https://example.com/source.png"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/enhance": {
+      "post": {
+        "operationId": "youchuanEnhance",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "Draft增强",
+        "description": "来源需为支持增强的Draft任务，例如V7 Draft。 所有字段均通过JSON传入；不支持callback。成功提交返回原始任务id，使用GET /v1/tob/job/{jobId}轮询结果。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YouchuanEnhanceRequest"
+              },
+              "example": {
+                "jobId": "<draft_job_id>",
+                "imageNo": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已受理；也可能直接返回终态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "example": {
+                  "id": "<job_id>",
+                  "status": 1,
+                  "urls": [],
+                  "comment": "执行中"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、来源任务或接口不符合要求。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "unsupported field \"callback\""
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "403": {
+            "description": "无访问权限。"
+          },
+          "429": {
+            "description": "请求或任务并发达到限制。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2007,
+                    "message": "too many active image jobs"
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "下游调用不可用；拿到任务id后应继续查询原任务。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "Youchuan submit failed"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求未成功完成；如已获得id，应查询原任务而不是重复提交。"
+          }
+        }
+      }
+    },
+    "/v1/tob/job/{jobId}": {
+      "get": {
+        "operationId": "youchuanGetJob",
+        "tags": [
+          "悠船 MJ 图片"
+        ],
+        "summary": "查询任务",
+        "description": "使用原始id查询任务，必须使用提交任务时的同一个平台API Key。任务状态为数字0/1/2/3，图片在urls中；查询不会再次生成图片。",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "任务响应中的id。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "返回当前任务状态；失败任务也通过status=3表达。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanJob"
+                },
+                "examples": {
+                  "queued": {
+                    "summary": "排队等待",
+                    "value": {
+                      "id": "<job_id>",
+                      "status": 0,
+                      "urls": [],
+                      "comment": "JobStatusQueued"
+                    }
+                  },
+                  "running": {
+                    "summary": "执行中",
+                    "value": {
+                      "id": "<job_id>",
+                      "status": 1,
+                      "urls": [],
+                      "comment": "执行中"
+                    }
+                  },
+                  "success": {
+                    "summary": "生成成功",
+                    "value": {
+                      "id": "<job_id>",
+                      "status": 2,
+                      "urls": [
+                        "https://example.com/result.png"
+                      ],
+                      "comment": "成功"
+                    }
+                  },
+                  "failed": {
+                    "summary": "生成失败，HTTP仍为200",
+                    "value": {
+                      "id": "<job_id>",
+                      "status": 3,
+                      "urls": [],
+                      "comment": "JobStatusInvalidImagePromptLink"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "任务不存在、已过期或不属于当前API Key。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2004,
+                    "message": "job not found"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "认证失败。"
+          },
+          "424": {
+            "description": "下游查询失败；继续查询同一任务id。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouchuanError"
+                },
+                "example": {
+                  "error": {
+                    "code": 2002,
+                    "message": "query Youchuan job"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "查询暂时失败。"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "平台API Key，不是供应商AK/SK。"
+      }
+    },
+    "schemas": {
+      "YouchuanMask": {
+        "type": "object",
+        "properties": {
+          "areas": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/YouchuanMaskArea"
+            },
+            "description": "多边形坐标区域。"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "上游可访问的蒙版图片地址。"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "areas"
+            ]
+          },
+          {
+            "required": [
+              "url"
+            ]
+          }
+        ],
+        "description": "使用坐标区域 areas 或蒙版 URL。"
+      },
+      "YouchuanMaskArea": {
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "points"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "坐标参考图的宽度。"
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "坐标参考图的高度。"
+          },
+          "points": {
+            "type": "array",
+            "minItems": 6,
+            "items": {
+              "type": "integer"
+            },
+            "description": "交替排列的多边形坐标：[x1,y1,x2,y2,...]。"
+          }
+        },
+        "example": {
+          "width": 1024,
+          "height": 1024,
+          "points": [
+            300,
+            300,
+            300,
+            700,
+            700,
+            700,
+            700,
+            300
+          ]
+        }
+      },
+      "YouchuanCanvas": {
+        "type": "object",
+        "required": [
+          "width",
+          "height"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "description": "目标画布尺寸。"
+      },
+      "YouchuanImagePosition": {
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "x",
+          "y"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          }
+        },
+        "description": "图片在目标画布中的尺寸与水平/垂直位移。"
+      },
+      "YouchuanJob": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "urls",
+          "comment"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "原始任务ID。后续编辑作为jobId，查询作为路径参数。"
+          },
+          "text": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "description": "0等待；1执行中；2成功；3失败。"
+          },
+          "urls": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "成功后的图片地址；等待中通常为空。"
+          },
+          "comment": {
+            "type": "string",
+            "description": "状态说明或任务失败原因。"
+          },
+          "cost": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "feeCost": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "fastCost": {
+                "type": "number"
+              },
+              "relaxCost": {
+                "type": "number"
+              },
+              "costAt": {
+                "type": "string"
+              }
+            },
+            "description": "上游任务消耗信息；完成前可能变化，不等同于平台钱包流水或最终实付账单。"
+          },
+          "audits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "YouchuanError": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "trace_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "YouchuanDiffusionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "text"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "账号已开通的 MJ 模型名；直接请求必填。",
+            "example": "midjourney"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "提示词、参考图URL和MJ参数统一放在text中。",
+            "example": "A red ceramic mug --v 7 --ar 1:1 --raw"
+          }
+        }
+      },
+      "YouchuanVariationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo",
+          "type"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          },
+          "type": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ],
+            "description": "0强变化；1细微变化。"
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          }
+        }
+      },
+      "YouchuanUpscaleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo",
+          "type"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          },
+          "type": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "description": "0标准；1创意；2/3仅用于V5任务的2倍/4倍高清。"
+          }
+        }
+      },
+      "YouchuanRerollRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          }
+        }
+      },
+      "YouchuanPanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo",
+          "direction",
+          "scale"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          },
+          "direction": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "description": "0下；1右；2上；3左。"
+          },
+          "scale": {
+            "type": "number",
+            "minimum": 1.1,
+            "maximum": 3
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          }
+        }
+      },
+      "YouchuanOutpaintRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo",
+          "scale"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          },
+          "scale": {
+            "type": "number",
+            "minimum": 1.1,
+            "maximum": 2
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          }
+        }
+      },
+      "YouchuanInpaintRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo",
+          "mask"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          },
+          "mask": {
+            "$ref": "#/components/schemas/YouchuanMask"
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          }
+        }
+      },
+      "YouchuanRemixRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo",
+          "remixPrompt"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          },
+          "mode": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ],
+            "default": 0,
+            "description": "0强烈（默认）；1细微。"
+          }
+        }
+      },
+      "YouchuanEditRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo",
+          "canvas",
+          "imgPos",
+          "remixPrompt"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          },
+          "canvas": {
+            "$ref": "#/components/schemas/YouchuanCanvas"
+          },
+          "imgPos": {
+            "$ref": "#/components/schemas/YouchuanImagePosition"
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          },
+          "mask": {
+            "$ref": "#/components/schemas/YouchuanMask"
+          }
+        }
+      },
+      "YouchuanUploadPaintRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "imgUrl",
+          "mask",
+          "canvas",
+          "imgPos",
+          "remixPrompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "账号已开通的 MJ 模型名；直接请求必填。",
+            "example": "midjourney"
+          },
+          "imgUrl": {
+            "type": "string",
+            "minLength": 1,
+            "description": "上游可访问的源图片URL。",
+            "example": "https://example.com/source.png"
+          },
+          "mask": {
+            "$ref": "#/components/schemas/YouchuanMask"
+          },
+          "canvas": {
+            "$ref": "#/components/schemas/YouchuanCanvas"
+          },
+          "imgPos": {
+            "$ref": "#/components/schemas/YouchuanImagePosition"
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          }
+        }
+      },
+      "YouchuanRetextureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "imgUrl",
+          "remixPrompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "账号已开通的 MJ 模型名；直接请求必填。",
+            "example": "midjourney"
+          },
+          "imgUrl": {
+            "type": "string",
+            "minLength": 1,
+            "description": "上游可访问的源图片URL。",
+            "example": "https://example.com/source.png"
+          },
+          "remixPrompt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "新的提示词。",
+            "example": "A blue ceramic mug on a white table"
+          }
+        }
+      },
+      "YouchuanRemoveBackgroundRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "imgUrl"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "账号已开通的 MJ 模型名；直接请求必填。",
+            "example": "midjourney"
+          },
+          "imgUrl": {
+            "type": "string",
+            "minLength": 1,
+            "description": "上游可访问的源图片URL。",
+            "example": "https://example.com/source.png"
+          }
+        }
+      },
+      "YouchuanEnhanceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "imageNo"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "来源任务 id；使用与提交来源任务相同的平台 API Key。",
+            "example": "<source_job_id>"
+          },
+          "imageNo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "来源 urls 的图片下标，当前允许0～3。",
+            "example": 0
+          }
+        }
+      }
+    }
+  }
+}
