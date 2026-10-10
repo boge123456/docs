@@ -1,310 +1,179 @@
 ---
-title: '千问图片生成示例'
-description: '使用千问 API 进行图片生成和编辑的完整示例代码'
+title: '千问图片生成与编辑示例'
+description: '通过统一图片 API 调用 Qwen Image 3.0、2.1 Pro，并查看参数与用量'
 ---
 
-# 千问图片生成示例
+# 千问图片生成与编辑
 
-以下示例展示如何使用千问 API 生成高质量的图片和进行图片编辑。
+通过平台的图片 API（`https://model-api.skyengine.com.cn/v1`）调用千问模型。若从阿里云原生接口迁移，请将 `prompt_extend`、`prompt_extend_mode` 和 `enable_thinking` 分别写入 `optimize_prompt_options.enable`、`optimize_prompt_options.mode` 和 `optimize_prompt_options.enable_thinking`。
 
-## 快速开始
+请求前通过 `GET /v1/models` 确认目标模型已在当前环境开放。本页给出平台的请求方式、模型限制和响应字段。
 
-<CodeGroup>
+## Qwen Image 3.0 文生图
 
-```bash cURL
-curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API-KEY>" \
-  -d '{
-    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
-    "model": "qwen-image-plus",
-    "size": "1328x1328",
-    "n": 1,
+`qwen-image-3.0-pro` 与 `qwen-image-3.0` 使用相同的请求结构。示例开启 Agent 提示词增强和思考模式；`agent` 仅用于文生图。
+
+```bash
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "qwen-image-3.0-pro",
+    "prompt": "一张雨后街角咖啡店的海报，招牌清晰写着「今日特调」，暖色灯光，写实摄影",
+    "n": 2,
+    "size": "1024x1024",
     "response_format": "url",
     "optimize_prompt_options": {
       "enable": true,
-      "negative_prompt": "低分辨率、错误、最差质量"
-    }
-  }'
-```
-
-```python Python
-import requests
-import json
-import base64
-from PIL import Image
-from io import BytesIO
-
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1"
-
-def generate_image_qwen(prompt, model="qwen-image-plus", size="1328x1328",
-                       enable_optimize=True, negative_prompt=None, response_format="url"):
-    """
-    使用千问API生成图片
-
-    Args:
-        prompt: 图片描述文本
-        model: 模型名称，可选qwen-image-plus或qwen-image
-        size: 图片尺寸
-        enable_optimize: 是否开启智能改写
-        negative_prompt: 反向提示词
-        response_format: 返回格式，url或b64_json
-    """
-    url = f"{BASE_URL}/images/generations"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-
-    data = {
-        "prompt": prompt,
-        "model": model,
-        "size": size,
-        "response_format": response_format,
-        "optimize_prompt_options": {
-            "enable": enable_optimize
-        }
-    }
-
-    if negative_prompt:
-        data["optimize_prompt_options"]["negative_prompt"] = negative_prompt
-    
-    response = requests.post(url, headers=headers, json=data)
-    
-    if response.status_code == 200:
-        result = response.json()
-        images = []
-        
-        # 显示响应信息
-        if 'request_id' in result:
-            print(f"请求ID: {result['request_id']}")
-        if 'usage' in result:
-            usage = result['usage']
-            print(f"生成信息: 图片数量={usage.get('image_count')}, 尺寸={usage.get('width')}x{usage.get('height')}")
-        
-        # 处理生成的图片
-        if 'output' in result and 'choices' in result['output']:
-            for choice in result['output']['choices']:
-                if choice.get('message') and choice['message'].get('content'):
-                    for content in choice['message']['content']:
-                        if 'image' in content:
-                            print(f"图片URL: {content['image']}")
-                            images.append(content['image'])
-        
-        return images
-    else:
-        print(f"错误: {response.status_code} - {response.text}")
-        return None
-
-# 基础使用示例
-if __name__ == "__main__":
-    prompt = "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格"
-    images = generate_image_qwen(
-        prompt=prompt,
-        negative_prompt="低分辨率、错误、最差质量、低质量"
-    )
-    
-    if images:
-        print(f"成功生成 {len(images)} 张图片")
-```
-
-```python Python - 高级功能
-import requests
-import json
-
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1"
-
-def generate_image_qwen_advanced(prompt, **kwargs):
-    """
-    千问图片生成高级功能示例
-
-    支持的高级参数：
-    - enable_optimize: 智能改写功能
-    - negative_prompt: 反向提示词
-    - seed: 随机数种子
-    - watermark: 水印设置
-    """
-    url = f"{BASE_URL}/images/generations"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-
-    # 基础参数
-    data = {
-        "prompt": prompt,
-        "model": kwargs.get("model", "qwen-image-plus"),
-        "size": kwargs.get("size", "1328x1328"),
-        "response_format": kwargs.get("response_format", "url")
-    }
-
-    # 提示词优化配置
-    optimize_options = {}
-    if kwargs.get("enable_optimize") is not None:
-        optimize_options["enable"] = kwargs["enable_optimize"]
-    if kwargs.get("negative_prompt"):
-        optimize_options["negative_prompt"] = kwargs["negative_prompt"]
-
-    if optimize_options:
-        data["optimize_prompt_options"] = optimize_options
-
-    # 其他参数
-    if kwargs.get("seed"):
-        data["seed"] = kwargs["seed"]
-    if kwargs.get("watermark") is not None:
-        data["watermark"] = kwargs["watermark"]
-    
-    response = requests.post(url, headers=headers, json=data)
-    
-    if response.status_code == 200:
-        result = response.json()
-        print(f"请求ID: {result.get('request_id')}")
-        
-        if result.get('usage'):
-            usage = result['usage']
-            print(f"生成信息: 图片数量={usage.get('image_count')}, 尺寸={usage.get('width')}x{usage.get('height')}")
-        
-        return result
-    else:
-        print(f"错误: {response.status_code} - {response.text}")
-        return None
-
-# 高级功能使用示例
-if __name__ == "__main__":
-    # 1. 精确控制生成
-    print("=== 精确控制生成示例 ===")
-    result = generate_image_qwen_advanced(
-        prompt="可爱的动物园场景，小熊猫在竹林中嬉戏",
-        model="qwen-image-plus",
-        size="1664x928",  # 16:9 宽屏
-        enable_optimize=True,
-        negative_prompt="模糊、低质量、变形、噪点",
-        seed=12345,
-        watermark=False
-    )
-
-    # 2. 高质量艺术创作
-    print("\n=== 高质量艺术创作示例 ===")
-    result = generate_image_qwen_advanced(
-        prompt="中式古典园林，小桥流水，亭台楼阁，春意盎然，工笔画风格",
-        model="qwen-image-plus",
-        size="1140x1472",  # 3:4 竖版
-        enable_optimize=True,
-        negative_prompt="西式建筑、现代元素、工业风格"
-    )
-```
-
-</CodeGroup>
-
-## 重要提示
-
-<Warning>
-**千问图片生成模型限制**：
-- 目前不支持流式输出
-- `n` 参数限制：
-  - `qwen-image-edit-plus`、`qwen-image-edit-plus-2025-10-30`：可选择输出1-6张图片
-  - `qwen-image-edit`：仅支持输出1张图片
-  - 其他模型（如`qwen-image-plus`等）：固定输出1张图片
-- 随机数种子范围：[0,2147483647]
-- **尺寸限制**：只支持特定尺寸，使用 x 作为分隔符（如 1024x1024），系统会自动转换为千问要求的格式
-</Warning>
-
-<Info>
-**千问专用功能**：
-- `optimize_prompt_options.enable` 智能改写功能可显著提升生成质量，建议开启
-- `optimize_prompt_options.negative_prompt` 反向提示词有效控制不想要的元素
-- 支持多种分辨率比例，适应不同应用场景
-</Info>
-
-## 支持的参数
-
-### 基础参数
-- **prompt**: 图片描述文本（必需）
-- **model**: 模型名称，推荐 `qwen-image-plus`（更优惠），也支持 `qwen-image`
-- **n**: 输出图像的数量，默认值为1
-  - `qwen-image-edit-plus`、`qwen-image-edit-plus-2025-10-30`：可选择输出1-6张图片
-  - `qwen-image-edit`：仅支持输出1张图片
-  - 其他模型：固定输出1张图片
-- **size**: 图片尺寸，使用 x 作为分隔符，**必须精确匹配**以下允许的尺寸：
-  - `1664x928` (16:9)
-  - `1472x1140` (4:3)
-  - `1328x1328` (1:1，默认)
-  - `1140x1472` (3:4)
-  - `928x1664` (9:16)
-- **response_format**: 返回格式（`url` 或 `b64_json`）
-
-### 千问专用参数
-- **optimize_prompt_options.enable**: 是否开启智能改写，默认 `true`
-- **optimize_prompt_options.negative_prompt**: 反向提示词，长度不超过500字符
-
-### 其他参数
-- **seed**: 随机数种子，范围[0,2147483647]
-- **watermark**: 是否添加水印，默认 `false`
-
-## 图片编辑示例
-
-千问支持基于现有图片进行编辑和多图融合：
-
-<CodeGroup>
-
-```bash cURL - 图片编辑示例
-curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API-KEY>" \
-  -d '{
-    "prompt": "生成一张符合深度图的图像，遵循以下描述：一辆红色的破旧的自行车停在一条泥泞的小路上，背景是茂密的原始森林",
-    "model": "qwen-image-edit-plus",
-    "size": "1328x1328",
-    "image": [
-      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/fpakfo/image36.webp"
-    ],
-    "n": 1,
-    "response_format": "url",
-    "optimize_prompt_options": {
-      "enable": true,
-      "negative_prompt": "低分辨率、错误、最差质量"
+      "mode": "agent",
+      "enable_thinking": true,
+      "negative_prompt": "文字错乱、模糊"
     },
     "watermark": false
   }'
 ```
 
-```bash cURL - 多图融合示例
-curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API-KEY>" \
-  -d '{
-    "prompt": "图1中的女生穿着图2中的黑色裙子按图3的姿势坐下",
-    "model": "qwen-image-edit-plus",
+将 `model` 改为 `qwen-image-3.0` 即可调用标准版。`size` 按 `宽x高` 填写，例如 `1024x1024`；省略时由模型选择分辨率。
+
+## Qwen Image 3.0 图片编辑
+
+编辑请求使用 JSON。`image` 按顺序提供 1–3 张公网 URL 或 `data:image/...;base64,...` 图片；`mode` 使用 `direct`。请将示例 URL 换成可公开访问的图片。
+
+```bash
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/edits' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "qwen-image-3.0",
+    "prompt": "保留图一人物的面部特征，让她穿上图二的外套，置于干净的摄影棚背景",
     "image": [
-      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/thtclx/input1.png",
-      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/iclsnx/input2.png",
-      "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/gborgw/input3.png"
+      "https://example.com/person.png",
+      "https://example.com/jacket.png"
     ],
-    "size": "1328x1328",
-    "watermark": true
+    "n": 1,
+    "optimize_prompt_options": {
+      "enable": true,
+      "mode": "direct",
+      "enable_thinking": true
+    }
+  }'
+```
+
+编辑请求不能使用 `mode: "agent"`；平台也不支持 Qwen Image 3.0 的 `mask` 参数。`enable_thinking` 只有在 `enable` 为 `true` 时才生效。
+
+## Qwen Image 2.1 Pro
+
+`qwen-image-2.1-pro` 同时支持文生图和图片编辑，`n` 可取 1–6。图片编辑可传入 1–10 张参考图；其用量字段与 3.0 系列不同。
+
+<CodeGroup>
+
+```bash 文生图
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "qwen-image-2.1-pro",
+    "prompt": "白色背景上的玻璃茶杯，柔和自然光，产品摄影",
+    "n": 2,
+    "size": "1024x1024",
+    "optimize_prompt_options": {
+      "enable": true
+    }
+  }'
+```
+
+```bash 图片编辑
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/edits' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "qwen-image-2.1-pro",
+    "prompt": "保留主体，将背景改为日落时分的海边",
+    "image": ["https://example.com/product.png"],
+    "n": 1
   }'
 ```
 
 </CodeGroup>
 
-## 响应格式
+## 参数矩阵
 
-千问API的响应格式如下：
+以下为**平台请求参数**。`model` 和非空 `prompt` 必填；提示词建议不超过 4500 Token。`size` 使用小写 `x` 分隔，`n` 不传时为 1。
+
+| 参数 | Qwen Image 3.0 / 3.0 Pro | Qwen Image 2.1 Pro | 平台行为 |
+| --- | --- | --- | --- |
+| 接口 | 文生图：`/v1/images/generations`；编辑：`/v1/images/edits`，JSON | 同左 | 3.0 文生图接口也能通过 `image` 传参考图；2.1 编辑请使用 `/v1/images/edits` |
+| `image` | 编辑输入 1–3 张 | 编辑输入 1–10 张 | JSON 中传 URL 或 Data URL；多图传字符串数组 |
+| `n` | 1–6 | 1–6 | 3.0 超出范围会报错；2.1 超出 6 会按 6 处理，请传入有效范围 |
+| `size` | 可省略；指定时总像素数为 512×512 至 2048×2048，宽高比为 1:8 至 8:1 | 同左 | 例如 `1024x1024`；要由模型选择尺寸，请省略该字段 |
+| `optimize_prompt_options.enable` | 支持，默认 `true` | 支持，默认 `true` | 传入 `optimize_prompt_options` 时，请显式填写 `enable` |
+| `optimize_prompt_options.mode` | `direct` 或 `agent`；编辑只允许 `direct` | 不支持 | 省略时默认为 `direct`；3.0 编辑使用 `agent` 会报错 |
+| `optimize_prompt_options.enable_thinking` | 支持；仅在 `enable=true` 时生效 | 不支持 | 省略时模型默认为 `true`；开启会增加生成耗时 |
+| `optimize_prompt_options.negative_prompt` | 支持 | 不支持 | 2.1 请求不要传入 |
+| `seed` | 支持 | 支持 | 模型范围 0–2147483647；接口仅传递正整数，`0` 等同未指定 |
+| `watermark` | 支持，默认 `false` | 支持，默认 `false` | 直接转发 |
+| `response_format` | `url`、`b64_json` | `url`、`b64_json` | 通过 `data[].url` 或 `data[].b64_json` 获取图片 |
+| `stream` / `mask` | 不支持流式输出；3.0 编辑不支持 `mask` | 不支持流式输出 | 使用非流式 JSON 请求 |
+
+### 输入图片要求
+
+- 格式：JPG、JPEG、PNG、BMP、TIFF、WEBP 或 GIF；GIF 仅处理第一帧。
+- 尺寸：宽和高各为 1–8000 像素，长边与短边之比不超过 10:1；建议宽和高各为 384–2048 像素。
+- 大小：每张不超过 10 MB。
+- 传入方式：公网 HTTP/HTTPS URL，或完整的 Data URL，例如 `data:image/png;base64,...`。单张图可传字符串；多张图传字符串数组，顺序与提示词中的“图一”“图二”一致。不要传 `null` 或空数组。
+
+旧模型 `qwen-image-plus`、`qwen-image` 的文生图输出固定为 1 张；`qwen-image-edit-plus` 和 `qwen-image-edit-plus-2025-10-30` 可输出 1–6 张，`qwen-image-edit` 固定为 1 张。旧模型的可用性请以当前环境的 `/v1/models` 为准。
+
+## 读取响应与用量
+
+平台返回 OpenAI 风格的 `data[]`，不返回阿里云原始的 `output.choices[]`。使用 URL 格式时读取 `data[].url`：
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/generations",
+    headers={"Authorization": f"Bearer {os.environ['TOKENOPS_API_KEY']}"},
+    json={
+        "model": "qwen-image-3.0",
+        "prompt": "一只橘猫坐在窗边，水彩画风格",
+        "n": 1,
+        "optimize_prompt_options": {"enable": True, "mode": "direct"},
+    },
+    timeout=600,
+)
+response.raise_for_status()
+result = response.json()
+
+for image in result["data"]:
+    print(image["url"])
+print(result.get("usage"))
+```
+
+3.0 系列的 `usage` 包含 `image_count`、`input_image_count`、`output_image_count`、`input_image_type`、`output_image_type`、`output_width` 和 `output_height`。`qwen-image-2.1-pro` 的公开 `usage.image_count` 为实际返回的图片数，不提供 3.0 的输入与输出档位字段。图片费用依据实际返回数量及对应模型的计费规则结算；不要根据请求中的 `n` 推算账单。
+
+3.0 系列用量示意如下；文生图时 `input_image_count` 为 `0`，编辑时为实际输入的图片数：
 
 ```json
 {
-  "created": 1764820175,
-  "data": [
-    {
-      "url": "https://dashscope-result-sh.oss-cn-shanghai.aliyuncs.com/7d/e2/20251204/76c577f4/a56bad48-aa1a-4fba-a90c-a449089df5cf-1.png?Expires=1765425974&OSSAccessKeyId=LTAI5tKPD3TMqf2Lna1fASuh&Signature=kdS4TW23LsCOdFf2tqFCIYNQGMg%3D"
-    }
-  ],
+  "data": [{"url": "https://example.com/result.png"}],
   "usage": {
-    "total_tokens": 1,
-    "output_tokens": 1,
-    "input_tokens_details": {}
+    "image_count": 1,
+    "input_image_count": 2,
+    "output_image_count": 1,
+    "input_image_type": "qima_input_1k",
+    "output_image_type": "qima_output_1k",
+    "output_width": 1024,
+    "output_height": 1024
   }
 }
 ```
+
+输入与输出的 `1k`、`2k` 档位由输出图像的像素面积决定：不超过 2,250,000 像素为 `1k`，超过则为 `2k`。`image_count` 与 `output_image_count` 应等于实际返回的 `data` 图片数；如果 3.0 模型报告的输出数量与实际返回数量不一致，接口会返回错误，避免按错误数量计费。
+
+输出图片为 PNG。收到 `data[].url` 后请及时下载或持久化；临时链接过期后将无法访问。
+
+## 参考资料
+
+- [阿里云百炼：千问图像生成与编辑 API 参考](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference)
