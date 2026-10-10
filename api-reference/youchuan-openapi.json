@@ -3,7 +3,7 @@
   "info": {
     "title": "TokenOPS 悠船 MJ 图片 API",
     "version": "1.0.0",
-    "description": "平台独立MJ图片协议。Bearer API Key鉴权；直接请求必填model，二次编辑继承来源模型；仅支持轮询。"
+    "description": "Midjourney 图片生成、任务查询与编辑接口。使用 Bearer 鉴权；直接生成请求指定 model，二次编辑使用来源任务的模型；通过轮询获取结果。"
   },
   "servers": [
     {
@@ -1493,7 +1493,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "平台API Key，不是供应商AK/SK。"
+        "description": "在 Authorization 请求头中传入 Bearer <API-KEY>。"
       }
     },
     "schemas": {
