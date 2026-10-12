@@ -1,0 +1,468 @@
+---
+title: 'JEV 决策评估示例'
+description: '通过平台 System One 接口调用 JEV，一次请求完成分类、评分和是否判断。'
+---
+
+# JEV 决策评估示例
+
+以下示例通过平台的 `/v1/systemone` 接口调用 `jev-1.13.0`，根据同一份客服工单，同时判断处理团队、紧急程度和退款意图。模型返回结构化决策与概率。
+
+## 快速开始
+
+替换 `<API-KEY>` 为你的平台 API 密钥即可调用。Python 示例需要安装 `requests`，JavaScript/Node.js 示例需要安装 `axios`；Java 示例使用 JDK 17 或更高版本，PHP 示例需要启用 cURL 扩展并使用 PHP 7.3 或更高版本。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST "https://model-api.skyengine.com.cn/v1/systemone" \
+  --max-time 75 \
+  --header "Content-Type: application/json" \
+  --header "Authorization: Bearer <API-KEY>" \
+  --data '{
+  "model": "jev-1.13.0",
+  "state": {
+    "ticket": "My invoice was charged twice. Please refund the duplicate payment.",
+    "order_id": 10042
+  },
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Choose the department handling this request.",
+      "criteria": {
+        "billing": "Invoices and refunds",
+        "technical": "Software errors",
+        "sales": "Buying a product"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "Rate urgency.",
+      "criteria": [
+        "Routine",
+        "Important",
+        "Urgent"
+      ]
+    },
+    "refund": {
+      "type": "noul",
+      "instructions": "Does the customer ask for a refund?"
+    }
+  },
+  "include_cost": true
+}'
+```
+
+```python Python
+import json
+import requests
+
+API_KEY = "<API-KEY>"
+BASE_URL = "https://model-api.skyengine.com.cn/v1"
+
+payload = {
+  "model": "jev-1.13.0",
+  "state": {
+    "ticket": "My invoice was charged twice. Please refund the duplicate payment.",
+    "order_id": 10042
+  },
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Choose the department handling this request.",
+      "criteria": {
+        "billing": "Invoices and refunds",
+        "technical": "Software errors",
+        "sales": "Buying a product"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "Rate urgency.",
+      "criteria": [
+        "Routine",
+        "Important",
+        "Urgent"
+      ]
+    },
+    "refund": {
+      "type": "noul",
+      "instructions": "Does the customer ask for a refund?"
+    }
+  },
+  "include_cost": True
+}
+
+response = requests.post(
+    f"{BASE_URL}/systemone",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+    json=payload,
+    timeout=75,
+)
+response.raise_for_status()
+result = response.json()
+
+print("处理团队:", result["answers"]["department"]["choice"])
+print("紧急程度:", result["answers"]["urgency"]["score"])
+print("退款意图概率:", result["answers"]["refund"]["noul"])
+print("用量:", json.dumps(result["usage"], ensure_ascii=False))
+```
+
+```javascript JavaScript/Node.js
+const axios = require('axios');
+
+const API_KEY = '<API-KEY>';
+const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
+const payload = {
+  "model": "jev-1.13.0",
+  "state": {
+    "ticket": "My invoice was charged twice. Please refund the duplicate payment.",
+    "order_id": 10042
+  },
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Choose the department handling this request.",
+      "criteria": {
+        "billing": "Invoices and refunds",
+        "technical": "Software errors",
+        "sales": "Buying a product"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "Rate urgency.",
+      "criteria": [
+        "Routine",
+        "Important",
+        "Urgent"
+      ]
+    },
+    "refund": {
+      "type": "noul",
+      "instructions": "Does the customer ask for a refund?"
+    }
+  },
+  "include_cost": true
+};
+
+async function main() {
+  const response = await axios.post(`${BASE_URL}/systemone`, payload, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    timeout: 75000,
+  });
+  const result = response.data;
+  console.log('处理团队:', result.answers.department.choice);
+  console.log('紧急程度:', result.answers.urgency.score);
+  console.log('退款意图概率:', result.answers.refund.noul);
+  console.log('用量:', result.usage);
+}
+
+main().catch(error => {
+  console.error('请求失败:', error.response?.status, error.response?.data || error.message);
+  process.exitCode = 1;
+});
+```
+
+```go Go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+func main() {
+	const apiKey = "<API-KEY>"
+	const baseURL = "https://model-api.skyengine.com.cn/v1"
+	payload := []byte(`{
+  "model": "jev-1.13.0",
+  "state": {
+    "ticket": "My invoice was charged twice. Please refund the duplicate payment.",
+    "order_id": 10042
+  },
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Choose the department handling this request.",
+      "criteria": {
+        "billing": "Invoices and refunds",
+        "technical": "Software errors",
+        "sales": "Buying a product"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "Rate urgency.",
+      "criteria": [
+        "Routine",
+        "Important",
+        "Urgent"
+      ]
+    },
+    "refund": {
+      "type": "noul",
+      "instructions": "Does the customer ask for a refund?"
+    }
+  },
+  "include_cost": true
+}`)
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/systemone", bytes.NewReader(payload))
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	client := &http.Client{Timeout: 75 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		panic(fmt.Sprintf("API错误: %d - %s", resp.StatusCode, body))
+	}
+
+	var result struct {
+		Answers map[string]json.RawMessage `json:"answers"`
+		Usage   json.RawMessage            `json:"usage"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		panic(err)
+	}
+	fmt.Printf("处理团队: %s\n", result.Answers["department"])
+	fmt.Printf("紧急程度: %s\n", result.Answers["urgency"])
+	fmt.Printf("退款意图: %s\n", result.Answers["refund"])
+	fmt.Printf("用量: %s\n", result.Usage)
+}
+```
+
+```java Java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
+public class JevExample {
+    public static void main(String[] args) throws Exception {
+        String apiKey = "<API-KEY>";
+        String baseUrl = "https://model-api.skyengine.com.cn/v1";
+        String payload = """
+            {
+              "model": "jev-1.13.0",
+              "state": {
+                "ticket": "My invoice was charged twice. Please refund the duplicate payment.",
+                "order_id": 10042
+              },
+              "questions": {
+                "department": {
+                  "type": "choice",
+                  "instructions": "Choose the department handling this request.",
+                  "criteria": {
+                    "billing": "Invoices and refunds",
+                    "technical": "Software errors",
+                    "sales": "Buying a product"
+                  }
+                },
+                "urgency": {
+                  "type": "score",
+                  "instructions": "Rate urgency.",
+                  "criteria": [
+                    "Routine",
+                    "Important",
+                    "Urgent"
+                  ]
+                },
+                "refund": {
+                  "type": "noul",
+                  "instructions": "Does the customer ask for a refund?"
+                }
+              },
+              "include_cost": true
+            }
+            """;
+
+        HttpClient client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(15))
+            .build();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "/systemone"))
+            .timeout(Duration.ofSeconds(75))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + apiKey)
+            .POST(HttpRequest.BodyPublishers.ofString(payload))
+            .build();
+        HttpResponse<String> response = client.send(
+            request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new IllegalStateException(
+                "API错误: " + response.statusCode() + " - " + response.body());
+        }
+        System.out.println(response.body());
+    }
+}
+```
+
+```php PHP
+<?php
+
+$apiKey = "<API-KEY>";
+$baseUrl = "https://model-api.skyengine.com.cn/v1";
+$payload = <<<'JSON'
+{
+  "model": "jev-1.13.0",
+  "state": {
+    "ticket": "My invoice was charged twice. Please refund the duplicate payment.",
+    "order_id": 10042
+  },
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Choose the department handling this request.",
+      "criteria": {
+        "billing": "Invoices and refunds",
+        "technical": "Software errors",
+        "sales": "Buying a product"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "Rate urgency.",
+      "criteria": [
+        "Routine",
+        "Important",
+        "Urgent"
+      ]
+    },
+    "refund": {
+      "type": "noul",
+      "instructions": "Does the customer ask for a refund?"
+    }
+  },
+  "include_cost": true
+}
+JSON;
+
+$curl = curl_init($baseUrl . "/systemone");
+curl_setopt_array($curl, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 75,
+    CURLOPT_HTTPHEADER => [
+        "Content-Type: application/json",
+        "Authorization: Bearer " . $apiKey,
+    ],
+    CURLOPT_POSTFIELDS => $payload,
+]);
+$response = curl_exec($curl);
+$status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+$error = curl_error($curl);
+curl_close($curl);
+if ($response === false) {
+    throw new RuntimeException("请求失败: " . $error);
+}
+if ($status !== 200) {
+    throw new RuntimeException("API错误: " . $status . " - " . $response);
+}
+$result = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+echo "处理团队: " . $result["answers"]["department"]["choice"] . PHP_EOL;
+echo "紧急程度: " . $result["answers"]["urgency"]["score"] . PHP_EOL;
+echo "退款意图概率: " . $result["answers"]["refund"]["noul"] . PHP_EOL;
+echo "用量: " . json_encode($result["usage"], JSON_UNESCAPED_UNICODE) . PHP_EOL;
+```
+
+</CodeGroup>
+
+## 结果示例
+
+以下为该请求的一次实际返回，答案、概率和 token 用量会随输入变化：
+
+```json 200
+{
+  "model": "jev-1.13.0",
+  "answers": {
+    "department": {
+      "type": "choice",
+      "choice": "billing",
+      "confidence": 1,
+      "probabilities": {
+        "billing": 1,
+        "technical": 0,
+        "sales": 0
+      }
+    },
+    "refund": {
+      "type": "noul",
+      "noul": 0.99
+    },
+    "urgency": {
+      "type": "score",
+      "score": 1.03,
+      "confidence": 0.69,
+      "legend": {
+        "0": "Routine",
+        "1": "Important",
+        "2": "Urgent"
+      },
+      "probabilities": {
+        "0": 0.09,
+        "1": 0.79,
+        "2": 0.12
+      }
+    }
+  },
+  "usage": {
+    "cost": "0.00001701",
+    "cost_status": "calculated",
+    "currency": "USD",
+    "input_tokens": 405,
+    "output_tokens": 69
+  }
+}
+```
+
+## 读取判断结果
+
+| 问题类型 | 本例问题 | 读取字段 | 含义 |
+| --- | --- | --- | --- |
+| Choice | 由哪个团队处理 | `answers.department.choice` | 选中的选项名称，例如 `billing` |
+| Score | 工单有多紧急 | `answers.urgency.score` | 有序等级的加权评分，本例范围为 0～2，可为小数 |
+| Noul | 是否要求退款 | `answers.refund.noul` | 判断为“是”的概率，范围为 0～1 |
+
+Choice 和 Score 还返回 `probabilities` 与 `confidence`；Score 的 `legend` 对应从 0 开始的等级描述。`noul=0.99` 表示“是”的概率为 0.99。业务决策阈值需要根据实际场景验证。
+
+## 重要参数说明
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `model` | string | 平台模型名，本例为 `jev-1.13.0` |
+| `state` | string / object / array | 所有问题共享的文本上下文，可用字符串、JSON 对象或文本数组 |
+| `questions` | object | 问题 ID 到问题定义的映射；响应通过相同 ID 返回答案 |
+| `instructions` | string / object / array | 单题描述；本例使用字符串 |
+| `criteria` | object / array | Choice 为选项映射，最多 255 项；Score 为 2～10 个由低到高的等级；Noul 可省略 |
+| `include_cost` | boolean | 平台扩展参数，设为 `true` 时在 `usage` 中返回费用和币种；不需要费用时省略 |
+
+单次请求的 `state` 与所有问题合计最多 64K tokens；`state` 与最长单个问题合计最多 32K tokens。仅支持文本输入，图片、音频、视频需先转换为文本或结构化字段。
+
+接口返回非流式 JSON；`stream` 请省略或设为 `false`，传入 `true` 会返回参数错误。
+
+## 用量与计费
+
+`usage.input_tokens` 和 `usage.output_tokens` 分别表示输入、输出用量。JEV 输入按 token 收费，当前平台输出免费，具体输入单价和账号折扣以模型广场及实际账单为准。
+
+本例启用了 `include_cost`：`usage.cost` 为费用字符串，`usage.currency` 为 `USD`，`usage.cost_status` 为 `calculated`。未启用时仍返回 token 用量。
+
+完整字段定义见 [System One（JEV）接口参考](/api-reference/endpoint/systemone)。

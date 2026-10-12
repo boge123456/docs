@@ -105,6 +105,10 @@
                     ]
                   },
                   {
+                    "group": "TypeSafe JEV",
+                    "pages": ["api-reference/endpoint/systemone"]
+                  },
+                  {
                     "group": "File API",
                     "pages": [
                       "api-reference/endpoint/files-upload-url"
@@ -121,6 +125,12 @@
                       "api-reference/examples/basic/openai-basic",
                       "api-reference/examples/basic/claude-basic",
                       "api-reference/examples/basic/gemini-basic"
+                    ]
+                  },
+                  {
+                    "group": "JEV 决策评估",
+                    "pages": [
+                      "api-reference/examples/basic/jev-basic"
                     ]
                   },
                   {

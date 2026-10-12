@@ -1,0 +1,66 @@
+---
+title: "System One（JEV）"
+description: "通过原生 JEV 协议执行分类、评分和真假概率判断。"
+---
+
+完整的平台调用代码见 [JEV 决策评估示例](/api-reference/examples/basic/jev-basic)，提供 cURL、Python、JavaScript/Node.js、Go、Java 和 PHP 示例。
+
+## 请求
+
+`POST /v1/systemone`，使用平台 API Key：`Authorization: Bearer <API_KEY>`。
+`Content-Type` 为 `application/json`。接口为非流式 JSON 请求。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| model | string | 平台配置的模型名，例如 `jev-1.13.0` |
+| state | string / object / array | 所有问题共享的文本或结构化状态 |
+| questions | object | 问题 ID 到问题对象的映射 |
+| questions[id].type | string | `choice`、`score`、`noul` |
+| questions[id].instructions | string / object / array | 问题描述，可引用状态中的字段 |
+| questions[id].criteria | object / array | Choice 必填选项映射，最多 255 项；Score 必填 2～10 级有序数组；Noul 可选 true/false 描述映射 |
+
+Choice 选项描述支持字符串、对象、数组和 null；Score 等级、Noul 描述支持字符串、对象和数组。
+单次请求总计 64K tokens，state 加最长单题不超过 32K tokens；由上游执行 tokenizer 和上下文限制检查。
+
+```bash
+curl "$MODELHUB_BASE_URL/v1/systemone" \
+  -H "Authorization: Bearer $MODELHUB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "jev-1.13.0",
+    "state": "退款失败了三天，请尽快处理。",
+    "questions": {
+      "urgent": {"type":"noul","instructions":"是否需要尽快处理？"},
+      "team": {"type":"choice","instructions":"由哪个团队处理？","criteria":{"billing":"退款与支付","tech":"技术故障"}},
+      "severity": {"type":"score","instructions":"问题严重程度？","criteria":["低","中","高"]}
+    }
+  }'
+```
+
+## 响应与计费
+
+成功响应保留上游 `model`、`answers`、`usage` 和额外字段；`model` 可能是渠道模型名或实际上游版本。
+Noul 返回 `noul`（0～1）；Choice 返回 `choice`、`probabilities`、`confidence`；Score 返回 `score`、`legend`、`probabilities`、`confidence`。
+
+`usage.input_tokens`、`usage.output_tokens` 原样记录并进入平台计费，金额按平台配置的价格与折扣计算。
+上游免费输出需要在平台输出价格中明确配置为 0。缺失或非法 usage 会作为上游响应错误返回，避免静默按零用量计费。
+平台的 `include_cost` 可选扩展沿用现有金额返回行为。
+
+## Python SDK
+
+```python
+import os
+from typesafe_sdk import TypeSafeClient, Noul
+
+with TypeSafeClient(
+    api_key=os.environ["MODELHUB_API_KEY"],
+    base_url=os.environ["MODELHUB_BASE_URL"].rstrip("/") + "/v1",
+) as client:
+    response = client.system_one(
+        model="jev-1.13.0",
+        state="退款失败了三天，请尽快处理。",
+        questions={"urgent": Noul(instructions="是否需要尽快处理？")},
+    )
+```
+
+错误使用平台统一错误格式；上游 422、429、5xx 分别映射到参数错误、限流和供应商不可用。
