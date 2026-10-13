@@ -17,7 +17,7 @@ Seedance 2.5 支持文生视频、首帧/首尾帧图生视频，以及图片、
 
 Seedance 2.5 默认使用 720p。建议显式传入 `duration` 和 `resolution`，以便调用结果与费用预估保持一致。1080p 与 480p/720p 使用不同计费档位，请以 `GET /v1/models` 返回的当前价格规则为准。
 
-能力范围依据[火山引擎 Seedance 2.5 官方文档](https://docs.volcengine.com/docs/82379/2607688?lang=zh)整理；厂商能力和价格可能调整，调用前请同时核对模型列表。
+能力范围依据[火山引擎 Seedance 2.5 官方文档](https://docs.volcengine.com/docs/ark/seedance-2-5?lang=zh)整理；厂商能力和价格可能调整，调用前请同时核对模型列表。
 
 ## 创建任务
 
@@ -54,7 +54,7 @@ curl --request POST \
 
 ### 首尾帧图生视频
 
-使用 `role` 区分首帧和尾帧。图片 URL 必须能够被模型服务访问。
+使用 `role` 区分首帧和尾帧，`ratio` 使用 `adaptive`。图片 URL 必须能够被模型服务访问；建议首尾帧画幅一致，否则尾帧可能被拉伸。
 
 ```json
 {
@@ -73,6 +73,7 @@ curl --request POST \
     }
   ],
   "duration": 6,
+  "ratio": "adaptive",
   "resolution": "720p",
   "generate_audio": true,
   "return_last_frame": true
@@ -104,6 +105,7 @@ curl --request POST \
       "role": "reference_audio"
     }
   ],
+  "omni_reference_task_type": "reference",
   "duration": 10,
   "resolution": "720p",
   "ratio": "16:9",
@@ -112,6 +114,216 @@ curl --request POST \
 ```
 
 Seedance 2.5 多模态参考最多支持 30 张图片；参考视频和参考音频各最多 10 个，单类素材总时长不超过 30 秒。具体素材格式、大小及组合限制以厂商最新规则为准。
+
+### 视频参考与输出比例
+
+Seedance 2.5 的参考生视频支持图片＋视频组合输入，并可指定与参考视频不同的输出比例。上例可将 `ratio` 改为 `9:16`，以参考视频的运镜生成竖屏视频。图片须使用 `reference_image`，视频须使用 `reference_video`；`first_frame` / `last_frame` 属于首帧 / 首尾帧任务，适用不同的比例限制。
+
+| 任务类型 | 输出比例 | 时长限制 |
+| --- | --- | --- |
+| 文生视频、参考生视频（含视频参考及组合参考） | `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9` 或 `adaptive` | 4～30 秒或 `-1` |
+| 首帧 / 首尾帧生视频 | 仅 `adaptive`，跟随首帧图片 | 4～30 秒或 `-1` |
+| 视频编辑 | 仅 `adaptive`，跟随待编辑视频 | 必须为 `-1`；待编辑视频为 4～30 秒 |
+| 视频延长 | 仅 `adaptive`，跟随待延长视频 | 4～30 秒或 `-1` |
+
+建议参考生视频显式设置 `omni_reference_task_type: reference`，并在提示词中说明参考素材的外观、动作或运镜。若提示词实际要求编辑或延长原视频，即使设置为 `reference`，厂商仍可能返回任务类型不匹配错误。`auto` 会由模型判断任务类型，不意味着所有带参考视频的请求都能自由修改比例。
+
+Seedance 2.5 也支持仅音频参考、视频编辑和多轮视频延长，以及 `tools: [{"type":"web_search"}]` 联网搜索。素材总数量上限为 50 个（30 张图片、10 个视频、10 个音频）。1080p 输出为 10bit 位深，480p / 720p 为 8bit；专业后期场景可使用 `output_format: mov`。
+
+任务类型及比例规则见[官方创建视频生成任务 API](https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh)，能力说明见[Seedance 2.5 教程](https://docs.volcengine.com/docs/ark/seedance-2-5?lang=zh)。
+
+### 纯音频参考
+
+Seedance 2.5 可以仅使用音频作为参考，无需搭配图片或视频；Seedance 2.0 系列仍需要至少一张参考图片或一段参考视频。下面的请求根据音乐节奏生成新视频。
+
+```json
+{
+  "model": "doubao-seedance-2.5",
+  "content": [
+    {
+      "type": "text",
+      "text": "参考音频 1 的音乐节奏，生成一段色彩明亮的抽象动画，画面随节奏变化"
+    },
+    {
+      "type": "audio_url",
+      "audio_url": {
+        "url": "https://example.com/rhythm.mp3"
+      },
+      "role": "reference_audio"
+    }
+  ],
+  "omni_reference_task_type": "reference",
+  "duration": 10,
+  "resolution": "720p",
+  "ratio": "16:9",
+  "generate_audio": true
+}
+```
+
+### 视频编辑
+
+编辑任务使用 `reference_video` 输入原视频，通过提示词说明要增加、删除或修改的内容。必须使用 `ratio: adaptive`、`duration: -1`；待编辑视频为 4～30 秒。模型保持原视频的比例与近似时长，输出可能略短于原视频，误差不超过 0.4 秒。建议输入和输出都采用 MOV，以保持声画衔接和色彩一致性。
+
+```json
+{
+  "model": "doubao-seedance-2.5",
+  "content": [
+    {
+      "type": "text",
+      "text": "编辑视频：删除视频 1 画面中的广告牌，保留其他场景和镜头运动"
+    },
+    {
+      "type": "video_url",
+      "video_url": {
+        "url": "https://example.com/input.mov"
+      },
+      "role": "reference_video"
+    }
+  ],
+  "omni_reference_task_type": "edit",
+  "duration": -1,
+  "ratio": "adaptive",
+  "resolution": "720p",
+  "output_format": "mov",
+  "generate_audio": true
+}
+```
+
+### 视频延长
+
+通过提示词指定向前或向后延长。`ratio` 必须为 `adaptive`，`duration` 可以设置为 4～30 秒或 `-1`，控制本次生成的输出时长。输入多个视频时，应在提示词中明确待延长视频。
+
+```json
+{
+  "model": "doubao-seedance-2.5",
+  "content": [
+    {
+      "type": "text",
+      "text": "向后延长视频 1：镜头继续缓慢向前，进入远处的花园，保持场景、光线与声音连贯"
+    },
+    {
+      "type": "video_url",
+      "video_url": {
+        "url": "https://example.com/input.mov"
+      },
+      "role": "reference_video"
+    }
+  ],
+  "omni_reference_task_type": "extend",
+  "duration": 10,
+  "ratio": "adaptive",
+  "resolution": "720p",
+  "output_format": "mov",
+  "generate_audio": true
+}
+```
+
+多轮延长时，等待上一轮任务成功，再把需要继续延长的视频 URL 放入下一轮的 `video_url.url`；每轮仍须满足参考视频的时长与素材总时长限制。需要保留完整长片时，可在应用侧保存各轮产物并拼接。
+
+### 联网搜索
+
+通过 `tools` 开启联网搜索后，模型会根据提示词判断是否搜索，不保证每次调用都执行搜索，且可能增加生成时延。查询结果中的 `usage.tool_usage.web_search` 表示实际搜索次数，值为 `0` 表示没有搜索。
+
+```json
+{
+  "model": "doubao-seedance-2.5",
+  "content": [
+    {
+      "type": "text",
+      "text": "搜索杭州今日天气，生成一段介绍天气和出行建议的动画短片"
+    }
+  ],
+  "tools": [
+    {
+      "type": "web_search"
+    }
+  ],
+  "duration": 10,
+  "resolution": "720p",
+  "ratio": "16:9",
+  "generate_audio": true
+}
+```
+
+以上 JSON 请求体均提交至 `POST /v1/videos`，鉴权与查询方式同前文。示例中的 `example.com` 为占位地址，请替换为模型服务可访问的素材 URL。能力和任务限制依据[官方 Seedance 2.5 教程](https://docs.volcengine.com/docs/ark/seedance-2-5?lang=zh)及[创建接口](https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh)。
+
+### 样片模式
+
+Seedance 2.5 支持先生成低分辨率样片，再生成高质量正式视频。两步均使用 `POST /v1/videos`，各自返回一个任务 ID，通过查询任务接口获取结果。
+
+第一步：开启 `draft`，生成 480p 样片。
+
+```json
+{
+  "model": "doubao-seedance-2.5",
+  "content": [{ "type": "text", "text": "清晨山谷中的薄雾，镜头平稳向前推进" }],
+  "draft": true,
+  "resolution": "480p",
+  "duration": 5,
+  "ratio": "16:9"
+}
+```
+
+第二步：等待样片任务成功并确认效果后，将其任务 ID 填入 `draft_task.id`，生成 1080p 正式视频。
+
+```json
+{
+  "model": "doubao-seedance-2.5",
+  "content": [{ "type": "draft_task", "draft_task": { "id": "<DRAFT-TASK-ID>" } }],
+  "resolution": "1080p"
+}
+```
+
+- 正式视频须使用与样片相同的厂商模型；`draft` 省略或设为 `false`，`resolution` 必须为 `1080p`。
+- 正式视频请求不得再传提示词、参考图片 / 视频 / 音频、`duration`、`ratio`、`seed`、`generate_audio` 或 `omni_reference_task_type`；这些参数由样片自动复用。不要附加会映射出时长或比例的 `seconds` / `size`。
+- `return_last_frame`、`output_format`、`watermark`、`service_tier`、`execution_expires_after`、`priority`、`callback_url`、`safety_identifier` 可重新指定；省略时使用模型默认值，不继承样片的设置，且仍须满足该模型的参数限制。
+- 样片任务 ID 从 `created_at` 起有效 7 天。样片与正式视频独立计费，分别按 480p 和目标分辨率计费；正式视频的输入视频计费依据样片阶段的原始输入视频，样片本身不计入输入视频时长。
+
+详细规则见[官方 Seedance 2.5 样片模式](https://docs.volcengine.com/docs/ark/seedance-2-5?lang=zh)。
+
+## 自由比例与提示词控制
+
+### 通过素材保持非标准比例
+
+`ratio` 的直接取值仍是前文列出的六档比例或 `adaptive`。Seedance 2.5 可通过输入素材配合 `adaptive` 保持宽高比在 `[0.4, 2.5]` 范围内的非标准画幅。例如，对 7:5 的首帧图片使用首帧生成，或编辑、延长 7:5 的视频时，设置 `ratio: adaptive`，输出跟随对应素材的比例。不要直接传 `ratio: "7:5"`。
+
+普通参考生视频的 `adaptive` 会根据提示词在六档比例中选择，不表示必然保留任意参考素材的画幅。
+
+### 整数秒时间戳与多视图参考
+
+Seedance 2.5 支持在提示词中按整数秒描述剧情、动作和转场。时间区间应连续，并与 `duration` 对齐，例如生成 10 秒视频时可以写：
+
+```text
+0-3 秒：产品置于桌面，镜头从远景缓慢推近。
+3-7 秒：产品平稳旋转，展示正面和侧面细节。
+7-10 秒：镜头拉远，展示完整使用场景。
+```
+
+时间戳用于引导内容安排；应给动作留出足够时间，避免在短时间内堆叠过多事件。不要用它要求“一秒摇头三次”这类精确动作频率。
+
+同一主体可使用正面、侧面等多视图图片作为 `reference_image`，并在提示词中明确各图片属于同一主体。涉及多个主体时，优先将不同视角拆成独立图片，减少混淆；所有图片仍计入素材数量上限。
+
+说明与建议见[官方 Seedance 2.5 提示词指南](https://docs.volcengine.com/docs/ark/seedance-2-5-prompt-guide?lang=zh)。
+
+## 素材要求
+
+下表适用于 Seedance 2.5 的输入素材；输入视频可为 4K，不代表模型支持 4K 输出。
+
+| 素材 | 格式 | 数量与时长 | 单个文件大小 |
+| --- | --- | --- | --- |
+| 图片 | jpeg、png、webp、bmp、tiff、gif、heic、heif | 首帧 1 张、首尾帧 2 张、全模态参考最多 30 张 | 小于 30 MB |
+| 视频 | mp4、mov | 最多 10 个，总时长不超过 30 秒；非编辑任务单个 2～30 秒，编辑任务单个 4～30 秒 | 不超过 200 MB |
+| 音频 | wav、mp3 | 最多 10 个，单个 2～30 秒，总时长不超过 30 秒 | 不超过 15 MB |
+
+图片和视频的宽高比需在 `[0.4, 2.5]`，宽、高各为 300～6000 像素；视频总像素数须在 `[407696, 8295044]`，帧率为 24～60 fps。MP4 视频支持 H.264 / H.265 编码和 AAC / MP3 音频；MOV 还支持 PCM 音频。
+
+图片、音频可在对应的 `url` 字段使用 Base64 data URL，例如 `data:image/png;base64,...`、`data:audio/wav;base64,...`；请求体不超过 64 MB，大素材优先使用公网 URL。视频使用公网 URL。厂商素材 ID 的可用范围与账号有关，使用前需确认路由账号能访问该素材。
+
+<Warning>
+Seedance 2.5 不支持直接上传含有真人人脸的参考图片或视频。厂商提供信任模型原始产物、预置虚拟人像及已授权真人素材等方案；这些方案受厂商账号和素材权限约束，不应将任意真人照片作为可直接使用的参考素材。具体规则见[官方肖像素材说明](https://docs.volcengine.com/docs/ark/seedance-portrait-asset-guide?lang=zh)。
+</Warning>
+
+格式与限制依据[官方输入素材要求](https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh)，调用前请确认链接可访问且素材满足要求。
 
 ## 查询任务
 
@@ -144,12 +356,14 @@ curl --request GET \
 
 `expired` 表示任务超过执行有效期，不能再继续处理，应重新创建任务。
 
+查询返回的 `duration` 是视频时长的整数秒约数，计算为总帧数除以 24 后向下取整。例如 133 帧的视频实际约 5.54 秒，返回 `duration: 5`；精确时长应读取视频文件元数据。实际 token 消耗以返回的 `usage.completion_tokens` 为准，不能仅凭整数秒时长推断精确费用。参见[官方时长返回说明](https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh)。
+
 ## 常用参数
 
 | 参数 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `model` | string | 是 | 模型 ID，例如 `doubao-seedance-2.5` |
-| `content` | array | 是 | 文本及图片、视频、音频输入 |
+| `content` | array | 是 | 文本及图片、视频、音频输入，或 `draft_task` 样片任务 ID |
 | `duration` | integer | 否 | Seedance 2.5 为 4～30 秒，或 `-1` 智能选择；默认 `-1`，视频编辑必须使用 `-1` |
 | `output_format` | string | 否 | Seedance 2.5 支持 `mp4`、`mov`，默认 `mp4`；MOV 适用于专业后期，转存与下载保留实际格式 |
 | `omni_reference_task_type` | string | 否 | Seedance 2.5 全模态任务类型：`auto`、`reference`、`edit`、`extend`；编辑与延长需参考视频及 `ratio: adaptive` |
@@ -158,17 +372,18 @@ curl --request GET \
 | `safety_identifier` | string | 否 | 固定且唯一的终端用户标识，最多 64 个字符，推荐使用哈希值 |
 | `callback_url` | string | 否 | 厂商任务状态回调地址，通知体采用厂商原生查询格式 |
 | `resolution` | string | 否 | 支持 `480p`、`720p`、`1080p`，默认 `720p`；不同分辨率的计费档位不同 |
-| `ratio` | string | 否 | 文生视频支持 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`adaptive`；首帧/首尾帧、编辑及延长仅支持 `adaptive`，输出比例跟随原素材 |
+| `ratio` | string | 否 | 文生视频和参考生视频（含视频参考、图片＋视频组合参考）支持 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9`、`adaptive`；首帧/首尾帧、编辑及延长仅支持 `adaptive`，输出比例跟随原素材 |
 | `generate_audio` | boolean | 否 | 是否生成与画面同步的音频；建议显式传入，避免依赖厂商默认值 |
 | `return_last_frame` | boolean | 否 | 是否在成功结果中返回尾帧图片 |
 | `camera_fixed` | boolean | 否 | 官方字段，兼容旧拼写 `camerafixed`；仅适用于支持此能力的旧模型，Seedance 2.5 不支持 |
 | `service_tier` | string | 否 | 厂商服务等级；Seedance 2.5 不支持 `flex`，建议省略 |
-| `draft` | boolean | 否 | Seedance 1.5 pro 样片模式；正式生成可通过 `content[].draft_task.id` 引用样片，Seedance 2.5 不支持 |
-| `watermark` | boolean | 否 | 是否添加水印 |
+| `draft` | boolean | 否 | Seedance 2.5 样片模式；`true` 生成 480p 样片，再通过 `content[].draft_task.id` 生成 1080p 正式视频，详见样片模式 |
+| `tools` | array | 否 | `[{"type":"web_search"}]` 开启联网搜索；是否执行由模型判断，实际次数见 `usage.tool_usage.web_search` |
+| `watermark` | boolean | 否 | 是否添加水印，默认 `false` |
 | `seed` | integer | 否 | 仅支持该能力的旧模型；范围 `[-1, 2147483647]`，显式 `0` 保留；Seedance 2.5 不支持 |
 
 <Warning>
-参数会按调用方显式传入的值交由厂商校验，省略时使用厂商默认值。`seed`、`camera_fixed`、`draft` 和 `service_tier: flex` 属于旧模型能力，不能用于 Seedance 2.5。创建参数依据[官方创建接口文档](https://docs.volcengine.com/docs/82379/1520757)整理。
+参数会按调用方显式传入的值交由厂商校验，省略时使用厂商默认值。`seed`、`camera_fixed` 和 `service_tier: flex` 不能用于 Seedance 2.5；`draft` 支持 Seedance 2.5，需遵循样片模式的分辨率和参数复用规则。创建参数依据[官方创建接口文档](https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh)整理。
 </Warning>
 
 <Note>
