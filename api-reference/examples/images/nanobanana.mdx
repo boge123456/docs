@@ -1,455 +1,268 @@
 ---
 title: 'Nano Banana (Gemini) 图片生成'
-description: '使用 Gemini 原生图像生成功能，通过对话方式创建和编辑图像'
+description: '使用 Nano Banana 2.1、Nano Banana 2 和 Pro 进行文生图、参考图编辑及多图合成，包含参数矩阵、图片保存和用量说明'
 ---
 
-# Gemini 图片生成
+# Nano Banana 图片生成
 
-Gemini API 提供强大的原生图像生成能力，采用对话式方法。您可以使用文本提示、图像或两者结合来生成、修改和迭代视觉内容，实现前所未有的控制。
+使用文本生成图片，或提供参考图进行编辑、风格转换和多图合成。平台提供同步图片入口、异步任务入口和 Gemini 原生入口。
 
-## 核心功能
+## 模型与接口
 
-- **文本生成图像**: 从文本描述生成高质量图像
-- **图像+文本编辑**: 使用文本提示修改现有图像
-- **多图合成**: 组合多个图像的元素或转换风格
-- **迭代优化**: 通过对话式交互逐步改进图像
-- **高保真文本渲染**: 在图像中生成清晰可读的文本
+请求中使用平台模型名：`gemini-nano-banana-2.1`、`nano-banana-2` 或 `nano-banana-pro`。可调用的模型以你的 API Key 查询 `/v1/models` 的结果为准。
 
-> **提示**: nano-banana-pro 的参数基本与 nano-banana 一致，可以参考本文档的使用方法和示例。
+| 使用方式 | 方法与路径 | 请求与结果 |
+| --- | --- | --- |
+| 同步生图和参考图编辑 | `POST /v1/images/generations` | JSON 请求；等待生成完成，返回 `data[].b64_json` |
+| 异步生图和参考图编辑 | `POST /v1/images/generations/async` | 相同的图片参数；提交后返回任务 ID，完成后取图片 URL |
+| Gemini 原生生成与编辑 | `POST /v1beta/models/{model}:generateContent` | 使用 `contents` 与 `generationConfig`；图片位于 `inlineData` |
 
-## nano-banana-pro 特性
+参考图编辑同样使用 `/v1/images/generations` 的 `image` 字段。本页的 Gemini 图片入口不支持 `/v1/images/edits` 或 multipart 请求。
 
-nano-banana-pro 是一款先进的图片生成和编辑模型，针对专业资源制作进行了优化：
+本文示例使用 `https://model-api.skyengine.com.cn`。使用公司平台入口时，可将地址替换为 `https://model-api.skyengine.com.cn`，并使用该入口对应的 API Key。
 
-- **高分辨率输出**：内置 1K、2K 和 4K 视觉效果生成功能
-- **高级文字渲染**：能够为信息图表、菜单、图表和营销素材资源生成清晰易读的风格化文字
-- **使用 Google 搜索进行接地**：模型可以使用 Google 搜索作为工具来验证事实，并根据实时数据（例如当前天气地图、股票图表、近期活动）生成图像
-- **思考模式**：模型会利用"思考"过程来推理复杂的提示，生成临时"思维图像"以在生成最终的高质量输出之前优化构图
-- **最多 14 张参考图片**：您现在最多可以混合使用 14 张参考图片来生成最终图片
+## 同步文生图
 
-## 基础用法
-
-### 文本生成图像
+以下示例使用 Nano Banana 2.1，生成一张 1K 正方形图片。
 
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://model-api.skyengine.com.cn/v1beta/models/nano-banana-pro:generateContent" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API-KEY>" \
-  -d '{
-    "contents": [
-      {
-        "parts": [
-          {
-            "text": "在高档餐厅中展示一道纳米香蕉菜肴，带有 TokenOPS 主题"
-          }
-        ]
-      }
-    ]
-  }' \
-  | jq . \
-  | grep -o '"data": "[^"]*"' \
-  | cut -d'"' -f4 \
-  | base64 --decode > gemini-native-image.png
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "白色背景上的一根黄色香蕉，柔和自然光，产品摄影，无文字",
+    "n": 1,
+    "size": "1K",
+    "ratio": "1:1",
+    "response_format": "b64_json"
+  }' --output result.json
+
+# 确认请求成功且 data 中包含图片后保存文件。
+jq -r '.data[0].b64_json' result.json | base64 --decode > banana.png
 ```
 
 ```python Python
-import requests
 import base64
-from PIL import Image
-from io import BytesIO
+import os
+from pathlib import Path
 
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
+import requests
 
-def generate_image(prompt):
-    """使用 Gemini 从文本生成图像"""
-    url = f"{BASE_URL}/models/nano-banana-pro:generateContent"
+base_url = os.getenv("TOKENOPS_BASE_URL", "https://model-api.skyengine.com.cn")
+response = requests.post(
+    f"{base_url}/v1/images/generations",
+    headers={"Authorization": f"Bearer {os.environ['TOKENOPS_API_KEY']}"},
+    json={
+        "model": "gemini-nano-banana-2.1",
+        "prompt": "白色背景上的一根黄色香蕉，柔和自然光，产品摄影，无文字",
+        "n": 1,
+        "size": "1K",
+        "ratio": "1:1",
+        "response_format": "b64_json",
+    },
+    timeout=300,
+)
+response.raise_for_status()
+result = response.json()
+for index, image in enumerate(result["data"]):
+    Path(f"banana-{index}.png").write_bytes(base64.b64decode(image["b64_json"]))
+print(result.get("usage", {}))
+```
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
+```javascript Node.js
+import { writeFile } from "node:fs/promises";
 
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ]
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-
-    if response.status_code == 200:
-        result = response.json()
-
-        # 提取并保存图像
-        for candidate in result.get('candidates', []):
-            for part in candidate.get('content', {}).get('parts', []):
-                if 'inlineData' in part:
-                    # 解码 base64 图像数据
-                    image_data = base64.b64decode(part['inlineData']['data'])
-                    image = Image.open(BytesIO(image_data))
-                    image.save("generated_image.png")
-                    print("图像已保存为 generated_image.png")
-                    return image
-    else:
-        print(f"错误: {response.status_code} - {response.text}")
-        return None
-
-# 使用示例
-prompt = "在高档餐厅中展示一道纳米香蕉菜肴，带有 Gemini 主题"
-generate_image(prompt)
+const baseURL = process.env.TOKENOPS_BASE_URL || "https://model-api.skyengine.com.cn";
+const response = await fetch(`${baseURL}/v1/images/generations`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.TOKENOPS_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: "gemini-nano-banana-2.1",
+    prompt: "白色背景上的一根黄色香蕉，柔和自然光，产品摄影，无文字",
+    n: 1,
+    size: "1K",
+    ratio: "1:1",
+    response_format: "b64_json",
+  }),
+  signal: AbortSignal.timeout(300_000),
+});
+if (!response.ok) throw new Error(await response.text());
+const result = await response.json();
+for (const [index, image] of result.data.entries()) {
+  await writeFile(`banana-${index}.png`, Buffer.from(image.b64_json, "base64"));
+}
+console.log(result.usage);
 ```
 
 </CodeGroup>
 
-![gemini-native-image](/images/examples/gemini-native-image.png)
+## 参考图编辑与多图合成
 
-### 图像编辑（图像+文本）
-
-您也可以提供现有图像和文本提示来编辑图像：
+`image` 可使用一张图片的字符串，或多张图片的字符串数组。支持公开可访问的 HTTPS URL、`data:image/png;base64,...` 形式的 Data URL，以及图片的裸 base64。使用 Data URL 可以明确图片格式。
 
 <CodeGroup>
 
-```bash cURL
-IMG_PATH=/path/to/cat_image.jpeg
-
-if [[ "$(base64 --version 2>&1)" = *"FreeBSD"* ]]; then
-  B64FLAGS="--input"
-else
-  B64FLAGS="-w0"
-fi
-
-IMG_BASE64=$(base64 "$B64FLAGS" "$IMG_PATH" 2>&1)
-
-curl -X POST \
-  "https://model-api.skyengine.com.cn/v1beta/models/nano-banana-pro:generateContent" \
-    -H "Authorization: Bearer <API-KEY>" \
-    -H 'Content-Type: application/json' \
-    -d "{
-      \"contents\": [{
-        \"parts\":[
-            {\"text\": \"'Create a picture of my cat eating a nano-banana in a fancy restaurant under the Gemini constellation\"},
-            {
-              \"inlineData\": {
-                \"mimeType\":\"image/jpeg\",
-                \"data\": \"$IMG_BASE64\"
-              }
-            }
-        ]
-      }]
-    }"  \
-  | jq . \
-  | grep -o '"data": "[^"]*"' \
-  | cut -d'"' -f4 \
-  | base64 --decode > gemini-edited-image.png
+```bash 单图编辑
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "保留参考图中商品的形状和颜色，将背景改为浅蓝色摄影棚，添加自然阴影",
+    "image": "https://example.com/product.png",
+    "n": 1,
+    "size": "2K",
+    "ratio": "4:3",
+    "response_format": "b64_json"
+  }'
 ```
 
-```python Python
-import requests
-import base64
-from PIL import Image
-from io import BytesIO
-
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
-
-def edit_image(image_path, prompt):
-    """使用 Gemini 编辑图像"""
-    url = f"{BASE_URL}/models/nano-banana-pro:generateContent"
-
-    # 读取并编码图像
-    with open(image_path, 'rb') as f:
-        image_data = base64.b64encode(f.read()).decode('utf-8')
-
-    # 确定 MIME 类型
-    mime_type = "image/png"
-    if image_path.lower().endswith(('.jpg', '.jpeg')):
-        mime_type = "image/jpeg"
-    elif image_path.lower().endswith('.webp'):
-        mime_type = "image/webp"
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    },
-                    {
-                        "inlineData": {
-                            "mimeType": mime_type,
-                            "data": image_data
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-
-    if response.status_code == 200:
-        result = response.json()
-
-        # 提取并保存编辑后的图像
-        for candidate in result.get('candidates', []):
-            for part in candidate.get('content', {}).get('parts', []):
-                if 'inlineData' in part:
-                    image_data = base64.b64decode(part['inlineData']['data'])
-                    image = Image.open(BytesIO(image_data))
-                    image.save("edited_image.png")
-                    print("编辑后的图像已保存为 edited_image.png")
-                    return image
-    else:
-        print(f"错误: {response.status_code} - {response.text}")
-        return None
-
-# 使用示例
-edit_image("cat.jpg", "给这只猫加一顶小巫师帽")
+```bash 多图合成
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "nano-banana-2",
+    "prompt": "将第一张图片中的商品放入第二张图片的场景，保持商品外观，匹配光照与透视",
+    "image": [
+      "https://example.com/product.png",
+      "https://example.com/scene.png"
+    ],
+    "n": 1,
+    "size": "1K",
+    "ratio": "16:9",
+    "response_format": "b64_json"
+  }'
 ```
 
 </CodeGroup>
 
-## 配置选项
+将示例 URL 替换为实际图片地址。需要鉴权、已过期或无法由平台访问的链接不适合作为参考图；建议改传 Data URL。编辑时直接在 `prompt` 中描述需要保留和改变的内容，不使用 `mask`。
 
-### 仅返回图像
+## 参数矩阵
 
-默认情况下，Gemini 会返回图像和文本响应。要仅获取图像：
+下表说明同步与异步图片入口的当前参数行为。原生 `generateContent` 使用后文的 Gemini 参数结构。
 
-```python Python
-data = {
-    "contents": [
-        {
-            "parts": [
-                {
-                    "text": "在高档餐厅中展示一道纳米香蕉菜肴"
-                }
-            ]
-        }
-    ],
+| 参数 | `gemini-nano-banana-2.1` | `nano-banana-2` | `nano-banana-pro` | 平台行为 |
+| --- | --- | --- | --- | --- |
+| `model` | 必填，使用本列名称 | 同左 | 同左 | 不使用拼写变体或自行添加前缀 |
+| `prompt` | 必填，非空字符串 | 同左 | 同左 | 文生图与参考图编辑均需提供 |
+| `image` | 单图或多图 | 同左 | 同左 | 字符串或字符串数组；URL、Data URL、裸 base64 |
+| `n` | `1` | `1` | `1` | 省略时按单次生成处理；大于 1 或负值返回 400 |
+| `size` | `1K`、`2K`、`4K` | `512`、`1K`、`2K`、`4K` | `1K`、`2K`、`4K` | `0.5K` 转为 `512`；大小写会规范化；2.1 和 Pro 不使用 `512` |
+| `ratio` | 常用比例及超宽比例 | 同左 | 常用比例 | 可用值见下文；省略时不指定比例 |
+| `thinking_level` | 显式设置用 `high`；省略使用模型默认强度 | 显式设置用 `high`；低延迟场景省略 | 建议省略 | 当前图片入口不能关闭思考；其他档位说明见下文 |
+| `image_search` | 可传 `true` / `false` | 同左 | 同左 | 默认为关闭；开启的是 Google Search 文本搜索接地，不能指定图片搜索模式 |
+| `response_format` | 示例统一使用 `b64_json` | 同左 | 同左 | 同步返回 base64；异步结果转存后返回 URL，不能用同步请求的 `url` 值获得图片链接 |
+| `stream` | 不支持 | 不支持 | 不支持 | 使用非流式请求；传 `true` 返回 400 |
+| `quality`、`background`、`seed`、`mask`、`optimize_prompt_options` | 不支持 | 同左 | 同左 | 不作为 Gemini 图片生成参数使用 |
+
+### 比例与分辨率
+
+常用比例：`1:1`、`2:3`、`3:2`、`3:4`、`4:3`、`4:5`、`5:4`、`9:16`、`16:9`、`21:9`。
+
+Nano Banana 2 和 2.1 还支持 `1:4`、`4:1`、`1:8`、`8:1`。Pro 使用常用比例。
+
+`ratio` 控制画面形状，`size` 控制分辨率档位。例如 `ratio="16:9"` 与 `size="2K"` 可以组合使用。实际像素宽高由模型按比例和档位确定，不能把 `2K` 理解为每条边都等于 2048 像素。
+
+<Note>
+不要在 Gemini 图片请求中用 `size="1024x1024"` 指定像素。当前平台仅识别分辨率档位，像素尺寸、`auto` 和其他未识别的值会被忽略，由模型选择默认档位。新模型 2.1 不支持 `512`；需要较小图片时请使用 `nano-banana-2`。
+</Note>
+
+### 思考与搜索
+
+当前图片入口显式设置思考强度时，建议使用 `thinking_level="high"`，或省略此参数保留模型默认行为。Nano Banana 2.1 默认使用 `medium`；Nano Banana 2 默认使用 `minimal`。`high` 可能增加生成耗时和思考用量，不保证每次请求都会提高图片质量。
+
+此图片入口暂不提供显式 `minimal` 或 `medium` 的准确映射：`minimal` / `low` 会作为 `LOW` 发送，`medium` 不会覆盖模型默认值。请勿用这些值来控制新模型的强度。
+
+`image_search=true` 让模型可以参考 Google Search 的搜索结果，不保证每次请求都会实际搜索，也不等于调用专用图片搜索。搜索是否可用取决于模型和接入资源。
+
+## 响应与用量
+
+同步响应示例，图片内容以占位字符串展示，不能直接解码此占位值：
+
+```json
+{
+  "created": 1791782400,
+  "data": [{ "b64_json": "<BASE64_IMAGE>" }],
+  "generate_image": 1,
+  "usage": {
+    "input_tokens": 100,
+    "input_tokens_details": {
+      "text_tokens": 60,
+      "image_tokens": 40,
+      "cached_tokens": 30,
+      "cached_tokens_details": { "text_tokens": 20, "image_tokens": 10 }
+    },
+    "output_tokens": 1132,
+    "output_tokens_details": { "image_tokens": 1120, "text_tokens": 7 },
+    "total_tokens": 1232
+  }
+}
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| `data[].b64_json` | 最终图片的 base64；解码后保存为图片文件 |
+| `generate_image` | 实际返回的最终图片数量；不计入思考过程中的临时图片 |
+| `input_tokens` | 总输入 token，包含缓存命中的部分 |
+| `input_tokens_details.text_tokens` / `image_tokens` | 文本 / 图片总输入 token，均包含对应的缓存部分 |
+| `input_tokens_details.cached_tokens` | 本次命中的缓存 token 总量；0 表示未命中 |
+| `input_tokens_details.cached_tokens_details.text_tokens` / `image_tokens` | 文本 / 图片缓存命中明细 |
+| `output_tokens` | 图片、普通文本及思考的输出总量 |
+| `output_tokens_details.image_tokens` | 最终图片输出 token |
+| `output_tokens_details.text_tokens` | 此 Gemini 图片入口中的思考 token，不是普通说明文字的 token |
+| `total_tokens` | 上游返回的总 token 用量 |
+
+普通文本输出量为 `output_tokens - output_tokens_details.image_tokens - output_tokens_details.text_tokens`。上例分别是图片 1120、普通文本 5、思考 7 token。
+
+计费时，普通文本输入为 `60 - 20 = 40` token，普通图片输入为 `40 - 10 = 30` token；文本缓存 20 和图片缓存 10 分别按缓存价格计算，不会再次按普通输入计费。缓存命中由实际 `usage` 确认，重复发送提示词不保证命中。若上游只提供缓存总量，平台会保留总量并在输入数量范围内补齐拆分，不能据此判断缓存的精确来源。
+
+不同模型及分辨率的图片 token 量可能不同；以上数字仅演示字段和计算关系，不代表固定单张价格。实际单价使用平台模型页面展示的价格。
+
+## 异步调用
+
+将请求路径改为 `/v1/images/generations/async`，图片参数保持一致。提交后用 `GET /v1/images/generations/{task_id}` 查询状态；任务完成后从 `data[].url` 下载图片。
+
+完整提交、轮询和保存示例见[异步图片生成](/api-reference/examples/images/async-image)。Gemini 单张生成的 `n=1` 限制和分辨率要求同样适用。
+
+## Gemini 原生入口
+
+需要原生消息结构或多轮上下文时，使用 `generateContent`。原生响应与同步图片入口的响应结构不同，不能从原生响应读取 `data[].b64_json`。
+
+```bash
+curl --request POST 'https://model-api.skyengine.com.cn/v1beta/models/gemini-nano-banana-2.1:generateContent' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "contents": [{ "role": "user", "parts": [{ "text": "生成一张清晨海边的咖啡馆照片" }] }],
     "generationConfig": {
-        "responseModalities": ["Image"]  # 仅返回图像
+      "responseModalities": ["TEXT", "IMAGE"],
+      "imageConfig": { "aspectRatio": "16:9", "imageSize": "1K" }
     }
-}
+  }' --output native-result.json
 ```
 
-### 控制宽高比
+原生图片位于 `candidates[].content.parts[].inlineData.data`，格式由 `inlineData.mimeType` 给出。选取最终图片时排除 `thought=true` 的部分；不要假定第一段内容一定是图片。
 
-指定输出图像的宽高比：
+原生参考图使用 `parts[].inlineData`：`mimeType` 填图片 MIME 类型，`data` 填裸 base64。多轮编辑时通过 `contents` 提交完整历史，保留模型返回的图片和其他必要内容，不仅发送上一轮的文字描述。
 
-```python Python
-data = {
-    "contents": [
-        {
-            "parts": [
-                {
-                    "text": "在高档餐厅中展示一道纳米香蕉菜肴"
-                }
-            ]
-        }
-    ],
-    "generationConfig": {
-        "imageConfig": {
-            "aspectRatio": "16:9"
-        }
-    }
-}
-```
+## 常见问题
 
-### 可用的宽高比
+- **HTTP 400**：检查模型名、非空 prompt、`n=1`、未启用流式，以及模型支持的分辨率和比例。不要给 2.1 传 `512`。
+- **HTTP 401 / 403**：检查 API Key 和目标入口是否匹配、Key 是否有权限。
+- **HTTP 501「未实现」**：当前接入资源尚未支持该入口，请联系平台支持；更换 `size` 或重复请求不能解决。
+- **没有图片或缺少 usage**：不能作为成功生图处理；平台会返回错误。安全限制或仅返回文字也可能导致没有图片。
+- **请求耗时较长**：复杂构图、参考图、高分辨率或高思考强度可能增加耗时。同步示例设置了 300 秒客户端超时；需要持续获取结果时使用异步接口，避免盲目重复提交造成多次生成。
 
-`1:1`、`16:9`、`9:16`、`3:2`、`2:3`、`4:3`、`3:4`、`5:4`、`4:5`、`21:9`
+## 参考文档
 
-### 分辨率对照表
-
-#### nano-banana
-
-| 宽高比 | 分辨率 | 令牌 |
-|--------|--------|------|
-| 1:1 | 1024x1024 | 1290 |
-| 2:3 | 832x1248 | 1290 |
-| 3:2 | 1248x832 | 1290 |
-| 3:4 | 864x1184 | 1290 |
-| 4:3 | 1184x864 | 1290 |
-| 4:5 | 896x1152 | 1290 |
-| 5:4 | 1152x896 | 1290 |
-| 9:16 | 768x1344 | 1290 |
-| 16:9 | 1344x768 | 1290 |
-| 21:9 | 1536x672 | 1290 |
-
-#### nano-banana-pro
-
-| 宽高比 | 1K 分辨率 | 1K 令牌 | 2K 分辨率 | 2K 令牌 | 4K 分辨率 | 4K 令牌 |
-|--------|-----------|---------|-----------|---------|-----------|---------|
-| 1:1 | 1024x1024 | 1120 | 2048x2048 | 1120 | 4096x4096 | 2000 |
-| 2:3 | 848x1264 | 1120 | 1696x2528 | 1120 | 3392x5056 | 2000 |
-| 3:2 | 1264x848 | 1120 | 2528x1696 | 1120 | 5056x3392 | 2000 |
-| 3:4 | 896x1200 | 1120 | 1792x2400 | 1120 | 3584x4800 | 2000 |
-| 4:3 | 1200x896 | 1120 | 2400x1792 | 1120 | 4800x3584 | 2000 |
-| 4:5 | 928x1152 | 1120 | 1856x2304 | 1120 | 3712x4608 | 2000 |
-| 5:4 | 1152x928 | 1120 | 2304x1856 | 1120 | 4608x3712 | 2000 |
-| 9:16 | 768x1376 | 1120 | 1536x2752 | 1120 | 3072x5504 | 2000 |
-| 16:9 | 1376x768 | 1120 | 2752x1536 | 1120 | 5504x3072 | 2000 |
-| 21:9 | 1584x672 | 1120 | 3168x1344 | 1120 | 6336x2688 | 2000 |
-
-### 分辨率控制
-
-指定输出图像的分辨率，可选值：`1K`、`2K`、`4K`
-
-```python Python
-data = {
-    "contents": [
-        {
-            "parts": [
-                {
-                    "text": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格"
-                }
-            ]
-        }
-    ],
-    "generationConfig": {
-        "imageConfig": {
-            "aspectRatio": "1:1",
-            "imageSize": "4K"
-        }
-    }
-}
-```
-
-## 多轮图片修改
-
-Gemini 的对话式特性允许您通过多轮交互逐步完善图像。以下示例展示了一个完整的多轮对话流程：先生成初始图像，然后基于该图像进行修改。
-
-```python Python
-import requests
-import base64
-from PIL import Image
-from io import BytesIO
-
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1beta"
-
-def generate_content(prompt, inline_data=None):
-    """生成内容，支持纯文本或图像+文本输入
-
-    Args:
-        prompt: 文本提示
-        inline_data: 上一轮返回的 inlineData 对象（包含 mimeType 和 data）
-    """
-    url = f"{BASE_URL}/models/nano-banana-pro:generateContent"
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-
-    # 构建请求内容
-    parts = [{"text": prompt}]
-
-    # 如果提供了图像数据，添加到请求中
-    if inline_data:
-        parts.append({"inlineData": inline_data})
-
-    data = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": parts
-            }
-        ],
-        "generationConfig": {
-            "responseModalities": ["TEXT", "IMAGE"]
-        }
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-
-    if response.status_code == 200:
-        result = response.json()
-        text_response = None
-        image = None
-        output_inline_data = None
-
-        for candidate in result.get('candidates', []):
-            for part in candidate.get('content', {}).get('parts', []):
-                if 'text' in part:
-                    text_response = part['text']
-                    print(f"文本响应: {text_response}")
-                if 'inlineData' in part:
-                    output_inline_data = part['inlineData']
-                    img_data = base64.b64decode(output_inline_data['data'])
-                    image = Image.open(BytesIO(img_data))
-
-        return text_response, image, output_inline_data
-    return None, None, None
-
-# ===== 第一轮：生成初始图像 =====
-prompt_turn1 = """创建一个生动的信息图，将光合作用解释为植物最喜欢的食物配方。
-展示"原料"（阳光、水、二氧化碳）和"成品"（糖/能量）。
-风格应该像一本色彩丰富的儿童烹饪书的一页，适合四年级学生阅读。
-图片中的文字使用英文。"""
-
-text1, image1, inline_data1 = generate_content(prompt_turn1)
-if image1:
-    image1.save("turn1_image.png")
-    print("第一轮图像已保存为 turn1_image.png")
-
-# ===== 第二轮：基于第一轮图像进行迭代编辑 =====
-prompt_turn2 = "生成一张新图片，将图片中的所有英文文字翻译成中文"
-
-text2, image2, inline_data2 = generate_content(prompt_turn2, inline_data1)
-if image2:
-    image2.save("turn2_image.png")
-    print("第二轮图像已保存为 turn2_image.png")
-```
-
-## 多图合成
-
-您可以提供多个图像作为输入（建议最多 3 张）：
-
-```python Python
-# 读取多张图片
-with open('image1.jpg', 'rb') as f1:
-    img1_data = base64.b64encode(f1.read()).decode('utf-8')
-
-with open('image2.jpg', 'rb') as f2:
-    img2_data = base64.b64encode(f2.read()).decode('utf-8')
-
-data = {
-    "contents": [
-        {
-            "parts": [
-                {
-                    "text": "将这些图像组合成一个拼贴画，创意布局"
-                },
-                {
-                    "inlineData": {
-                        "mimeType": "image/jpeg",
-                        "data": img1_data
-                    }
-                },
-                {
-                    "inlineData": {
-                        "mimeType": "image/jpeg",
-                        "data": img2_data
-                    }
-                }
-            ]
-        }
-    ]
-}
-```
-
+- [Google Gemini 图片生成](https://ai.google.dev/gemini-api/docs/generate-content/image-generation)
+- [Google Vertex 图片生成](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/capabilities/image-generation)
+- [Nano Banana 2.1 模型说明](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/nano-banana-2-1)

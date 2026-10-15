@@ -29,12 +29,14 @@ curl --request POST \
     "prompt": "独立民谣，温暖、轻松，木吉他与柔和鼓点",
     "lyrics": "[Verse]\n晚风吹过安静街角\n灯光落在回家的路\n[Chorus]\n让这一刻慢慢停留\n把温柔唱给你听",
     "output_format": "url",
-    "audio_setting": {
+    "audio_config": {
       "sample_rate": 44100,
       "bitrate": 256000,
       "format": "mp3"
     },
-    "aigc_watermark": false
+    "watermark": {
+      "aigc_watermark": false
+    }
   }'
 ```
 
@@ -70,14 +72,16 @@ curl --request POST \
 | `lyrics` | string | 条件必填 | 歌词，最多 3500 个 Unicode 字符；普通歌曲必填，使用 `\n` 分行 |
 | `stream` | boolean | 否 | 平台当前仅支持 `false`；传入 `true` 返回参数错误 |
 | `output_format` | string | 否 | `hex` 或 `url`，默认 `hex` |
-| `audio_setting` | object | 否 | 输出音频参数；未传时默认生成 MP3、44.1 kHz、256 kbps |
-| `aigc_watermark` | boolean | 否 | 是否在音频末尾添加 AIGC 水印，默认 `false` |
+| `audio_config` | object | 否 | 输出音频参数；未传时默认生成 MP3、44.1 kHz、256 kbps |
+| `watermark` | object | 否 | 水印配置，可设置 `aigc_watermark`，默认 `false`；本模型不支持 `aigc_metadata` |
 | `lyrics_optimizer` | boolean | 否 | `lyrics` 为空时，根据 `prompt` 自动生成歌词，默认 `false` |
 | `is_instrumental` | boolean | 否 | 是否生成纯音乐，默认 `false` |
 
-未知字段会被平台拒绝。建议显式传入 `audio_setting`，以便调用方稳定控制输出规格。
+未知字段会被平台拒绝。建议显式传入 `audio_config`，以便调用方稳定控制输出规格。
 
-### audio_setting
+为兼容已有请求，仍接受 `audio_setting` 和顶层 `aigc_watermark`。`audio_setting` 不能与 `audio_config` 同时设置；同时设置顶层水印开关与 `watermark` 时，以 `watermark` 对象为准。新接入建议统一使用 `audio_config` 和 `watermark`。
+
+### audio_config
 
 | 参数 | 类型 | 支持值 |
 |---|---|---|
@@ -88,6 +92,14 @@ curl --request POST \
 <Warning>
 PCM 是裸音频数据，不包含 WAV 文件头。播放或封装 PCM 时，请同时保留响应中的采样率和声道信息。对于 WAV/PCM，`bitrate` 的含义可能不同于有损 MP3 编码；应以实际输出媒体信息为准。
 </Warning>
+
+### watermark
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `aigc_watermark` | boolean | 是否在音频末尾添加显式 AIGC 水印，默认 `false` |
+
+MiniMax 当前不支持参考素材、`audio_config` 中的语速 / 音量 / 音调 / 字幕控制，以及 `watermark.aigc_metadata`。
 
 ## 生成模式
 

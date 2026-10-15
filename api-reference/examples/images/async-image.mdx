@@ -27,7 +27,7 @@ description: '提交即返回 task_id、轮询拿结果的异步生图接口，�
 | 类别 | 模型示例 | size 语义 | 专属参数 |
 |------|----------|-----------|----------|
 | **OpenAI** | `gpt-image-2-2026-04-21`、`gpt-image-1` | 像素，如 `1024x1024` | `quality`、`background`、`moderation` |
-| **Gemini** | `nano-banana-2`、`nano-banana-pro`、`nano-banana` | 分辨率档位 `1K`/`2K`/`4K` | `ratio`、`thinking_level`、`image_search` |
+| **Gemini** | `gemini-nano-banana-2.1`、`nano-banana-2`、`nano-banana-pro` | 分辨率档位 `1K`/`2K`/`4K` | `ratio`、`thinking_level`、`image_search` |
 
 ## 快速开始
 
@@ -205,22 +205,22 @@ result = wait_image(task_id)
 |------|------|------|------|
 | `model` | string | 是 | 模型名，如 `nano-banana-2`、`gpt-image-2-2026-04-21` |
 | `prompt` | string | 是 | 生成图像的提示词 |
-| `n` | int | 否 | 生成图像数量，默认 1 |
+| `n` | int | 否 | 生成图像数量，默认 1；Gemini 仅支持 `1`，大于 1 或负值返回 400 |
 | `image` | string / string[] | 否 | 图生图的参考图，支持 URL、data URI 或裸 base64，可单图或多图 |
-| `response_format` | string | 否 | `url` 或 `b64_json`。**异步模式下结果统一转存对象存储并返回 `url`**，此参数主要影响同步接口 |
+| `response_format` | string | 否 | **异步模式下结果统一转存对象存储并返回 `url`**；Gemini 同步入口返回 `b64_json`，不会因为传 `url` 而返回链接 |
 | `user` | string | 否 | 业务侧用户标识，便于排查 |
 
 ### Gemini 专属参数（nano-banana 系列）
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `ratio` | string | **宽高比**，直接透传给 Gemini。可选：`1:1` `2:3` `3:2` `3:4` `4:3` `4:5` `5:4` `9:16` `16:9` `21:9` `1:4` `4:1` `1:8` `8:1` |
-| `size` | string | **分辨率档位**：`1K` / `2K` / `4K`（`512` 仅 `nano-banana-2` 即 gemini-3.x-flash-image 支持）。**仅接受这些档位，填其它值（含像素 `宽x高`）会被忽略，由模型用默认 `1K`** |
-| `thinking_level` | string | 生图**思考强度**：`minimal` / `low` / `high`。复杂构图任务可设 `high` 提升质量（会产生 thinking token，单独计费） |
-| `image_search` | bool | 开启**搜索接地**（基于 Google Search），让模型参考实时信息生成 |
+| `ratio` | string | **宽高比**，常用值包括 `1:1`、`4:3`、`16:9`；`1:4`、`4:1`、`1:8`、`8:1` 仅适用于 Nano Banana 2 和 2.1，完整矩阵见 [Nano Banana 图片生成](/api-reference/examples/images/nanobanana) |
+| `size` | string | **分辨率档位**：`1K` / `2K` / `4K`；`512`（或 `0.5K`）仅用于 `nano-banana-2`，2.1 和 Pro 不支持。像素尺寸和其他未识别值会被忽略，由模型选择默认档位 |
+| `thinking_level` | string | 建议设为 `high` 或省略，保留模型默认行为。当前 `minimal` / `low` 会映射为 `LOW`，`medium` 不覆盖默认值；不保证精确控制这些档位。思考会产生输出用量 |
+| `image_search` | bool | 开启 Google Search 文本搜索接地；不等于专用图片搜索，也不保证每次都会搜索，是否可用取决于模型与接入资源 |
 
 <Tip>
-**Gemini 的 `size` 与 `ratio` 是两个维度**：`ratio` 决定形状（宽高比），`size` 决定清晰度档位。两者可独立组合，例如 `ratio="21:9"` + `size="4K"` 生成超宽高清图。不填时由模型用默认 `1K` + `1:1`。
+**Gemini 的 `size` 与 `ratio` 是两个维度**：`ratio` 决定形状（宽高比），`size` 决定清晰度档位。两者可独立组合，例如 `ratio="21:9"` + `size="4K"` 生成超宽高清图。不填时由模型选择默认分辨率和比例。
 </Tip>
 
 ### OpenAI 专属参数（gpt-image 系列）
@@ -305,9 +305,13 @@ Gemini 生图的输出按 modality 精确拆分，便于区分计费：
 | 字段 | 含义 |
 |------|------|
 | `input_tokens_details.text_tokens` / `image_tokens` | 输入的文本 / 图片 token |
-| `output_tokens_details.image_tokens` | 生成图片的 token |
-| `output_tokens_details.text_tokens` | 模型的**思考 token**（开启 `thinking_level` 时产生） |
+| `input_tokens_details.cached_tokens` | 输入中缓存命中的 token 总量，已经包含在 `input_tokens` 中 |
+| `input_tokens_details.cached_tokens_details.text_tokens` / `image_tokens` | 文本 / 图片缓存命中量；若上游仅提供缓存总量，拆分为平台在输入数量范围内补齐的结果 |
+| `output_tokens_details.image_tokens` | 最终生成图片的 token，不计入思考过程中的临时图片 |
+| `output_tokens_details.text_tokens` | 模型的**思考 token**；未显式设置 `thinking_level` 时也可能产生 |
 | `output_tokens` | 输出总量（含思考）。模型返回的文字说明 = `output_tokens − image_tokens − text_tokens` |
+
+普通文本和图片输入分别减去对应缓存命中量后计费，缓存部分按缓存单价计算，避免重复收费。重复请求不保证缓存命中，以实际 `usage` 为准。完整字段、同步调用及模型参数矩阵见 [Nano Banana 图片生成](/api-reference/examples/images/nanobanana)。
 
 ## 最佳实践
 

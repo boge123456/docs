@@ -205,7 +205,8 @@
                   {
                     "group": "音乐生成",
                     "pages": [
-                      "api-reference/examples/music/minimax-music-3"
+                      "api-reference/examples/music/minimax-music-3",
+                      "api-reference/examples/music/doubao-seed-audio"
                     ]
                   },
                   {

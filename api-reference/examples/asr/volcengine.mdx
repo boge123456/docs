@@ -193,6 +193,25 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `type` | string | 是 | 固定为 `input_audio_buffer.append`。 |
 | `audio` | string | 是 | Base64 编码的 PCM 音频字节。 |
 
+### `input_audio_buffer.commit`（仅 `volcengine_normal`）
+
+最后一包音频发送完毕后，发送该事件，明确结束当前语音段，无需再补静音。平台会向火山发送协议尾包，并等待最终识别结果。
+
+```json
+{
+  "type": "input_audio_buffer.commit",
+  "event_id": "event_xxx"
+}
+```
+
+`event_id` 必填，长度为 1～128 字节，每一轮使用新的 ID。平台会忽略近期已经接受的同 ID commit 重发。
+
+发送后请等待 `conversation.item.input_audio_transcription.completed`，再开始发送下一轮音频；对外 WebSocket 连接可以继续复用。等待期间发送下一轮音频、提交另一个 commit，或对空音频缓冲区提交 commit，会收到 `invalid_request_error`，其中 `error.event_id` 指向触发错误的客户端事件。
+
+完成事件仍使用现有的 `input_audio_buffer.speech_stopped` 和 `conversation.item.input_audio_transcription.completed`，不额外发送 commit 确认事件。只有静音的音频也可能返回空的最终文本。等待最终结果超过 5 秒，或上游断连、重连失败时，会返回服务端错误并结束连接。
+
+`volcengine_bigmodel` 不支持该事件，会返回 `invalid_request_error`。不发送 commit 的调用方式继续使用原来的 VAD 自动判停。
+
 ## 服务端事件
 
 | 事件 | 说明 |

@@ -1,0 +1,337 @@
+---
+title: '豆包 Seed Audio 1.0 音频生成'
+description: '通过平台统一接口调用 Seed Audio 1.0，支持文字描述、参考音频、参考图片和字幕输出。'
+---
+
+# 豆包 Seed Audio 1.0 音频生成
+
+您可以通过平台统一的同步接口，根据文字描述、参考音频或参考图片生成音频：
+
+```text
+POST /v1/music/generations
+```
+
+接口成功时直接返回音频 URL 或 Hex 数据，不需要轮询任务状态。音乐风格、音效、配音内容及期望时长均可在 `prompt` 中描述。
+
+<Note>
+本文描述的是平台对外接口。请使用平台域名、平台 API Key 和模型广场中展示的模型名称。示例中的 `seed-audio-1.0` 请以模型广场实际名称为准。
+</Note>
+
+## 快速开始
+
+以下示例生成一段舒缓的背景音乐，并以 MP3 下载地址返回。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/music/generations \
+  --max-time 300 \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json; charset=utf-8' \
+  --data '{
+    "model": "seed-audio-1.0",
+    "prompt": "生成30秒舒缓背景音乐，钢琴与弦乐，节奏缓慢，无人声",
+    "output_format": "url",
+    "audio_config": {
+      "format": "mp3",
+      "sample_rate": 44100
+    },
+    "watermark": {
+      "aigc_watermark": false
+    }
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/music/generations",
+    headers={"Authorization": "Bearer <API-KEY>"},
+    json={
+        "model": "seed-audio-1.0",
+        "prompt": "生成30秒舒缓背景音乐，钢琴与弦乐，节奏缓慢，无人声",
+        "output_format": "url",
+        "audio_config": {"format": "mp3", "sample_rate": 44100},
+        "watermark": {"aigc_watermark": False},
+    },
+    timeout=300,
+)
+response.raise_for_status()
+result = response.json()
+
+print("音频地址:", result["data"]["audio"])
+print("音频时长（毫秒）:", result["extra_info"]["music_duration"])
+print("追踪 ID:", result.get("trace_id"))
+```
+
+</CodeGroup>
+
+成功响应示例（地址及音频信息仅用于说明字段）：
+
+```json
+{
+  "data": {
+    "audio": "https://example.com/generated-audio.mp3",
+    "status": 2
+  },
+  "trace_id": "example-audio-trace-id",
+  "extra_info": {
+    "original_duration_ms": 30250,
+    "music_duration": 30250,
+    "music_sample_rate": 44100,
+    "music_size": 484000
+  },
+  "base_resp": {
+    "status_code": 0,
+    "status_msg": "success"
+  }
+}
+```
+
+## 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `model` | string | 是 | 模型广场展示的 Seed Audio 模型名称，例如 `seed-audio-1.0` |
+| `prompt` | string | 是 | 非空的音频描述或待合成文本，最多 3000 个 Unicode 字符；可描述风格、情绪、音效、说话内容和期望时长 |
+| `stream` | boolean | 否 | 当前仅支持 `false`；省略时为 `false` |
+| `output_format` | string | 否 | `hex` 或 `url`，默认 `hex`，决定 `data.audio` 的返回形式 |
+| `audio_config` | object | 否 | 输出编码、采样率、语速、音量、音调及字幕开关，未设置时使用 WAV / 40000 Hz |
+| `watermark` | object | 否 | 显式及隐式 AIGC 水印配置 |
+| `references` | array | 否 | 参考素材列表，支持音色、音频或图片，见下方说明 |
+
+请求按业务分组：`audio_config` 配置音频和字幕，`watermark` 配置水印，`references` 位于顶层，不使用厂商命名空间。未知字段会返回参数错误。音乐、歌词或纯音乐要求请直接写入 `prompt`，不要传入非空的 `lyrics`、`lyrics_optimizer=true` 或 `is_instrumental=true`。
+
+为兼容已有请求，仍接受 `audio_setting` 和顶层 `aigc_watermark`。`audio_setting` 不能与 `audio_config` 同时设置；同时设置顶层水印开关与 `watermark` 时，以 `watermark` 对象为准。新接入建议统一使用 `audio_config` 和 `watermark`。
+
+### audio_config
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `format` | string | `wav`（默认）、`mp3`、`pcm` 或 `ogg_opus` |
+| `sample_rate` | integer | 采样率，单位 Hz，默认值及支持范围见下表 |
+| `speech_rate` | integer | 语速调整，默认 `0`，范围 `-50`～`100`，数值越大语速越快 |
+| `loudness_rate` | integer | 音量调整，默认 `0`，范围 `-50`～`100`，数值越大音量越大 |
+| `pitch_rate` | integer | 音调调整，默认 `0`，范围 `-12`～`12`，数值越大音调越高 |
+| `enable_subtitle` | boolean | 是否请求字幕，默认 `false` |
+
+| 编码格式 | 默认采样率 | 支持的采样率 |
+|---|---|---|
+| `wav` / `pcm` | `40000` | `8000`、`16000`、`24000`、`32000`、`40000`、`44100`、`48000` |
+| `mp3` | `44100` | `8000`、`16000`、`24000`、`32000`、`44100`、`48000` |
+| `ogg_opus` | `48000` | `48000` |
+
+本模型不支持通过 `audio_config.bitrate` 指定码率，请省略该字段。
+
+<Note>
+`output_format` 控制返回 URL 还是 Hex，`audio_config.format` 控制音频编码。例如 `output_format=url` 与 `audio_config.format=mp3` 表示返回 MP3 文件的下载地址。PCM 是不带 WAV 文件头的裸音频，播放或封装时需要匹配实际音频规格。
+</Note>
+
+### references
+
+每项参考素材只能设置以下字段之一：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `speaker` | string | 可用的音色 ID，请使用已获得使用权限的音色 |
+| `audio_data` | string | 参考音频的标准 Base64 字符串，不带 `data:audio/...;base64,` 前缀 |
+| `audio_url` | string | 参考音频的 HTTP(S) 地址，需可被服务端直接访问，URL 中不能包含用户名和密码 |
+| `image_data` | string | 参考图片的标准 Base64 字符串，不带 Data URL 前缀 |
+| `image_url` | string | 参考图片的 HTTP(S) 地址，需可被服务端直接访问，URL 中不能包含用户名和密码 |
+
+- 音频或音色参考合计最多 3 项；参考音频单条不超过 30 秒、10 MB，支持 WAV、MP3、PCM、OGG Opus。
+- 图片参考最多 1 张，不超过 10 MB，支持 JPEG、PNG、WebP；图片不能与音频或音色参考混用。
+- 使用音频或音色参考时，在 `prompt` 中通过 `@音频1`、`@音频2`、`@音频3` 按参考列表顺序引用，编号从 1 开始。
+- 使用 Base64 时，大小限制按编码前的文件计算；完整 JSON 请求体不得超过 41 MiB。
+
+### watermark
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `aigc_watermark` | boolean | 是否在生成音频末尾添加显式 AIGC 水印，默认 `false` |
+| `aigc_metadata` | object | 隐式水印配置，见下表 |
+
+显式和隐式水印均放在 `watermark` 对象内，例如：
+
+```json
+{
+  "model": "seed-audio-1.0",
+  "prompt": "用温柔的语气说：欢迎回家。",
+  "output_format": "url",
+  "watermark": {
+    "aigc_watermark": true,
+    "aigc_metadata": {
+      "enable": true,
+      "content_producer": "your-app",
+      "produce_id": "audio-001"
+    }
+  }
+}
+```
+
+### watermark.aigc_metadata
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `enable` | boolean | 是否开启隐式水印，默认 `false` |
+| `content_producer` | string | 内容制作方的名称或编码 |
+| `produce_id` | string | 内容制作编号 |
+| `content_propagator` | string | 内容传播方的名称或编码 |
+| `propagate_id` | string | 内容传播编号 |
+
+## 生成模式
+
+以下 JSON 均为同一接口的请求体，可替换快速开始示例中的请求内容。
+
+### 文字描述生成
+
+省略 `references`，直接描述希望生成的音频。期望时长、背景音乐和音效要求均写入 `prompt`：
+
+```json
+{
+  "model": "seed-audio-1.0",
+  "prompt": "生成20秒雨夜街景音效：细雨落在屋檐上，远处偶尔传来车辆驶过的声音，无人声",
+  "output_format": "url",
+  "audio_config": {
+    "format": "mp3",
+    "sample_rate": 44100
+  }
+}
+```
+
+提示词中的时长用于引导生成，实际时长以响应为准。模型输出的原始音频最长 120 秒。
+
+### 参考音频生成
+
+通过 `references` 传入参考音频，在 `prompt` 中使用对应编号。以下参考地址为占位示例，请替换为可访问的文件地址：
+
+```json
+{
+  "model": "seed-audio-1.0",
+  "prompt": "@音频1 的角色用温柔、轻松的语气说：欢迎回家，今天辛苦了。",
+  "output_format": "url",
+  "references": [
+    {
+      "audio_url": "https://example.com/reference.wav"
+    }
+  ],
+  "audio_config": {
+    "format": "mp3",
+    "sample_rate": 44100,
+    "speech_rate": 0,
+    "loudness_rate": 0,
+    "pitch_rate": 0,
+    "enable_subtitle": true
+  }
+}
+```
+
+使用音色 ID 时，将对应参考项替换为 `{"speaker": "<SPEAKER-ID>"}`；使用本地音频时，将其编码后放入 `audio_data`，不要同时设置 `audio_url`。
+
+### 参考图片生成
+
+图片参考使用 `image_url` 或 `image_data`，在 `prompt` 中提供待合成的文本。例如：
+
+```json
+{
+  "model": "seed-audio-1.0",
+  "prompt": "欢迎来到我们的故事时间，今天一起去森林里探险吧。",
+  "output_format": "url",
+  "references": [
+    {
+      "image_url": "https://example.com/character.png"
+    }
+  ],
+  "audio_config": {
+    "format": "mp3",
+    "sample_rate": 44100
+  }
+}
+```
+
+## 获取音频
+
+### URL 输出
+
+设置 `output_format=url`，从响应的 `data.audio` 获取音频下载地址。接续快速开始中的 Python 示例，可将生成的 MP3 保存到本地：
+
+```python Python
+audio_response = requests.get(result["data"]["audio"], timeout=120)
+audio_response.raise_for_status()
+with open("audio.mp3", "wb") as output_file:
+    output_file.write(audio_response.content)
+```
+
+建议在生成完成后下载并保存音频；业务需要长期保存时，请自行归档。
+
+### Hex 输出
+
+将快速开始中的 `output_format` 改为 `hex`，或省略该字段。请求完成后，`data.audio` 是音频文件的十六进制字符串，按以下方式解码保存：
+
+```python Python
+audio_bytes = bytes.fromhex(result["data"]["audio"])
+with open("audio.mp3", "wb") as output_file:
+    output_file.write(audio_bytes)
+```
+
+以上保存示例均对应请求中的 MP3 格式。使用 WAV、PCM 或 OGG Opus 时，请选择对应的文件扩展名和播放器。Hex 字符串长度约为原始音频字节数的两倍，解码后的大小可与 `extra_info.music_size` 核对。
+
+## 响应字段
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `data.status` | integer | `2` 表示生成完成 |
+| `data.audio` | string | 音频 URL 或 Hex 内容，由 `output_format` 决定 |
+| `trace_id` | string | 本次生成的追踪 ID，排查问题时请提供 |
+| `extra_info.music_duration` | integer | 处理后的音频时长，单位毫秒，调整语速后可能与原始时长不同 |
+| `extra_info.original_duration_ms` | integer | 模型输出的原始音频时长，单位毫秒，用于确定计费用量 |
+| `extra_info.music_sample_rate` | integer | 本次输出配置使用的采样率，单位 Hz |
+| `extra_info.music_size` | integer | 音频文件大小，单位字节；Hex 输出时为解码后的大小 |
+| `subtitle` | object | 可选字幕信息，启用 `audio_config.enable_subtitle` 后按生成结果返回 |
+| `base_resp.status_code` | integer | `0` 表示生成成功 |
+| `base_resp.status_msg` | string | 状态说明 |
+
+### 字幕
+
+设置 `audio_config.enable_subtitle=true` 后，`subtitle` 可包含以下字段：
+
+| 字段 | 说明 |
+|---|---|
+| `text` | 字幕完整文本 |
+| `sentences` | 分句信息列表，包含 `start_time`、`end_time`、`text` 和 `words` |
+| `sentences[].start_time` / `end_time` | 句子的开始 / 结束时间，相对音频起点的毫秒偏移 |
+| `sentences[].words` | 词或字粒度的信息列表，每项包含 `start_time`、`end_time` 和 `text` |
+
+字幕按模型结果返回，请按可选字段处理；未开启字幕时，响应可不包含 `subtitle`。
+
+## 计费说明
+
+Seed Audio 按模型输出的**原始音频时长**计量，平台将原始时长向上取整到秒。语速调整后的播放时长不作为计费依据，实际单价以调用时模型广场展示的价格为准。
+
+例如，原始时长为 30.25 秒，即使调整语速后的播放时长变为 15.125 秒，音频输出用量仍为 31 秒。对应响应中的 `original_duration_ms=30250`、`music_duration=15125`。
+
+参数校验失败或未返回成功生成结果的请求，不进入成功生成计费。
+
+<Warning>
+音频生成可能需要较长时间，客户端超时时间建议设置为至少 300 秒。超时后不要无限重试，应结合请求时间和可用的 `trace_id` 排查请求结果。
+</Warning>
+
+## 常见错误
+
+| 场景 | 处理建议 |
+|---|---|
+| `prompt` 为空或超长 | 提供非空内容，控制在 3000 个 Unicode 字符以内 |
+| `stream=true` | 改为 `false` 或省略，当前接口仅支持同步非流式返回 |
+| 传入歌词、纯音乐或歌词优化字段 | 省略非空 `lyrics`、`lyrics_optimizer=true`、`is_instrumental=true`，将要求写入 `prompt` |
+| `output_format` 非法 | 使用 `url` 或 `hex` |
+| 音频格式或采样率不匹配 | 按编码格式选择采样率，例如 MP3 不能使用 `40000` Hz |
+| 传入 `audio_config.bitrate` | 省略码率字段 |
+| 语速、音量或音调越界 | `audio_config.speech_rate`、`audio_config.loudness_rate` 使用 `-50`～`100`，`audio_config.pitch_rate` 使用 `-12`～`12` |
+| 一项参考设置了多个来源字段 | 每项只保留 `speaker`、`audio_data`、`audio_url`、`image_data`、`image_url` 之一 |
+| 图片与音频混用或参考数量超限 | 音频 / 音色最多 3 项，图片最多 1 张，二者不能混用 |
+| 参考素材无法读取 | 检查链接访问权限、文件格式、文件大小及音频时长，Base64 不带 Data URL 前缀 |
+| 请求体过大 | 控制完整 JSON 在 41 MiB 以内，较大素材可使用可访问的 URL |
+| 返回内容无法播放 | `hex` 需要先做十六进制解码；检查文件扩展名及播放器是否支持所选编码 |
+| 中文内容出现乱码 | 使用 UTF-8 JSON，并设置 `Content-Type: application/json; charset=utf-8` |
