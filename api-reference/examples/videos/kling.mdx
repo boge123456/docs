@@ -1,1066 +1,379 @@
 ---
 title: '可灵 Kling 视频生成示例'
-description: '调用七牛云可灵视频生成模型的完整示例代码'
+description: 'Kling V3、3.0 Turbo 与 V2.6 的参数矩阵、文生视频、图生视频、分镜和完整轮询示例'
 ---
 
 # 可灵 Kling 视频生成示例
 
-以下示例展示如何使用可灵（Kling）视频生成模型通过 OpenAI 兼容接口生成高质量的视频内容。
+通过平台 `POST /v1/videos` 创建异步视频任务，使用返回的 `id` 查询进度，完成后下载视频。本文参数均放在 JSON 顶层；使用平台 API Key，不需要供应商密钥或供应商任务地址。
 
-## 支持的模型
+## 模型与能力矩阵
 
-| 模型 ID | 模式 | 时长 | 分辨率 |
-|---------|------|------|--------|
-| **kling-v2-6-std** | 标准模式 (std) | 5/10 秒 | 1080p |
-| **kling-v2-6-pro** | 专家模式 (pro) | 5/10 秒 | 1080p |
+| 能力 | `kling-v3` | `kling-3.0-turbo` |
+| --- | --- | --- |
+| 文生视频、首帧图生视频 | 支持 | 支持 |
+| 时长 | 3–15 秒整数，默认 5 秒 | 同左 |
+| 清晰度 `mode` | `std`（720p）、`pro`（1080p）、`4k` | `std`（720p）、`pro`（1080p） |
+| 默认清晰度 | `std` | `std` |
+| 同步音频 `generate_audio` | 默认 `true`，可传 `false` 关闭 | 固定有声，不能传 `false` |
+| 文生画幅 `ratio` | `16:9`（默认）、`9:16`、`1:1` | 同左 |
+| 图生画幅 | 由首帧决定 | 同左 |
+| 尾帧 | 支持，必须同时提供首帧 | 不支持 |
+| 自定义分镜 `multi_prompt` | 支持 1–6 个分镜 | 同左 |
+| 智能分镜 `shot_type: intelligence` | 支持 | 支持 |
+| 负向提示词 `negative_prompt` | 支持 | 不支持 |
+| 引导系数 `cfg_scale` | 支持 0–1 | 不支持 |
+| 主体参考 `elements` | 图生视频、动作控制支持；文生视频不支持 | 不支持 |
+| 动作控制 | 支持 `std`、`pro`，不支持 `4k` | 不支持 |
+| Remix | 不支持 | 不支持 |
 
+历史模型 `kling-v2-6-std`、`kling-v2-6-pro` 继续使用相同的平台接口，但参数范围不同，见文末“V2.6 兼容调用”。请使用当前环境 `GET /v1/models` 返回的模型 ID。
 
-可灵视频生成分为三个步骤：
-1. **创建视频生成任务** - 提交生成请求，获得任务ID
-2. **查询任务状态** - 定期检查任务进度
-3. **下载生成的视频** - 任务完成后下载视频文件
+## 快速开始：文生视频
 
-## 步骤1：创建视频生成任务
-
-<CodeGroup>
-
-```bash cURL
-curl --request POST \
-  --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer <API-KEY>' \
-  --header 'Content-Type: application/json' \
-  --data '{
-    "model": "kling-v2-6-std",
-    "prompt": "一只金毛犬在海边奔跑，阳光洒在它的毛发上，海浪轻轻拍打着沙滩，画面温馨治愈",
-    "seconds": "5",
-    "size": "1280x720"
+```bash
+curl https://model-api.skyengine.com.cn/v1/videos \
+  -H 'Authorization: Bearer <API-KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "kling-3.0-turbo",
+    "prompt": "一只红狐狸缓慢走过雪地，固定远景机位，伴随轻微的踩雪声",
+    "mode": "std",
+    "duration": 5,
+    "ratio": "16:9"
   }'
 ```
 
-```python Python
-import requests
-import time
+V3 无声视频使用 `"model":"kling-v3"` 和 `"generate_audio":false`。两款模型的 `std` 档均支持有声视频。
 
-API_KEY = "<API-KEY>"
-BASE_URL = "https://model-api.skyengine.com.cn/v1"
-
-def create_kling_video(prompt, model="kling-v2-6-std", **kwargs):
-    """
-    创建可灵视频生成任务
-
-    Args:
-        prompt: 文本提示词
-        model: 使用的模型名称（kling-v2-6-std 或 kling-v2-6-pro）
-        **kwargs: 其他参数（seconds, size, ratio等）
-
-    Returns:
-        任务创建响应
-    """
-    url = f"{BASE_URL}/videos"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    # 构建请求数据
-    data = {
-        "model": model,
-        "prompt": prompt
-    }
-
-    # 添加可选参数
-    for key in ["seconds", "size", "ratio"]:
-        if key in kwargs:
-            data[key] = kwargs[key]
-
-    try:
-        response = requests.post(url, headers=headers, json=data)
-
-        if response.status_code == 200:
-            result = response.json()
-            print(f"可灵视频生成任务已创建")
-            print(f"任务ID: {result.get('id')}")
-            print(f"状态: {result.get('status')}")
-            return result
-        else:
-            print(f"错误: {response.status_code} - {response.text}")
-            return None
-
-    except Exception as e:
-        print(f"请求失败: {e}")
-        return None
-
-# 示例1：标准模式文生视频
-result = create_kling_video(
-    prompt="一只金毛犬在海边奔跑，阳光洒在它的毛发上，海浪轻轻拍打着沙滩，画面温馨治愈",
-    model="kling-v2-6-std",
-    seconds="5",
-    size="1280x720"
-)
-```
-
-```javascript JavaScript/Node.js
-const axios = require('axios');
-
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
-
-async function createKlingVideo(prompt, model = 'kling-v2-6-std', options = {}) {
-    const url = `${BASE_URL}/videos`;
-
-    const data = {
-        model: model,
-        prompt: prompt,
-        ...options
-    };
-
-    try {
-        const response = await axios.post(url, data, {
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        console.log('可灵视频生成任务已创建');
-        console.log(`任务ID: ${response.data.id}`);
-        console.log(`状态: ${response.data.status}`);
-
-        return response.data;
-    } catch (error) {
-        console.error('任务创建失败:', error.response?.data || error.message);
-        return null;
-    }
-}
-
-// 示例1：标准模式文生视频
-const result = await createKlingVideo(
-    '一只金毛犬在海边奔跑，阳光洒在它的毛发上，海浪轻轻拍打着沙滩，画面温馨治愈',
-    'kling-v2-6-std',
-    { seconds: '5', size: '1280x720' }
-);
-```
-
-```go Go
-package main
-
-import (
-    "bytes"
-    "encoding/json"
-    "fmt"
-    "io"
-    "net/http"
-)
-
-const (
-    APIKey  = "<API-KEY>"
-    BaseURL = "https://model-api.skyengine.com.cn/v1"
-)
-
-type KlingVideoRequest struct {
-    Model   string `json:"model"`
-    Prompt  string `json:"prompt"`
-    Seconds string `json:"seconds,omitempty"`
-    Size    string `json:"size,omitempty"`
-    Ratio   string `json:"ratio,omitempty"`
-}
-
-type KlingVideoResponse struct {
-    ID        string `json:"id"`
-    Object    string `json:"object"`
-    Model     string `json:"model"`
-    Status    string `json:"status"`
-    CreatedAt int64  `json:"created_at"`
-}
-
-func createKlingVideo(request KlingVideoRequest) (*KlingVideoResponse, error) {
-    url := fmt.Sprintf("%s/videos", BaseURL)
-
-    jsonData, err := json.Marshal(request)
-    if err != nil {
-        return nil, fmt.Errorf("JSON序列化失败: %v", err)
-    }
-
-    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-    if err != nil {
-        return nil, fmt.Errorf("创建请求失败: %v", err)
-    }
-
-    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
-    req.Header.Set("Content-Type", "application/json")
-
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        return nil, fmt.Errorf("请求失败: %v", err)
-    }
-    defer resp.Body.Close()
-
-    responseBody, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, fmt.Errorf("读取响应失败: %v", err)
-    }
-
-    if resp.StatusCode != 200 {
-        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
-    }
-
-    var result KlingVideoResponse
-    if err := json.Unmarshal(responseBody, &result); err != nil {
-        return nil, fmt.Errorf("解析响应失败: %v", err)
-    }
-
-    fmt.Printf("可灵视频生成任务已创建\n")
-    fmt.Printf("任务ID: %s\n", result.ID)
-    fmt.Printf("状态: %s\n", result.Status)
-
-    return &result, nil
-}
-
-// 示例：创建任务
-func main() {
-    request := KlingVideoRequest{
-        Model:   "kling-v2-6-std",
-        Prompt:  "一只金毛犬在海边奔跑，阳光洒在它的毛发上，海浪轻轻拍打着沙滩，画面温馨治愈",
-        Seconds: "5",
-        Size:    "1280x720",
-    }
-
-    result, err := createKlingVideo(request)
-    if err != nil {
-        fmt.Printf("任务创建失败: %v\n", err)
-        return
-    }
-    fmt.Printf("任务创建成功: %+v\n", result)
-}
-```
-
-</CodeGroup>
-
-### 响应示例
+创建响应中的 `id` 是后续查询和下载使用的平台任务 ID。以下响应仅为字段示意，实际 ID 以接口返回为准：
 
 ```json
 {
-  "id": "kling-task-20260304123456",
-  "object": "video",
-  "model": "kling-v2-6-std",
-  "mode": "std",
-  "status": "in_queue"
+  "id": "<VIDEO-ID>",
+  "object": "video.generation",
+  "status": "pending"
 }
 ```
 
-## 步骤2：查询任务状态
+## V3 / Turbo 参数说明
 
-<CodeGroup>
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `model` | string | 必填，使用能力矩阵中的模型 ID |
+| `prompt` | string | 单镜头、智能分镜及动作控制必填，最多 2500 字符；自定义分镜时不传 |
+| `duration` | integer | 普通生成 3–15 秒，默认 5；动作控制不传 |
+| `seconds` | string | `duration` 的兼容写法，如 `"5"`；同时传入时必须相同 |
+| `mode` | string | `std`、`pro` 或 V3 的 `4k` |
+| `resolution` | string | 清晰度的另一种写法：`720p`、`1080p`、`4k`（兼容 `2160p`） |
+| `size` | string | `宽x高`，按短边 720、1080、2160 选择档位；不是任意尺寸生成 |
+| `ratio` | string | 文生画幅，默认 `16:9`；图生不通过此参数裁剪首帧 |
+| `generate_audio` | boolean | V3 默认开启；Turbo 固定开启；动作控制改用 `keep_original_sound` |
+| `sound` | string | 音频兼容参数 `on` / `off`；若同时传入，`generate_audio` 优先。建议只使用 `generate_audio` |
+| `negative_prompt` | string | 仅 V3 普通生成使用，不用于动作控制 |
+| `cfg_scale` | number | 仅 V3 普通生成使用，0–1；不用于动作控制 |
+| `content` | array | 首帧、尾帧、动作视频，格式见后文 |
+| `multi_prompt` | array | 自定义分镜，格式及约束见后文 |
+| `multi_shot` | boolean | 开启多镜头；传分镜列表时自动开启，不能显式设为 `false` |
+| `shot_type` | string | `customize` 配合分镜列表；`intelligence` 配合 `prompt` |
+| `elements` | array | 仅 V3 图生视频、动作控制的主体参考 |
+| `character_orientation` | string | 动作控制必填，`image` 或 `video` |
+| `keep_original_sound` | boolean | 动作控制是否保留参考视频原声，默认保留 |
 
-```bash cURL
-# 查询任务状态
-curl -X GET "https://model-api.skyengine.com.cn/v1/videos/kling-task-20260304123456" \
-  --header 'Authorization: Bearer <API-KEY>'
+### 清晰度与画幅
+
+推荐只传 `mode` 和 `ratio`。如果同时传 `mode`、`resolution`、`size`，它们必须指向相同清晰度；文生视频同时传 `size` 和 `ratio` 时，宽高比也必须一致。
+
+| 清晰度 | `mode` | `resolution` | `size` 示例：横屏 / 竖屏 / 方形 |
+| --- | --- | --- | --- |
+| 720p | `std` | `720p` | `1280x720` / `720x1280` / `720x720` |
+| 1080p | `pro` | `1080p` | `1920x1080` / `1080x1920` / `1080x1080` |
+| 4K（仅 V3） | `4k` | `4k` | `3840x2160` / `2160x3840` / `2160x2160` |
+
+图生视频的画幅由首帧决定，返回的实际宽高可能与表中示例不同。`size` 选择清晰度档位，不保证输出精确等于传入尺寸。
+
+## 首帧图生视频
+
+将示例 URL 换成供应商可访问的图片地址。普通图生只需要一张首帧；不要重复传入同一首帧的多个表示。
+
+```bash
+curl https://model-api.skyengine.com.cn/v1/videos \
+  -H 'Authorization: Bearer <API-KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "kling-3.0-turbo",
+    "prompt": "保持人物和房间布局一致，人物缓慢转头，镜头轻微推进",
+    "mode": "pro",
+    "duration": 5,
+    "content": [
+      {
+        "type": "image_url",
+        "role": "first_frame",
+        "image_url": {"url": "https://your-cdn.example/first.png"}
+      }
+    ]
+  }'
 ```
 
-```python Python
-def check_video_status(video_id):
-    """
-    检查视频生成状态
+V3 / Turbo 的图片角色支持 `first_frame`，兼容 `reference_image` 和空角色；尾帧支持 `last_frame` 或 `end_frame`。图片内容的 `type` 必须是 `image_url`。
 
-    Args:
-        video_id: 视频任务ID
+Turbo 首帧使用 JPG/JPEG/PNG，文件不超过 50MB，宽高至少 300px，宽高比在 1:2.5 到 2.5:1 之间。避免使用需要登录、短期签名已过期或仅内网可访问的素材链接。
 
-    Returns:
-        任务状态信息
-    """
-    url = f"{BASE_URL}/videos/{video_id}"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}"
-    }
+### 首尾帧（仅 V3）
 
-    try:
-        response = requests.get(url, headers=headers)
+以下 JSON 作为 `POST /v1/videos` 的请求体：
 
-        if response.status_code == 200:
-            result = response.json()
-            print(f"任务状态: {result.get('status')}")
-
-            # 显示可灵特有的响应信息
-            if 'mode' in result:
-                print(f"生成模式: {result.get('mode')}")
-            if 'seconds' in result:
-                print(f"视频时长: {result.get('seconds')}秒")
-            if 'size' in result:
-                print(f"视频分辨率: {result.get('size')}")
-
-            return result
-        else:
-            print(f"查询失败: {response.status_code} - {response.text}")
-            return None
-
-    except Exception as e:
-        print(f"请求失败: {e}")
-        return None
-
-# 示例：查询状态
-video_id = "kling-task-20260304123456"
-status_info = check_video_status(video_id)
-```
-
-```javascript JavaScript/Node.js
-async function checkVideoStatus(videoId) {
-    const url = `${BASE_URL}/videos/${videoId}`;
-
-    try {
-        const response = await axios.get(url, {
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`
-            }
-        });
-
-        const result = response.data;
-        console.log(`任务状态: ${result.status}`);
-
-        // 显示可灵特有的响应信息
-        if (result.mode) {
-            console.log(`生成模式: ${result.mode}`);
-        }
-        if (result.seconds) {
-            console.log(`视频时长: ${result.seconds}秒`);
-        }
-        if (result.size) {
-            console.log(`视频分辨率: ${result.size}`);
-        }
-
-        return result;
-    } catch (error) {
-        console.error('状态查询失败:', error.response?.data || error.message);
-        return null;
-    }
-}
-
-// 示例：查询状态
-const videoId = 'kling-task-20260304123456';
-const statusInfo = await checkVideoStatus(videoId);
-```
-
-```go Go
-func checkVideoStatus(videoID string) (*KlingTaskQueryResponse, error) {
-    url := fmt.Sprintf("%s/videos/%s", BaseURL, videoID)
-
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        return nil, fmt.Errorf("创建请求失败: %v", err)
-    }
-
-    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
-
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        return nil, fmt.Errorf("请求失败: %v", err)
-    }
-    defer resp.Body.Close()
-
-    responseBody, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, fmt.Errorf("读取响应失败: %v", err)
-    }
-
-    if resp.StatusCode != 200 {
-        return nil, fmt.Errorf("API错误: %d - %s", resp.StatusCode, string(responseBody))
-    }
-
-    var result KlingTaskQueryResponse
-    if err := json.Unmarshal(responseBody, &result); err != nil {
-        return nil, fmt.Errorf("解析响应失败: %v", err)
-    }
-
-    fmt.Printf("任务状态: %s\n", result.Status)
-    return &result, nil
-}
-
-type KlingTaskQueryResponse struct {
-    ID          string                   `json:"id"`
-    Object      string                   `json:"object"`
-    Model       string                   `json:"model"`
-    Mode        string                   `json:"mode,omitempty"`
-    Status      string                   `json:"status"`
-    CreatedAt   int64                    `json:"created_at"`
-    UpdatedAt   int64                    `json:"updated_at"`
-    CompletedAt int64                    `json:"completed_at,omitempty"`
-    Seconds     string                   `json:"seconds,omitempty"`
-    Size        string                   `json:"size,omitempty"`
-    TaskResult  *KlingTaskResult         `json:"task_result,omitempty"`
-    Error       *KlingTaskError          `json:"error,omitempty"`
-}
-
-type KlingTaskResult struct {
-    Videos []KlingVideoResult `json:"videos"`
-}
-
-type KlingVideoResult struct {
-    ID       string `json:"id"`
-    URL      string `json:"url"`
-    Duration string `json:"duration"`
-}
-
-type KlingTaskError struct {
-    Code    string `json:"code"`
-    Message string `json:"message"`
-}
-
-// 示例：查询状态
-videoID := "kling-task-20260304123456"
-statusInfo, err := checkVideoStatus(videoID)
-```
-
-</CodeGroup>
-
-### 状态响应示例
-
-**排队中:**
 ```json
 {
-  "id": "kling-task-20260304123456",
-  "object": "video",
-  "model": "kling-v2-6-std",
-  "mode": "std",
-  "status": "in_queue"
+  "model": "kling-v3",
+  "prompt": "镜头从开场缓慢移动到结束画面，保持人物身份和场景连续",
+  "mode": "pro",
+  "duration": 5,
+  "generate_audio": false,
+  "content": [
+    {"type": "image_url", "role": "first_frame", "image_url": {"url": "https://your-cdn.example/first.png"}},
+    {"type": "image_url", "role": "last_frame", "image_url": {"url": "https://your-cdn.example/last.png"}}
+  ]
 }
 ```
 
-**已完成:**
+不能仅传尾帧。Turbo 不支持尾帧；动作控制不能同时传尾帧。
+
+## 自定义分镜
+
+两款模型都通过 `multi_prompt` 定义多个镜头。下面是 5 秒、两个镜头的请求体：
+
 ```json
 {
-  "id": "kling-task-20260304123456",
-  "object": "video",
-  "model": "kling-v2-6-std",
+  "model": "kling-v3",
   "mode": "std",
+  "duration": 5,
+  "generate_audio": false,
+  "multi_shot": true,
+  "shot_type": "customize",
+  "multi_prompt": [
+    {"index": 1, "prompt": "白色背景，红色小球在桌面缓慢滚动，全景", "duration": "2"},
+    {"index": 2, "prompt": "切换到深色背景，蓝色立方体缓慢旋转，特写", "duration": "3"}
+  ]
+}
+```
+
+使用 Turbo 时，将 `model` 改为 `kling-3.0-turbo`，删除 `generate_audio:false`。图生分镜可在以上请求中加入首帧 `content`，Turbo 仍不能加入尾帧。
+
+- `multi_prompt` 包含 1–6 项，`index` 从 1 连续递增。
+- 每项 `prompt` 非空且不超过 512 字符，不能包含半角分号 `;`，可改用句号、逗号或全角分号。
+- 每项 `duration` 是正整数字符串，至少 1 秒；总和必须等于顶层 `duration`，总时长仍为 3–15 秒。
+- 自定义分镜不同时传顶层 `prompt`。`shot_type` 可省略，传入时使用 `customize`。
+- 组合后的分镜提示词总长度（含镜头序号和时长描述）最多 2500 字符，超出会返回参数错误，不会截断。
+- `multi_prompt` 会自动开启多镜头，不能与 `multi_shot:false` 共用。
+
+### 智能分镜
+
+使用顶层 `prompt` 描述镜头要求，传 `shot_type:intelligence`，不传 `multi_prompt`；也可使用 `multi_shot:true` 配合顶层 `prompt`。
+
+```json
+{
+  "model": "kling-3.0-turbo",
+  "mode": "std",
+  "duration": 5,
+  "shot_type": "intelligence",
+  "prompt": "先用全景展示雪地里的红狐狸，再切换到狐狸脚步的特写，伴随踩雪声"
+}
+```
+
+## 主体参考（仅 V3）
+
+在图生视频或动作控制中加入顶层 `elements`，并通过提示词中的 `@Element1` 引用第一项主体。每项选择以下一种形态：
+
+| 形态 | 字段 | 约束 |
+| --- | --- | --- |
+| 内联图片 | `frontal_image_url` + `reference_image_urls` | 一张正面图；其他角度参考图最多 3 张，建议提供 1–3 张以增强一致性 |
+| 已有主体 | `element_id` | 非空字符串或正整数，必须是上游账号可用的主体 ID |
+
+同一项不能混用 `element_id` 与内联图片。平台当前不提供本文主体的创建、审核或管理流程；优先使用内联图片方式。
+
+```json
+{
+  "model": "kling-v3",
+  "prompt": "@Element1 缓慢转头并微笑，保持首帧中的服装和房间布局",
+  "mode": "std",
+  "duration": 5,
+  "generate_audio": false,
+  "content": [
+    {"type": "image_url", "role": "first_frame", "image_url": {"url": "https://your-cdn.example/scene.png"}}
+  ],
+  "elements": [
+    {
+      "frontal_image_url": "https://your-cdn.example/person-front.png",
+      "reference_image_urls": ["https://your-cdn.example/person-side.png"]
+    }
+  ]
+}
+```
+
+`elements` 不能用于 V3 文生视频或 Turbo。主体数量等额外限制仍可能由上游校验。
+
+## 动作控制（仅 V3）
+
+提供一张角色图和一个参考动作视频。`character_orientation:image` 以角色图片朝向为准，`video` 以参考视频朝向为准。此场景的输出时长由参考视频决定。
+
+```json
+{
+  "model": "kling-v3",
+  "prompt": "人物按照参考视频完成动作，保持角色外观一致",
+  "mode": "std",
+  "character_orientation": "image",
+  "keep_original_sound": true,
+  "content": [
+    {"type": "image_url", "role": "reference_image", "image_url": {"url": "https://your-cdn.example/character.png"}},
+    {"type": "video_url", "role": "reference_video", "video_url": {"url": "https://your-cdn.example/motion.mp4"}}
+  ]
+}
+```
+
+动作控制支持 `std` / `pro`，不支持 `4k`。不要传 `duration`、`seconds`、`generate_audio`、`sound`、`negative_prompt`、`cfg_scale`、尾帧或分镜。朝向为 `image` 时参考视频最长 10 秒，朝向为 `video` 时最长 30 秒。确保人物完整清晰、无遮挡。
+
+## 查询任务与下载
+
+```bash
+# 使用创建响应里的真实 id 替换 <VIDEO-ID>
+curl 'https://model-api.skyengine.com.cn/v1/videos/<VIDEO-ID>' \
+  -H 'Authorization: Bearer <API-KEY>'
+
+# completed 后下载；-L 用于跟随下载重定向
+curl -L 'https://model-api.skyengine.com.cn/v1/videos/<VIDEO-ID>/content' \
+  -H 'Authorization: Bearer <API-KEY>' \
+  -o kling-video.mp4
+```
+
+| `status` | 含义 | 下一步 |
+| --- | --- | --- |
+| `pending` | 排队中 | 继续查询同一 ID |
+| `in_progress` | 生成或处理结果中 | 继续查询同一 ID |
+| `completed` | 已完成 | 读取 `url` 或使用下载接口 |
+| `failed` | 已失败 | 检查 `error`，修正后再决定是否创建新任务 |
+
+完成响应包含 `url`、`seconds`，上游提供宽高时还会包含 `size`。字段示意：
+
+```json
+{
+  "id": "<VIDEO-ID>",
+  "object": "video.generation",
   "status": "completed",
-  "created_at": 1741094400,
-  "completed_at": 1741094700,
+  "url": "https://your-result.example/video.mp4",
   "seconds": "5",
-  "size": "1280x720",
-  "task_result": {
-    "videos": [
-      {
-        "id": "video-001",
-        "url": "https://cdn.example.com/videos/output.mp4",
-        "duration": "5"
-      }
-    ]
-  }
+  "size": "1920x1080"
 }
 ```
 
-## 步骤3：下载生成的视频
+建议每 10 秒查询一次。任务可能超过 10 分钟，客户端等待超时不代表生成失败。保存任务 ID，稍后继续查询；不要因本地轮询超时就重复提交创建请求。重复查询同一任务不会重新生成视频。
 
-<CodeGroup>
+## 完整 Python 示例
 
-```bash cURL
-# 下载视频文件
-curl -X GET "https://model-api.skyengine.com.cn/v1/videos/kling-task-20260304123456/content" \
-  --header 'Authorization: Bearer <API-KEY>' \
-  --output kling_video.mp4
-```
+安装 `requests`，设置环境变量 `TOKENOPS_API_KEY` 后运行。示例接受所有上述顶层参数，图生、分镜和音频字段会完整发送。
 
-```python Python
-def download_video(video_id, output_path="kling_video.mp4"):
-    """
-    下载生成的视频
-
-    Args:
-        video_id: 视频任务ID
-        output_path: 输出文件路径
-
-    Returns:
-        是否下载成功
-    """
-    url = f"{BASE_URL}/videos/{video_id}/content"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}"
-    }
-
-    try:
-        response = requests.get(url, headers=headers)
-
-        if response.status_code == 200:
-            with open(output_path, "wb") as f:
-                f.write(response.content)
-            print(f"视频已保存: {output_path}")
-            return True
-        else:
-            print(f"下载失败: {response.status_code} - {response.text}")
-            return False
-
-    except Exception as e:
-        print(f"下载失败: {e}")
-        return False
-
-# 示例：下载视频
-video_id = "kling-task-20260304123456"
-success = download_video(video_id, "kling_video.mp4")
-```
-
-```javascript JavaScript/Node.js
-const fs = require('fs');
-
-async function downloadVideo(videoId, outputPath = 'kling_video.mp4') {
-    const url = `${BASE_URL}/videos/${videoId}/content`;
-
-    try {
-        const response = await axios.get(url, {
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`
-            },
-            responseType: 'stream'
-        });
-
-        const writer = fs.createWriteStream(outputPath);
-        response.data.pipe(writer);
-
-        return new Promise((resolve, reject) => {
-            writer.on('finish', () => {
-                console.log(`视频已保存: ${outputPath}`);
-                resolve(true);
-            });
-            writer.on('error', reject);
-        });
-    } catch (error) {
-        console.error('视频下载失败:', error.response?.data || error.message);
-        return false;
-    }
-}
-
-// 示例：下载视频
-const videoId = 'kling-task-20260304123456';
-const success = await downloadVideo(videoId, 'kling_video.mp4');
-```
-
-```go Go
-import "os"
-
-func downloadVideo(videoID, outputPath string) error {
-    url := fmt.Sprintf("%s/videos/%s/content", BaseURL, videoID)
-
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        return fmt.Errorf("创建请求失败: %v", err)
-    }
-
-    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", APIKey))
-
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        return fmt.Errorf("请求失败: %v", err)
-    }
-    defer resp.Body.Close()
-
-    if resp.StatusCode != 200 {
-        return fmt.Errorf("下载失败: %d", resp.StatusCode)
-    }
-
-    file, err := os.Create(outputPath)
-    if err != nil {
-        return fmt.Errorf("创建文件失败: %v", err)
-    }
-    defer file.Close()
-
-    _, err = io.Copy(file, resp.Body)
-    if err != nil {
-        return fmt.Errorf("写入文件失败: %v", err)
-    }
-
-    fmt.Printf("视频已保存: %s\n", outputPath)
-    return nil
-}
-
-// 示例：下载视频
-videoID := "kling-task-20260304123456"
-err := downloadVideo(videoID, "kling_video.mp4")
-if err != nil {
-    fmt.Printf("下载失败: %v\n", err)
-}
-```
-
-</CodeGroup>
-
-## 完整流程示例
-
-<CodeGroup>
-
-```python Python
-import requests
+```python
+import os
 import time
+from pathlib import Path
 
-API_KEY = "<API-KEY>"
+import requests
+
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
+SESSION = requests.Session()
+SESSION.headers["Authorization"] = f"Bearer {os.environ['TOKENOPS_API_KEY']}"
 
-def complete_kling_video_generation(prompt, model="kling-v2-6-std", **kwargs):
-    """
-    完整的可灵视频生成流程
-    """
-    # 步骤1: 创建任务
-    print("步骤1: 创建视频生成任务...")
-    create_result = create_kling_video(prompt, model, **kwargs)
-    if not create_result:
-        return False
 
-    video_id = create_result['id']
-    print(f"任务ID: {video_id}")
+def create_video(payload):
+    response = SESSION.post(f"{BASE_URL}/videos", json=payload, timeout=60)
+    response.raise_for_status()
+    task = response.json()
+    print("请保存任务 ID:", task["id"])
+    return task["id"]
 
-    # 步骤2: 等待任务完成
-    print("步骤2: 等待任务完成...")
-    max_wait_time = 600  # 10分钟
-    start_time = time.time()
 
-    while time.time() - start_time < max_wait_time:
-        status_info = check_video_status(video_id)
-        if not status_info:
-            break
+def wait_video(video_id, wait_seconds=1200):
+    deadline = time.monotonic() + wait_seconds
+    while time.monotonic() < deadline:
+        response = SESSION.get(f"{BASE_URL}/videos/{video_id}", timeout=60)
+        response.raise_for_status()
+        task = response.json()
+        if task["status"] == "completed":
+            return task
+        if task["status"] == "failed":
+            raise RuntimeError(f"任务失败: {task.get('error')}")
+        time.sleep(10)
+    raise TimeoutError(f"仍未完成，请继续查询同一任务 {video_id}，不要重复创建")
 
-        status = status_info.get('status')
-        print(f"当前状态: {status}")
 
-        if status == 'completed':
-            print("视频生成完成！")
-            break
-        elif status == 'failed':
-            error_info = status_info.get('error', {})
-            print(f"视频生成失败: {error_info.get('message', '未知错误')}")
-            return False
+def download_video(video_id, output_path):
+    with SESSION.get(
+        f"{BASE_URL}/videos/{video_id}/content", stream=True, timeout=120
+    ) as response:
+        response.raise_for_status()
+        with Path(output_path).open("wb") as target:
+            for chunk in response.iter_content(1024 * 1024):
+                if chunk:
+                    target.write(chunk)
 
-        time.sleep(10)  # 每10秒检查一次
-    else:
-        print("等待超时")
-        return False
 
-    # 步骤3: 下载视频
-    print("步骤3: 下载视频...")
-    output_path = f"kling_video_{video_id}.mp4"
-    if download_video(video_id, output_path):
-        print(f"视频生成完成: {output_path}")
-        return True
-
-    return False
-
-# 使用示例
 if __name__ == "__main__":
-    # 标准模式
-    success = complete_kling_video_generation(
-        prompt="一只金毛犬在海边奔跑，阳光洒在它的毛发上，海浪轻轻拍打着沙滩，画面温馨治愈",
-        model="kling-v2-6-std",
-        seconds="5",
-        size="1280x720"
-    )
-
-    if success:
-        print("视频生成成功！")
-    else:
-        print("视频生成失败！")
+    video_id = create_video({
+        "model": "kling-v3",
+        "prompt": "海边的金毛犬缓慢奔跑，固定镜头，阳光温暖",
+        "mode": "std",
+        "duration": 5,
+        "generate_audio": False,
+    })
+    result = wait_video(video_id)
+    print("实际时长:", result.get("seconds"), "尺寸:", result.get("size"))
+    download_video(video_id, "kling-video.mp4")
 ```
 
-```javascript JavaScript/Node.js
-const axios = require('axios');
-const fs = require('fs');
+如果已保存任务 ID，可直接调用 `wait_video(video_id)` 和 `download_video`，无需再次调用 `create_video`。创建请求若因网络超时没有收到响应，先核对是否已成功创建，避免自动重试导致生成多个付费任务。
 
-const API_KEY = '<API-KEY>';
-const BASE_URL = 'https://model-api.skyengine.com.cn/v1';
+## 计费与常见错误
 
-async function completeKlingVideoGeneration(prompt, model = 'kling-v2-6-std', options = {}) {
-    try {
-        // 步骤1: 创建任务
-        console.log('步骤1: 创建视频生成任务...');
-        const createResult = await createKlingVideo(prompt, model, options);
-        if (!createResult) {
-            return false;
-        }
+普通生成按模型计费页中的清晰度、有声/无声档位及实际视频秒数结算；动作控制按对应档位与实际时长结算。V3 默认有声会影响价格，需无声时显式传 `generate_audio:false`。Turbo 固定有声。
 
-        const videoId = createResult.id;
-        console.log(`任务ID: ${videoId}`);
+成功视频的时长以任务返回的 `seconds` 为准，不要把播放器容器中多出的少量编码时长自行向上取整。创建时的预扣可能早于最终账单；失败或最终用量变化时，平台按实际结果进行结算或退款，账本更新可能有延迟。视频响应不保证包含文本模型式的 `usage` 尾包，最终扣费请以平台账单为准。
 
-        // 步骤2: 等待任务完成
-        console.log('步骤2: 等待任务完成...');
-        const maxWaitTime = 10 * 60 * 1000; // 10分钟
-        const startTime = Date.now();
+| 情况 | 处理方式 |
+| --- | --- |
+| `duration must be an integer between 3 and 15` | V3 / Turbo 使用 3–15 秒整数 |
+| `mode conflicts with resolution` / `size conflicts with mode or resolution` | 只保留一种清晰度写法，或使三者一致 |
+| `Kling 3.0 Turbo always generates audio` | 删除 `generate_audio:false` 或 `sound:off` |
+| `prompt and multi_prompt are mutually exclusive` | 自定义分镜只传 `multi_prompt` |
+| `multi_prompt durations must sum to duration` | 各分镜秒数之和等于顶层时长 |
+| 尾帧、主体或动作控制参数不支持 | 对照模型能力矩阵，确认使用 V3 及正确场景 |
+| 素材 URL 不可访问或上游拒绝素材 | 使用可访问且符合格式要求的素材 |
+| 轮询超过本地等待时间 | 保存 ID 并继续查询，不能据此判定任务失败 |
 
-        while (Date.now() - startTime < maxWaitTime) {
-            const statusInfo = await checkVideoStatus(videoId);
-            if (!statusInfo) {
-                break;
-            }
+V3 / Turbo 不支持旧版 `camera_control`、`static_mask`、`dynamic_masks`、`watermark`、`watermark_info`、`external_task_id`；`video_list` 也不是 V3 动作控制入口。不要将其他可灵模型的专有参数直接套用到这两个模型。
 
-            const status = statusInfo.status;
-            console.log(`当前状态: ${status}`);
+## V2.6 兼容调用
 
-            if (status === 'completed') {
-                console.log('视频生成完成！');
-                break;
-            } else if (status === 'failed') {
-                const errorMessage = statusInfo.error?.message || '未知错误';
-                console.log(`视频生成失败: ${errorMessage}`);
-                return false;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 10000)); // 等待10秒
-        }
-
-        // 步骤3: 下载视频
-        console.log('步骤3: 下载视频...');
-        const outputPath = `kling_video_${videoId}.mp4`;
-        const success = await downloadVideo(videoId, outputPath);
-
-        if (success) {
-            console.log(`视频生成完成: ${outputPath}`);
-            return true;
-        }
-
-        return false;
-
-    } catch (error) {
-        console.error('完整流程执行失败:', error);
-        return false;
-    }
-}
-
-// 使用示例
-(async () => {
-    const success = await completeKlingVideoGeneration(
-        '一只金毛犬在海边奔跑，阳光洒在它的毛发上，海浪轻轻拍打着沙滩，画面温馨治愈',
-        'kling-v2-6-std',
-        { seconds: '5', size: '1280x720' }
-    );
-
-    if (success) {
-        console.log('视频生成成功！');
-    } else {
-        console.log('视频生成失败！');
-    }
-})();
-```
-
-```go Go
-package main
-
-import (
-    "fmt"
-    "time"
-)
-
-func completeKlingVideoGeneration(request KlingVideoRequest) error {
-    // 步骤1: 创建任务
-    fmt.Println("步骤1: 创建视频生成任务...")
-    createResult, err := createKlingVideo(request)
-    if err != nil {
-        return fmt.Errorf("创建任务失败: %v", err)
-    }
-
-    videoID := createResult.ID
-    fmt.Printf("任务ID: %s\n", videoID)
-
-    // 步骤2: 等待任务完成
-    fmt.Println("步骤2: 等待任务完成...")
-    maxWaitTime := 10 * time.Minute
-    startTime := time.Now()
-
-    for time.Since(startTime) < maxWaitTime {
-        statusInfo, err := checkVideoStatus(videoID)
-        if err != nil {
-            return fmt.Errorf("查询状态失败: %v", err)
-        }
-
-        status := statusInfo.Status
-        fmt.Printf("当前状态: %s\n", status)
-
-        if status == "completed" {
-            fmt.Println("视频生成完成！")
-            break
-        } else if status == "failed" {
-            return fmt.Errorf("视频生成失败")
-        }
-
-        time.Sleep(10 * time.Second) // 等待10秒
-    }
-
-    // 步骤3: 下载视频
-    fmt.Println("步骤3: 下载视频...")
-    outputPath := fmt.Sprintf("kling_video_%s.mp4", videoID)
-    if err := downloadVideo(videoID, outputPath); err != nil {
-        return fmt.Errorf("下载视频失败: %v", err)
-    }
-
-    fmt.Printf("视频生成完成: %s\n", outputPath)
-    return nil
-}
-
-// 使用示例
-func main() {
-    request := KlingVideoRequest{
-        Model:   "kling-v2-6-std",
-        Prompt:  "一只金毛犬在海边奔跑，阳光洒在它的毛发上，海浪轻轻拍打着沙滩，画面温馨治愈",
-        Seconds: "5",
-        Size:    "1280x720",
-    }
-
-    err := completeKlingVideoGeneration(request)
-
-    if err != nil {
-        fmt.Printf("视频生成失败: %v\n", err)
-    } else {
-        fmt.Println("视频生成成功！")
-    }
-}
-```
-
-</CodeGroup>
-
-## 支持的参数
-
-### 基础参数
-
-| 参数名 | 类型 | 必填 | 描述 |
-|--------|------|------|------|
-| **model** | String | 是 | 使用的模型名称：`kling-v2-6-std`（标准模式）或 `kling-v2-6-pro`（专家模式） |
-| **prompt** | String | 是 | 文本提示词，最大 2500 字符 |
-
-### 视频生成参数
-
-| 参数名 | 类型 | 必填 | 描述 |
-|--------|------|------|------|
-| **seconds** | String | 否 | 视频时长（秒）：`5` 或 `10` |
-| **size** | String | 否 | 视频分辨率，格式为 `宽x高`（如 `1280x720`） |
-| **ratio** | String | 否 | 宽高比，可选值：`16:9`、`9:16`、`1:1`。可通过 size 参数自动推导 |
-
-### 分辨率与宽高比映射
-
-| Size (宽x高) | 宽高比 |
-|-------------|--------|
-| 1280x720 | 16:9 |
-| 720x1280 | 9:16 |
-| 1080x1080 | 1:1 |
-
-## 高级功能
-
-### 图生视频（首帧指定）
-
-通过 `content` 参数指定首帧图片，实现图生视频功能。
+历史模型仍可通过 `POST /v1/videos` 创建、`GET /v1/videos/{id}` 查询和 `/content` 下载。V2.6 使用字符串 `seconds`（`"5"` 或 `"10"`），模式由模型名中的 `-std` / `-pro` 推导，也可通过顶层 `mode` 指定。
 
 ```json
 {
   "model": "kling-v2-6-pro",
-  "prompt": "让这张图片中的场景动起来，展现自然的风吹效果",
+  "prompt": "保持首帧中的人物外观，让人物缓慢转头",
   "seconds": "5",
+  "generate_audio": true,
   "content": [
-    {
-      "type": "image_url",
-      "image_url": {
-        "url": "https://example.com/image.jpg"
-      },
-      "role": "first_frame"
-    }
+    {"type": "image_url", "role": "reference_image", "image_url": {"url": "https://your-cdn.example/first.png"}}
   ]
 }
 ```
 
-<CodeGroup>
+V2.6 的首帧使用 `reference_image`；旧适配路径不会将 `first_frame` 转成首帧。尾帧使用 `last_frame` / `end_frame`。`size` 可传 `1280x720`、`720x1280`、`1080x1080`，或用 `ratio` 推导；最终尺寸以结果为准。V2.6 不使用本文 V3 专用的 `duration`、`resolution`、`multi_prompt` 和 `elements` 调用方式。`generate_audio:true` 会请求有声视频，上游是否接受该模式组合以实际模型能力为准。
 
-```python Python
-# 图生视频示例
-image_content = [
-    {
-        "type": "image_url",
-        "image_url": {
-            "url": "https://example.com/image.jpg"
-        },
-        "role": "first_frame"
-    }
-]
+## 参考文档
 
-result = create_kling_video(
-    prompt="让这张图片中的场景动起来，展现自然的风吹效果",
-    model="kling-v2-6-pro",
-    seconds="5",
-    # content 参数需要通过扩展方式传递
-)
-```
+本文按平台当前实现说明可用参数。供应商文档中的原生字段与接口路径不应直接替换本文的平台字段。
 
-```bash cURL
-curl --request POST \
-  --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer <API-KEY>' \
-  --header 'Content-Type: application/json' \
-  --data '{
-    "model": "kling-v2-6-pro",
-    "prompt": "让这张图片中的场景动起来，展现自然的风吹效果",
-    "seconds": "5",
-    "content": [
-      {
-        "type": "image_url",
-        "image_url": {
-          "url": "https://example.com/image.jpg"
-        },
-        "role": "first_frame"
-      }
-    ]
-  }'
-```
-
-</CodeGroup>
-
-### 首尾帧生视频
-
-通过同时指定首帧和尾帧图片，控制视频的起始和结束画面。
-
-```json
-{
-  "model": "kling-v2-6-pro",
-  "prompt": "从开始的场景自然过渡到结束的场景",
-  "seconds": "5",
-  "content": [
-    {
-      "type": "image_url",
-      "image_url": {
-        "url": "https://example.com/start.jpg"
-      },
-      "role": "reference_image"
-    },
-    {
-      "type": "image_url",
-      "image_url": {
-        "url": "https://example.com/end.jpg"
-      },
-      "role": "last_frame"
-    }
-  ]
-}
-```
-
-<CodeGroup>
-
-```bash cURL
-curl --request POST \
-  --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer <API-KEY>' \
-  --header 'Content-Type: application/json' \
-  --data '{
-    "model": "kling-v2-6-pro",
-    "prompt": "从开始的场景自然过渡到结束的场景",
-    "seconds": "5",
-    "content": [
-      {
-        "type": "image_url",
-        "image_url": {
-          "url": "https://example.com/start.jpg"
-        },
-        "role": "reference_image"
-      },
-      {
-        "type": "image_url",
-        "image_url": {
-          "url": "https://example.com/end.jpg"
-        },
-        "role": "last_frame"
-      }
-    ]
-  }'
-```
-
-```python Python
-# 首尾帧生视频示例
-result = create_kling_video(
-    prompt="从开始的场景自然过渡到结束的场景",
-    model="kling-v2-6-pro",
-    seconds="5",
-    content=[
-        {
-            "type": "image_url",
-            "image_url": {"url": "https://example.com/start.jpg"},
-            "role": "reference_image"
-        },
-        {
-            "type": "image_url",
-            "image_url": {"url": "https://example.com/end.jpg"},
-            "role": "last_frame"
-        }
-    ]
-)
-```
-
-</CodeGroup>
-
-### 有声视频生成
-
-通过设置 `generate_audio` 参数为 `true`，生成带有音频的视频。
-
-> **注意**: 有声视频生成仅支持专家模式 (pro)，标准模式 (std) 不支持此功能。
-
-```json
-{
-  "model": "kling-v2-6-pro",
-  "prompt": "森林中的鸟鸣声，溪水潺潺，自然风光",
-  "seconds": "5",
-  "generate_audio": true
-}
-```
-
-<CodeGroup>
-
-```bash cURL
-curl --request POST \
-  --url https://model-api.skyengine.com.cn/v1/videos \
-  --header 'Authorization: Bearer <API-KEY>' \
-  --header 'Content-Type: application/json' \
-  --data '{
-    "model": "kling-v2-6-pro",
-    "prompt": "森林中的鸟鸣声，溪水潺潺，自然风光",
-    "seconds": "5",
-    "generate_audio": true
-  }'
-```
-
-```python Python
-# 有声视频生成示例（仅支持 pro 模式）
-result = create_kling_video(
-    prompt="森林中的鸟鸣声，溪水潺潺，自然风光",
-    model="kling-v2-6-pro",
-    seconds="5",
-    generate_audio=True
-)
-```
-
-```javascript JavaScript/Node.js
-// 有声视频生成示例（仅支持 pro 模式）
-const result = await createKlingVideo(
-    '森林中的鸟鸣声，溪水潺潺，自然风光',
-    'kling-v2-6-pro',
-    { seconds: '5', generate_audio: true }
-);
-```
-
-</CodeGroup>
-
-## Content 参数说明
-
-`content` 数组支持以下类型：
-
-| 类型 | role 值 | 描述 |
-|------|---------|------|
-| `image_url` | `end_frame` / `last_frame` | 尾帧图片 |
-| `image_url` | `reference_image` | 参考图片（图生视频） |
-
-## 任务状态说明
-
-- **in_queue**: 任务已提交，正在排队等待处理
-- **processing**: 任务正在处理中
-- **completed**: 任务已完成，可以下载视频
-- **failed**: 任务失败
-
-## 模式对比
-
-| 特性 | 标准模式 (std) | 专家模式 (pro) |
-|------|---------------|---------------|
-| 生成速度 | 快 | 较慢 |
-| 视频质量 | 高 | 更高 |
-| 适用场景 | 快速预览、批量生成 | 专业制作、高质量要求 |
-| 模型名称 | `kling-v2-6-std` | `kling-v2-6-pro` |
-
-> **提示**: 模型名称中包含 `-std` 或 `-pro` 后缀时，系统会自动设置对应的生成模式。
+- [七牛云 Kling V3 接口](https://docs.modelink.ai/api/video-fal-kling-v3)
+- [七牛云 Kling 3.0 Turbo 接口](https://docs.modelink.ai/api/video-fal-kling-30-turbo)
+- [七牛云 Kling 任务查询](https://docs.modelink.ai/api/video-fal-kling-task)
+- [七牛云 Kling 主体参考](https://docs.modelink.ai/models-capabilities/model-kling#field-reference)
