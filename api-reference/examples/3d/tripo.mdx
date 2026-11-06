@@ -1,95 +1,255 @@
 ---
-title: 'Tripo 3D 生成'
-description: '通过 TokenHub 生成 3D 模型，异步提交、查询结果并按人民币金额结算。'
+title: 'Tripo 3D 生成示例'
+description: '通过 TokenHub 使用 Tripo 3.1、P1、P2，支持文生、单图和多视图 3D 生成。'
 ---
 
-## 提交任务
+# Tripo 3D 生成
 
-```bash
-curl https://model-api.skyengine.com.cn/v1/3d/submit \
-  -H 'Authorization: Bearer <API-KEY>' \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"tokenhub/tripo-3d-3.1","prompt":"一只可爱的小猫"}'
+Tripo 使用异步接口：提交生成任务后，保存平台任务 ID，再查询生成状态并下载模型文件。
+
+```text
+POST /v1/3d/submit
+POST /v1/3d/query
 ```
 
-模型名以模型广场配置为准。支持 `tripo-3d-3.1`、`tripo-3d-p1`、`tripo-3d-p2`。
+<Note>
+请使用平台域名、平台 API Key 和模型广场展示的模型名称。
+本文中的模型名为配置示例；可先通过 `GET /v1/models` 确认当前账号可用的模型。
+</Note>
 
-文本输入使用 `prompt`，单图输入使用 `input` 图片 URL，多视图输入使用 `inputs`。三者只能选择一种。
-图片需能被上游读取，支持 PNG、JPEG、WebP；请遵守上游 20 MB 输入限制。
+## 模型与输入方式
+
+| 模型名称示例 | 文本 | 单图 / 多视图 | 主要限制 |
+| --- | --- | --- | --- |
+| `tokenhub/tripo-3d-3.1` | 支持 | 支持 | 支持智能低模、分部件与超清几何 |
+| `tokenhub/tripo-3d-p1` | 支持 | 支持 | 不支持 `quad`、智能低模、分部件与超清几何 |
+| `tokenhub/tripo-3d-p2` | 支持 | 支持 | 支持 `quad`，面数范围与 3.1 不同 |
+
+## 快速开始
+
+下面生成不带纹理的简单模型。`texture` 和 `pbr` 都需要显式设为 `false`。
+Python 示例依赖 `requests`，运行前设置环境变量 `API_KEY`。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/3d/submit \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "tokenhub/tripo-3d-3.1",
+    "prompt": "一个边角略微圆润的简单立方体",
+    "texture": false,
+    "pbr": false
+  }'
+```
+
+```python Python
+import os
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+
+BASE_URL = "https://model-api.skyengine.com.cn"
+HEADERS = {
+    "Authorization": f"Bearer {os.environ['API_KEY']}",
+    "Content-Type": "application/json",
+}
+
+# 只提交一次；超时后先核查已有任务，避免重复扣费。
+response = requests.post(
+    f"{BASE_URL}/v1/3d/submit",
+    headers=HEADERS,
+    json={"model": "tokenhub/tripo-3d-3.1", "prompt": "一个边角略微圆润的简单立方体", "texture": False, "pbr": False},
+    timeout=120,
+)
+if response.headers.get("X-Task-ID"):
+    print("任务 ID:", response.headers["X-Task-ID"])
+response.raise_for_status()
+task_id = response.json()["id"]
+print("已提交:", task_id)
+
+deadline = time.monotonic() + 15 * 60
+while time.monotonic() < deadline:
+    response = requests.post(
+        f"{BASE_URL}/v1/3d/query",
+        headers=HEADERS,
+        json={"id": task_id},
+        timeout=60,
+    )
+    response.raise_for_status()
+    result = response.json()
+    status = result["status"]
+    print(task_id, status)
+    if status == "completed":
+        model_url = result["output"]["model_url"]
+        suffix = Path(urlparse(model_url).path).suffix or ".glb"
+        asset = requests.get(model_url, timeout=120)
+        asset.raise_for_status()
+        Path(f"model{suffix}").write_bytes(asset.content)
+        print("目录金额:", result.get("amount_cny"))
+        break
+    if status in {"failed", "submission_unknown"}:
+        raise RuntimeError(f"任务 {task_id}: {status}, {result.get('error')}")
+    time.sleep(10)
+else:
+    raise TimeoutError(f"等待超时，请继续查询已有任务 {task_id}，不要重新提交")
+```
+
+</CodeGroup>
+
+提交成功响应示例：
 
 ```json
 {
   "id": "<平台任务ID>",
   "object": "3d_job",
-  "status": "pending",
   "model": "tripo-3d-3.1",
-  "created_at": 1793836800
+  "status": "pending"
 }
 ```
 
-响应头 `X-Task-ID` 也包含平台任务 ID。保存该 ID，用于后续查询。
-任务由服务端后台执行，客户端断开或停止查询不会取消任务。
+## 输入示例
+
+`prompt`、`input`、`inputs` 三选一。图片必须能被服务访问；格式和大小遵守厂商要求。
+
+### 单图生成
+
+```json
+{
+  "model": "tokenhub/tripo-3d-p1",
+  "input": "https://example.com/character.png",
+  "texture": true,
+  "pbr": true
+}
+```
+
+### 多视图生成
+
+必须包含 `front`，并至少再提供 `back`、`left`、`right` 中的一种视图，每个视角只能出现一次。
+
+```json
+{
+  "model": "tokenhub/tripo-3d-3.1",
+  "inputs": {
+    "front": "https://example.com/front.png",
+    "back": "https://example.com/back.png"
+  },
+  "texture": false,
+  "pbr": false
+}
+```
+
+## 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 是 | 模型广场中的模型名称 |
+| `prompt` | string | 条件必填 | 文本输入，最多 1024 个字符 |
+| `input` | string | 条件必填 | 单张图片的 HTTP(S) URL |
+| `inputs` | object / array | 条件必填 | 命名视图对象，或由命名视图对象组成的数组 |
+| `negative_prompt` | string | 否 | 负面提示词，最多 255 个字符 |
+| `texture` / `pbr` | boolean | 否 | 默认开启；开启 PBR 时会启用贴图 |
+| `face_limit` | integer | 否 | 目标面数，范围见下表 |
+| `texture_alignment` | string | 否 | `original_image`、`geometry` |
+| `texture_quality` | string | 否 | `fast`、`standard`、`detailed`、`extreme` |
+| `texture_version` | string | 否 | `v3.5-20260815`、`v3.0-20250812`、`v2.5-20250123`；`fast` 要求 `v3.5-20260815` |
+| `geometry_quality` | string | 否 | 仅 3.1：`standard`、`detailed` |
+| `quad` | boolean | 否 | 四边面，P1 不支持 |
+| `smart_low_poly` | boolean | 否 | 智能低模，仅 3.1 |
+| `generate_parts` | boolean | 否 | 分部件，仅 3.1；要求 `texture=false`、`pbr=false`、`quad=false` |
+| `export_uv` | boolean | 否 | 是否导出 UV |
+| `compress` | string | 否 | 仅 3.1，可设为 `geometry` |
+| `orientation` | string | 否 | `default`、`align_image` |
+| `image_seed` / `model_seed` / `texture_seed` | integer | 否 | 随机种子 |
+| `enable_image_autofix` / `delight` / `auto_size` | boolean | 否 | 对应图片修正、去光照和尺寸处理选项 |
+| `include_cost` | boolean | 否 | 设为 `true`，在查询结果的 `usage` 中查看销售费用 |
+
+### 面数范围
+
+| 配置 | `face_limit` |
+| --- | --- |
+| 3.1 默认 | 1–1,500,000 |
+| 3.1 `geometry_quality=detailed` | 1–2,000,000 |
+| 3.1 `quad=true` | 1–150,000 |
+| 3.1 `smart_low_poly=true` | 500–20,000；同时开启 `quad` 时上限 10,000 |
+| P1 | 50–20,000 |
+| P2 | 48–50,000；开启 `quad` 时上限 25,000 |
+
+不同版本的可用参数以平台校验和 [TokenHub Tripo 调用指南](https://cloud.tencent.com/document/product/1823/137074)为准。
+HY-3D 的 `image_url`、`generate_type`、`enable_pbr` 等参数不用于 Tripo。
 
 ## 查询任务
 
-```bash
-curl https://model-api.skyengine.com.cn/v1/3d/query \
-  -H 'Authorization: Bearer <API-KEY>' \
-  -H 'Content-Type: application/json' \
-  -d '{"id":"<平台任务ID>"}'
+使用提交响应中的平台任务 `id` 查询；查询时只需传 `id`：
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/3d/query \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"id":"<平台任务ID>"}'
 ```
 
-只能查询当前用户和 API Key 提交的任务。
+只能使用提交任务时的用户和 API Key 查询。建议每 10 秒查询一次。
+客户端停止查询不会取消任务。任务记录保留 7 天。
+
+### 任务状态
+
+| 状态 | 含义 | 处理方式 |
+| --- | --- | --- |
+| `pending` | 等待生成 | 继续查询 |
+| `in_progress` | 生成或结果转存中 | 继续查询 |
+| `completed` | 生成成功，结果文件已就绪 | 下载结果 |
+| `failed` | 明确失败 | 查看 `error.message` |
+| `submission_unknown` | 尚不能确认上游是否受理 | 保存任务 ID，联系平台核查，避免重新提交 |
+
+响应头 `X-Task-ID` 也会提供平台任务 ID。请求超时或提交返回 5xx 时，
+如已获取任务 ID，应先查询该任务，避免重复提交产生额外费用。
+
+### 成功响应
 
 ```json
 {
   "id": "<平台任务ID>",
   "object": "3d_job",
   "status": "completed",
-  "credits_consumed": 50,
-  "amount_cny": "3.5",
+  "credits_consumed": 10,
+  "amount_cny": "0.7",
   "output": {
     "type": "text_to_model",
-    "model_url": "<平台模型文件下载地址>",
-    "generated_image_url": "<参考图下载地址>",
-    "rendered_image_url": "<预览图下载地址>"
+    "model_url": "https://example.com/model.glb",
+    "generated_image_url": "https://example.com/reference.png",
+    "rendered_image_url": "https://example.com/preview.png"
   }
 }
 ```
 
-`amount_cny` 是上游积分换算的目录金额，不代表用户最终扣款。
-下载链接有效期为一天，重新查询可获取新链接；任务记录保留七天。
-单个结果文件转存上限为 64 MiB，超过时任务需要人工处理。
+可用文件以实际返回为准，参考图与预览图字段可能为空。
+下载链接有效期为 1 天，重新查询可获取新链接。
 
-| 状态 | 含义 |
+## 计费说明
+
+按上游实际返回的 `credits_consumed` 换算人民币目录金额：**1 积分 = ¥0.07**。
+`amount_cny` 是目录金额，最终销售费用还取决于模型价格倍率和用户折扣，
+以调用时模型广场价格及结算结果为准。
+
+预付费调用在提交时预扣、完成后多退少补；配置为后付费的调用在结束后结算。
+明确无消耗的失败任务退款或不扣费；消耗缺失或提交结果未知时需要核查。
+文件转存重试不会重新生成或重复扣费。
+
+## 常见错误
+
+| 场景 | 处理建议 |
 | --- | --- |
-| `pending` | 已提交，等待处理 |
-| `in_progress` | 生成或结果转存中 |
-| `completed` | 生成和结果转存完成 |
-| `failed` | 明确失败 |
-| `submission_unknown` | 上游是否受理尚不确定，请保留任务 ID 联系平台核查 |
-
-提交超时或返回 `submission_unknown` 时请先查询已有任务，不要直接重复提交。
-
-## 参数说明
-
-支持官方生成参数，包括 `texture`、`pbr`、`texture_quality`、`texture_version`、`face_limit`、
-`quad`、`smart_low_poly`、`generate_parts`、`geometry_quality` 和各类随机种子。
-不同模型的参数范围不同，详见 [TokenHub Tripo 调用指南](https://cloud.tencent.com/document/product/1823/137074)。
-
-`pbr` 默认开启，会启用贴图。如需纯几何体，需要同时传 `texture: false` 和 `pbr: false`。
-`generate_parts: true` 还要求 `quad: false`。
-
-多视图按官方文档传 `inputs`，必须有正面 `front` 和至少一个其他视图。
-
-## 费用
-
-平台将上游实际 `credits_consumed` 按 **每积分 0.07 元**换算成人民币目录金额，
-再按配置的销售倍率与用户折扣计算最终费用。
-
-默认提交时按参数预估并预扣，完成后多退少补；已配置后付费的用户在任务结束后扣款。
-明确无消耗的失败任务退款或不扣费；缺失实际积分、提交结果未知等情况保留待核账。
-文件转存重试不会重新生成模型或重复扣费。
-
-提交时传 `include_cost: true` 可在查询结果的 `usage` 中查看最终销售费用；尚未结算时为 `pending`。
-目录价及附加项见 [TokenHub 模型价格](https://cloud.tencent.com/document/product/1823/130055)。
+| 参数校验失败 | 检查输入组合、模型版本与参数范围 |
+| 生成失败 | 查看查询结果中的 `error.message`，保留任务 ID 供排查 |
+| 已有任务执行中，无法提交 | 等待当前任务结束后再提交 |
+| 余额不足或计费配置不可用 | 检查账户余额和模型价格配置 |
+| 查询返回 404 | 核对平台任务 ID，并使用提交时的用户和 API Key |
+| 提交超时或 `submission_unknown` | 先查询已有任务，避免立即重复提交 |
+| 结果链接无法下载 | 重新查询任务获取下载地址；链接有效期为 1 天 |
+| 长时间停留在 `in_progress` | 保留任务 ID 联系平台；单个文件转存上限为 64 MiB |

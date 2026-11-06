@@ -1,0 +1,295 @@
+---
+title: 'HY-3D 生成示例'
+description: '通过 TokenHub 使用 HY-3D 3.0、3.1，支持文字、图片、多视图和草图生成 3D 模型。'
+---
+
+# HY-3D 生成
+
+HY-3D 使用异步接口：先提交任务，再通过平台任务 ID 查询结果。支持返回多种模型文件和预览图。
+
+```text
+POST /v1/3d/submit
+POST /v1/3d/query
+```
+
+<Note>
+请使用平台域名、平台 API Key 和模型广场展示的模型名称。
+本文中的模型名为配置示例；可先通过 `GET /v1/models` 确认当前账号可用的模型。
+</Note>
+
+## 模型与生成模式
+
+| 模型名称示例 | Normal | Geometry | Sketch | LowPoly |
+| --- | --- | --- | --- | --- |
+| `tokenhub/hy-3d-3.0` | 支持 | 支持 | 支持 | 支持 |
+| `tokenhub/hy-3d-3.1` | 支持 | 支持 | 支持 | 不支持 |
+
+- `Normal`：默认模式，生成带纹理模型。
+- `Geometry`：生成不带纹理的白模。
+- `Sketch`：草图或线稿生成，可同时提供文字和图片。
+- `LowPoly`：智能拓扑，支持三角面或四边面混合网格，仅 3.0 可用。
+
+## 快速开始
+
+下面生成白模。Python 示例包含提交、轮询和下载，依赖 `requests`，运行前设置环境变量 `API_KEY`。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/3d/submit \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "tokenhub/hy-3d-3.1",
+    "prompt": "一个边角略微圆润的简单立方体",
+    "generate_type": "Geometry"
+  }'
+```
+
+```python Python
+import os
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+
+BASE_URL = "https://model-api.skyengine.com.cn"
+HEADERS = {
+    "Authorization": f"Bearer {os.environ['API_KEY']}",
+    "Content-Type": "application/json",
+}
+
+# 只提交一次；超时后先核查已有任务，避免重复扣费。
+response = requests.post(
+    f"{BASE_URL}/v1/3d/submit",
+    headers=HEADERS,
+    json={"model": "tokenhub/hy-3d-3.1", "prompt": "一个边角略微圆润的简单立方体", "generate_type": "Geometry"},
+    timeout=120,
+)
+if response.headers.get("X-Task-ID"):
+    print("任务 ID:", response.headers["X-Task-ID"])
+response.raise_for_status()
+task_id = response.json()["id"]
+print("已提交:", task_id)
+
+deadline = time.monotonic() + 15 * 60
+while time.monotonic() < deadline:
+    response = requests.post(
+        f"{BASE_URL}/v1/3d/query",
+        headers=HEADERS,
+        json={"id": task_id},
+        timeout=60,
+    )
+    response.raise_for_status()
+    result = response.json()
+    status = result["status"]
+    print(task_id, status)
+    if status == "completed":
+        model_url = result["output"]["model_url"]
+        suffix = Path(urlparse(model_url).path).suffix or ".glb"
+        asset = requests.get(model_url, timeout=120)
+        asset.raise_for_status()
+        Path(f"model{suffix}").write_bytes(asset.content)
+        print("目录金额:", result.get("amount_cny"))
+        break
+    if status in {"failed", "submission_unknown"}:
+        raise RuntimeError(f"任务 {task_id}: {status}, {result.get('error')}")
+    time.sleep(10)
+else:
+    raise TimeoutError(f"等待超时，请继续查询已有任务 {task_id}，不要重新提交")
+```
+
+</CodeGroup>
+
+提交成功响应示例：
+
+```json
+{
+  "id": "<平台任务ID>",
+  "object": "3d_job",
+  "model": "hy-3d-3.1",
+  "status": "pending"
+}
+```
+
+## 输入示例
+
+### 单图生成
+
+`image_url` 与 `image_base64` 二选一。除 `Sketch` 模式外，不要同时传文字与图片。
+
+```json
+{
+  "model": "tokenhub/hy-3d-3.1",
+  "image_url": "https://example.com/character.png",
+  "generate_type": "Normal",
+  "enable_pbr": true
+}
+```
+
+### 多视图生成
+
+提供主图和辅助视图，每个视角最多一张图片：
+
+```json
+{
+  "model": "tokenhub/hy-3d-3.1",
+  "image_url": "https://example.com/front.png",
+  "multi_view_images": [
+    {"view_type":"left","view_image_url":"https://example.com/left.png"},
+    {"view_type":"back","view_image_url":"https://example.com/back.png"}
+  ],
+  "enable_pbr": true
+}
+```
+
+### 草图生成
+
+```json
+{
+  "model": "tokenhub/hy-3d-3.1",
+  "generate_type": "Sketch",
+  "prompt": "将草图中的椅子还原为木质家具模型",
+  "image_url": "https://example.com/chair-sketch.png"
+}
+```
+
+### 低面数模型与附加格式
+
+`LowPoly` 仅支持 3.0。`result_format` 每次只能指定一种附加格式：
+
+```json
+{
+  "model": "tokenhub/hy-3d-3.0",
+  "prompt": "一把木制椅子",
+  "generate_type": "LowPoly",
+  "polygon_type": "quadrilateral",
+  "result_format": "fbx"
+}
+```
+
+## 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 是 | 模型广场展示的模型名称 |
+| `prompt` | string | 条件必填 | 最多 1024 个 Unicode 字符；至少提供文本或一张主图 |
+| `image_url` | string | 条件必填 | HTTP(S) 图片地址，与 `image_base64` 二选一 |
+| `image_base64` | string | 条件必填 | 原始 Base64 字符串，不含 Data URL 前缀；解码后不超过 6 MiB |
+| `multi_view_images` | array | 否 | 辅助视图对象列表，见下表 |
+| `generate_type` | string | 否 | `Normal`（默认）、`Geometry`、`Sketch`、`LowPoly`；3.1 不支持 `LowPoly` |
+| `enable_pbr` | boolean | 否 | 默认 `false`；`Geometry` 模式不生效 |
+| `face_count` | integer | 否 | 默认 500000，范围 3000–1500000；`LowPoly` 不生效 |
+| `polygon_type` | string | 否 | 仅 `LowPoly`：`triangle`（默认）、`quadrilateral` |
+| `result_format` | string | 否 | `stl`、`usdz`、`fbx`，每次只指定一种 |
+| `include_cost` | boolean | 否 | 设为 `true`，在查询结果的 `usage` 中查看销售费用 |
+
+### multi_view_images
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `view_type` | string | 是 | `left`、`right`、`back`、`top`、`bottom`、`left_front`、`right_front` |
+| `view_image_url` | string | 是 | 对应视角的 HTTP(S) 图片地址 |
+
+主图支持 JPG、PNG、JPEG、WebP，图片单边尺寸为 128–5000 像素；URL 图片不超过 8 MB。
+辅助多视图支持 JPG、PNG，单张小于 8 MB，总大小小于 100 MB，单边尺寸需大于 128 且小于 5000。
+图片必须可以被服务读取，尺寸与格式由生成服务检查。
+
+HY-3D 使用自己的输入参数，不接受 Tripo 的 `input`、`inputs`、`texture`、`pbr`、`face_limit`。
+参数能力见 [HY-3D 调用指南](https://cloud.tencent.com/document/product/1823/137181)。
+
+## 查询任务
+
+使用提交响应中的平台任务 `id` 查询；查询时只需传 `id`：
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/3d/query \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"id":"<平台任务ID>"}'
+```
+
+只能使用提交任务时的用户和 API Key 查询。建议每 10 秒查询一次。
+客户端停止查询不会取消任务。任务记录保留 7 天。
+
+### 任务状态
+
+| 状态 | 含义 | 处理方式 |
+| --- | --- | --- |
+| `pending` | 等待生成 | 继续查询 |
+| `in_progress` | 生成或结果转存中 | 继续查询 |
+| `completed` | 生成成功，结果文件已就绪 | 下载结果 |
+| `failed` | 明确失败 | 查看 `error.message` |
+| `submission_unknown` | 尚不能确认上游是否受理 | 保存任务 ID，联系平台核查，避免重新提交 |
+
+响应头 `X-Task-ID` 也会提供平台任务 ID。请求超时或提交返回 5xx 时，
+如已获取任务 ID，应先查询该任务，避免重复提交产生额外费用。
+
+### 成功响应
+
+```json
+{
+  "id": "<平台任务ID>",
+  "object": "3d_job",
+  "status": "completed",
+  "amount_cny": "2.4",
+  "output": {
+    "type": "glb",
+    "model_url": "https://example.com/model.glb",
+    "rendered_image_url": "https://example.com/preview.png"
+  },
+  "data": [
+    {"type":"obj","url":"https://example.com/model.zip","preview_image_url":"https://example.com/preview.png"},
+    {"type":"glb","url":"https://example.com/model.glb","preview_image_url":"https://example.com/preview.png"}
+  ]
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `output.model_url` | 主模型下载地址，优先 GLB，否则使用结果列表第一项 |
+| `output.rendered_image_url` | 主模型预览图，可为空 |
+| `data[].type` | 结果文件对应的模型格式，例如 `obj`、`glb` |
+| `data[].url` | 对应格式的下载地址；OBJ 可能以 ZIP 包提供，下载时保留实际扩展名 |
+| `data[].preview_image_url` | 对应结果的预览图，可为空 |
+| `amount_cny` | 按生成参数计算的人民币目录金额，不是最终销售扣款 |
+
+`data` 保留返回的所有格式；实际格式取决于生成模式与 `result_format`。
+所有结果文件就绪后返回 `completed`，下载链接有效期为 1 天，重新查询可获取新链接。
+
+## 计费说明
+
+HY-3D 根据生成模式与附加参数计算目录金额，按 **1 积分 = ¥0.12** 换算。
+查询接口可能不返回 `credits_consumed`，调用方不应把该字段缺失视为免费。
+
+| 模式 | 基础积分 | 人民币目录金额 |
+| --- | --- | --- |
+| Normal（默认） | 20 | ¥2.40 |
+| Geometry | 15 | ¥1.80 |
+| LowPoly / Sketch | 25 | ¥3.00 |
+
+多视图、有效 PBR、自定义面数各加 10 积分（¥1.20），附加格式加 5 积分（¥0.60）。
+默认面数 500000 不加价；`Geometry` 的 PBR 和 `LowPoly` 的面数参数不生效且不加价。
+例如，`Geometry` 且未附加其他计费项时，目录金额为 ¥1.80。
+
+预付费调用提交时预扣，成功后核对，明确失败的生成任务退款；后付费调用成功后扣款。
+最终销售费用取决于模型价格倍率和用户折扣，以调用时模型广场价格及结算结果为准。
+文件转存重试不会重新生成或重复扣费。
+厂商规则见 [TokenHub 模型价格](https://cloud.tencent.com/document/product/1823/130055)与
+[混元生 3D 计费说明](https://cloud.tencent.com/document/product/1804/123461)。
+
+## 常见错误
+
+| 场景 | 处理建议 |
+| --- | --- |
+| 参数校验失败 | 检查输入组合、模型版本与参数范围 |
+| 生成失败 | 查看查询结果中的 `error.message`，保留任务 ID 供排查 |
+| 已有任务执行中，无法提交 | 等待当前任务结束后再提交 |
+| 余额不足或计费配置不可用 | 检查账户余额和模型价格配置 |
+| 查询返回 404 | 核对平台任务 ID，并使用提交时的用户和 API Key |
+| 提交超时或 `submission_unknown` | 先查询已有任务，避免立即重复提交 |
+| 结果链接无法下载 | 重新查询任务获取下载地址；链接有效期为 1 天 |
+| 长时间停留在 `in_progress` | 保留任务 ID 联系平台；单个文件转存上限为 64 MiB |

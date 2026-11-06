@@ -211,7 +211,10 @@
                   },
                   {
                     "group": "3D 生成",
-                    "pages": ["api-reference/examples/3d/tripo"]
+                    "pages": [
+                      "api-reference/examples/3d/tripo",
+                      "api-reference/examples/3d/hy"
+                    ]
                   },
                   {
                     "group": "音乐生成",
