@@ -3,7 +3,7 @@ title: "素材管理"
 description: "通过火山风格的 API 参数管理素材组和视频素材"
 ---
 
-素材上传不需要 `model`。素材账号由 Provider 服务配置指定，`ProjectName` 默认 `pmt`。生成视频时才选择模型；平台检查该模型的上游账号和项目是否与素材兼容。
+素材上传不需要 `model`。素材账号由 Provider 服务配置指定，项目固定为 `pmt`。生成视频时才选择模型；平台检查该模型的上游账号和项目是否与素材兼容。
 
 所有对外调用使用中台 API Key：`Authorization: Bearer <API_KEY>`。AK/SK 由 Provider 从已管理的账号凭据中读取，调用方无需提供。
 
@@ -31,18 +31,18 @@ description: "通过火山风格的 API 参数管理素材组和视频素材"
 
 | Action | 主要参数 |
 | --- | --- |
-| `CreateAssetGroup` | `Name`、`Description`、`GroupType`、`ProjectName` |
-| `GetAssetGroup` | `Id`、`ProjectName` |
-| `ListAssetGroups` | `Filter`、`MaxResults`、`NextToken`、`ProjectName` |
-| `UpdateAssetGroup` | `Id`、`Name`、`ProjectName` |
-| `DeleteAssetGroup` | `Id`、`ProjectName` |
-| `CreateAsset` | `GroupId`、`URL`、`AssetType`、`Name`、`ProjectName` |
-| `GetAsset` | `Id`、`ProjectName` |
-| `ListAssets` | `Filter`、`MaxResults`、`NextToken`、`ProjectName` |
-| `UpdateAsset` | `Id`、`Name`、`ProjectName` |
-| `DeleteAsset` | `Id`、`ProjectName` |
+| `CreateAssetGroup` | `Name`、`Description`、`GroupType` |
+| `GetAssetGroup` | `Id` |
+| `ListAssetGroups` | `Filter`、`MaxResults`、`NextToken` |
+| `UpdateAssetGroup` | `Id`、`Name` |
+| `DeleteAssetGroup` | `Id` |
+| `CreateAsset` | `GroupId`、`URL`、`AssetType`、`Name` |
+| `GetAsset` | `Id` |
+| `ListAssets` | `Filter`、`MaxResults`、`NextToken` |
+| `UpdateAsset` | `Id`、`Name` |
+| `DeleteAsset` | `Id` |
 
-`ProjectName` 缺省为 `pmt`，也可以显式传入其他项目；上传时必须与素材组所属项目一致。素材和素材组均按中台用户归属隔离。
+项目统一固定为 `pmt`，不接受 `ProjectName` 请求参数，也不支持切换项目。素材和素材组均按中台用户归属隔离。
 
 ### 创建素材组
 
@@ -52,8 +52,7 @@ description: "通过火山风格的 API 参数管理素材组和视频素材"
 {
   "Name": "角色A",
   "Description": "角色A的参考素材",
-  "GroupType": "AIGC",
-  "ProjectName": "pmt"
+  "GroupType": "AIGC"
 }
 ```
 
@@ -65,7 +64,6 @@ description: "通过火山风格的 API 参数管理素材组和视频素材"
     "Id": "mg_0123456789abcdef01234567",
     "Name": "角色A",
     "GroupType": "AIGC",
-    "ProjectName": "pmt",
     "Status": "Processing"
   }
 }
@@ -99,7 +97,7 @@ description: "通过火山风格的 API 参数管理素材组和视频素材"
 `Action=GetAsset`：
 
 ```json
-{"Id": "ma_0123456789abcdef01234567", "ProjectName": "pmt"}
+{"Id": "ma_0123456789abcdef01234567"}
 ```
 
 `Action=ListAssets`：
@@ -112,14 +110,13 @@ description: "通过火山风格的 API 参数管理素材组和视频素材"
     "Name": "正面",
     "Statuses": ["Active"]
   },
-  "MaxResults": 10,
-  "ProjectName": "pmt"
+  "MaxResults": 10
 }
 ```
 
 响应为 `Result.Items`；有后续数据时返回 `Result.NextToken`。下一次将该值传为 `NextToken`，保持项目和过滤条件一致。当前支持按 ID 倒序的游标分页，`MaxResults` 为 1–100，默认 10；暂不支持官方的页码分页和自定义排序参数。
 
-`Action=UpdateAsset` 使用 `Id`、`Name`、`ProjectName`，只更新 `Active` 素材名称。名称会同步更新到火山和 Mongo，素材组名称更新行为相同。上游更新已成功但本地更新失败时，可重试同一个名称更新请求。
+`Action=UpdateAsset` 使用 `Id`、`Name`，只更新 `Active` 素材名称。名称会同步更新到火山和 Mongo，素材组名称更新行为相同。上游更新已成功但本地更新失败时，可重试同一个名称更新请求。
 
 ## 引用素材生成视频
 
@@ -167,12 +164,12 @@ description: "通过火山风格的 API 参数管理素材组和视频素材"
 | `/v1/assets/list` | POST 列表 |
 | `/v1/assets/{id}` | GET、PATCH、DELETE |
 
-REST GET 列表使用 `MaxResults`、`NextToken`、`ProjectName` 查询参数。REST 按 ID 查询时可用 `ProjectName` 校验项目；PATCH 请求体为 `Name` 和可选的 `ProjectName`。
+REST GET 列表使用 `MaxResults` 和 `NextToken` 查询参数；PATCH 请求体为 `Name`。所有操作均使用固定项目 `pmt`。
 
 ## 与火山官方的保留差异
 
 - 鉴权使用中台 API Key，账号由 Provider 配置控制。
-- 默认项目为 `pmt`。
+- 项目固定为 `pmt`，请求和响应不包含项目参数；传入 `ProjectName` 返回 400。
 - 素材和素材组 ID 使用平台的 `ma_`、`mg_`，不是上游原始 ID。
 - 创建素材组也是异步的，需等待 `Active`；响应采用 `Result` 包装，但不声称完整复刻官方响应或所有参数。
 - 平台增加用户隔离、幂等和删除保护，非空组不允许直接级联删除。

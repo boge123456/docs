@@ -318,7 +318,7 @@ Content-Type: application/json
 ```
 
 <Note>
-素材管理不需要传 `model` 或火山 AK/SK。账号由平台管理，`ProjectName` 默认 `pmt`；字段沿用火山命名，例如 `GroupId`、`URL`、`AssetType` 和 `Name`。只有生成视频时才传 `model`。完整参数及平台与火山的差异见[素材管理 API](/api-reference/endpoint/assets)。
+素材管理不需要传 `model` 或火山 AK/SK。账号由平台管理，项目固定为 `pmt`，无需传入项目参数；字段沿用火山命名，例如 `GroupId`、`URL`、`AssetType` 和 `Name`。只有生成视频时才传 `model`。完整参数及平台与火山的差异见[素材管理 API](/api-reference/endpoint/assets)。
 </Note>
 
 ### 创建素材组并等待可用
@@ -334,8 +334,7 @@ curl --request POST \
   --data '{
     "Name": "角色A参考素材",
     "Description": "角色A的正面、侧面及动作参考",
-    "GroupType": "AIGC",
-    "ProjectName": "pmt"
+    "GroupType": "AIGC"
   }'
 ```
 
@@ -347,7 +346,6 @@ curl --request POST \
     "Id": "mg_0123456789abcdef01234567",
     "Name": "角色A参考素材",
     "GroupType": "AIGC",
-    "ProjectName": "pmt",
     "Status": "Processing"
   }
 }
@@ -360,7 +358,7 @@ curl --request POST \
   --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=GetAssetGroup&Version=2024-01-01' \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
-  --data '{"Id": "<ASSET-GROUP-ID>", "ProjectName": "pmt"}'
+  --data '{"Id": "<ASSET-GROUP-ID>"}'
 ```
 
 ### 上传素材并查询处理状态
@@ -377,8 +375,7 @@ curl --request POST \
     "GroupId": "<ASSET-GROUP-ID>",
     "URL": "https://example.com/virtual-character-front.png",
     "AssetType": "Image",
-    "Name": "角色A正面",
-    "ProjectName": "pmt"
+    "Name": "角色A正面"
   }'
 ```
 
@@ -399,7 +396,6 @@ curl --request POST \
     "GroupId": "mg_0123456789abcdef01234567",
     "Name": "角色A正面",
     "AssetType": "Image",
-    "ProjectName": "pmt",
     "Status": "Processing",
     "URI": "asset://ma_0123456789abcdef01234567"
   }
@@ -413,7 +409,7 @@ curl --request POST \
   --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=GetAsset&Version=2024-01-01' \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
-  --data '{"Id": "<ASSET-ID>", "ProjectName": "pmt"}'
+  --data '{"Id": "<ASSET-ID>"}'
 ```
 
 | `Result.Status` | 含义 | 后续处理 |
@@ -473,8 +469,7 @@ curl --request POST \
       "GroupIds": ["<ASSET-GROUP-ID>"],
       "Statuses": ["Active"]
     },
-    "MaxResults": 10,
-    "ProjectName": "pmt"
+    "MaxResults": 10
   }'
 ```
 
@@ -483,7 +478,7 @@ curl --request POST \
   --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=UpdateAsset&Version=2024-01-01' \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
-  --data '{"Id": "<ASSET-ID>", "Name": "角色A正面新版", "ProjectName": "pmt"}'
+  --data '{"Id": "<ASSET-ID>", "Name": "角色A正面新版"}'
 ```
 
 ```bash 删除素材
@@ -491,7 +486,7 @@ curl --request POST \
   --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=DeleteAsset&Version=2024-01-01' \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
-  --data '{"Id": "<ASSET-ID>", "ProjectName": "pmt"}'
+  --data '{"Id": "<ASSET-ID>"}'
 ```
 
 ```bash 查询素材组列表
@@ -499,7 +494,7 @@ curl --request POST \
   --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=ListAssetGroups&Version=2024-01-01' \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
-  --data '{"Filter": {"GroupType": "AIGC"}, "MaxResults": 10, "ProjectName": "pmt"}'
+  --data '{"Filter": {"GroupType": "AIGC"}, "MaxResults": 10}'
 ```
 
 ```bash 更新素材组名称
@@ -507,7 +502,7 @@ curl --request POST \
   --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=UpdateAssetGroup&Version=2024-01-01' \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
-  --data '{"Id": "<ASSET-GROUP-ID>", "Name": "角色A素材组新版", "ProjectName": "pmt"}'
+  --data '{"Id": "<ASSET-GROUP-ID>", "Name": "角色A素材组新版"}'
 ```
 
 ```bash 删除素材组
@@ -515,7 +510,7 @@ curl --request POST \
   --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=DeleteAssetGroup&Version=2024-01-01' \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
-  --data '{"Id": "<ASSET-GROUP-ID>", "ProjectName": "pmt"}'
+  --data '{"Id": "<ASSET-GROUP-ID>"}'
 ```
 </CodeGroup>
 

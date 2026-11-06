@@ -210,6 +210,10 @@
                     ]
                   },
                   {
+                    "group": "3D 生成",
+                    "pages": ["api-reference/examples/3d/tripo"]
+                  },
+                  {
                     "group": "音乐生成",
                     "pages": [
                       "api-reference/examples/music/minimax-music-3",

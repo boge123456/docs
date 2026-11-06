@@ -1,0 +1,95 @@
+---
+title: 'Tripo 3D 生成'
+description: '通过 TokenHub 生成 3D 模型，异步提交、查询结果并按人民币金额结算。'
+---
+
+## 提交任务
+
+```bash
+curl https://model-api.skyengine.com.cn/v1/3d/submit \
+  -H 'Authorization: Bearer <API-KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"tokenhub/tripo-3d-3.1","prompt":"一只可爱的小猫"}'
+```
+
+模型名以模型广场配置为准。支持 `tripo-3d-3.1`、`tripo-3d-p1`、`tripo-3d-p2`。
+
+文本输入使用 `prompt`，单图输入使用 `input` 图片 URL，多视图输入使用 `inputs`。三者只能选择一种。
+图片需能被上游读取，支持 PNG、JPEG、WebP；请遵守上游 20 MB 输入限制。
+
+```json
+{
+  "id": "<平台任务ID>",
+  "object": "3d_job",
+  "status": "pending",
+  "model": "tripo-3d-3.1",
+  "created_at": 1793836800
+}
+```
+
+响应头 `X-Task-ID` 也包含平台任务 ID。保存该 ID，用于后续查询。
+任务由服务端后台执行，客户端断开或停止查询不会取消任务。
+
+## 查询任务
+
+```bash
+curl https://model-api.skyengine.com.cn/v1/3d/query \
+  -H 'Authorization: Bearer <API-KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"<平台任务ID>"}'
+```
+
+只能查询当前用户和 API Key 提交的任务。
+
+```json
+{
+  "id": "<平台任务ID>",
+  "object": "3d_job",
+  "status": "completed",
+  "credits_consumed": 50,
+  "amount_cny": "3.5",
+  "output": {
+    "type": "text_to_model",
+    "model_url": "<平台模型文件下载地址>",
+    "generated_image_url": "<参考图下载地址>",
+    "rendered_image_url": "<预览图下载地址>"
+  }
+}
+```
+
+`amount_cny` 是上游积分换算的目录金额，不代表用户最终扣款。
+下载链接有效期为一天，重新查询可获取新链接；任务记录保留七天。
+单个结果文件转存上限为 64 MiB，超过时任务需要人工处理。
+
+| 状态 | 含义 |
+| --- | --- |
+| `pending` | 已提交，等待处理 |
+| `in_progress` | 生成或结果转存中 |
+| `completed` | 生成和结果转存完成 |
+| `failed` | 明确失败 |
+| `submission_unknown` | 上游是否受理尚不确定，请保留任务 ID 联系平台核查 |
+
+提交超时或返回 `submission_unknown` 时请先查询已有任务，不要直接重复提交。
+
+## 参数说明
+
+支持官方生成参数，包括 `texture`、`pbr`、`texture_quality`、`texture_version`、`face_limit`、
+`quad`、`smart_low_poly`、`generate_parts`、`geometry_quality` 和各类随机种子。
+不同模型的参数范围不同，详见 [TokenHub Tripo 调用指南](https://cloud.tencent.com/document/product/1823/137074)。
+
+`pbr` 默认开启，会启用贴图。如需纯几何体，需要同时传 `texture: false` 和 `pbr: false`。
+`generate_parts: true` 还要求 `quad: false`。
+
+多视图按官方文档传 `inputs`，必须有正面 `front` 和至少一个其他视图。
+
+## 费用
+
+平台将上游实际 `credits_consumed` 按 **每积分 0.07 元**换算成人民币目录金额，
+再按配置的销售倍率与用户折扣计算最终费用。
+
+默认提交时按参数预估并预扣，完成后多退少补；已配置后付费的用户在任务结束后扣款。
+明确无消耗的失败任务退款或不扣费；缺失实际积分、提交结果未知等情况保留待核账。
+文件转存重试不会重新生成模型或重复扣费。
+
+提交时传 `include_cost: true` 可在查询结果的 `usage` 中查看最终销售费用；尚未结算时为 `pending`。
+目录价及附加项见 [TokenHub 模型价格](https://cloud.tencent.com/document/product/1823/130055)。
