@@ -1,0 +1,84 @@
+---
+title: "项目 API Key 用量与额度"
+description: "分页查询项目 API Key 的人民币额度与用量。"
+---
+
+查询指定项目下各 API Key 的累计、当日、当月额度与用量。金额统一使用 **人民币分（RMB 分）**，以十进制整数字符串返回。
+
+## 请求
+
+```http
+GET https://model-api.skyengine.com.cn/v1/project/list_apikey
+```
+
+```bash
+curl --get 'https://model-api.skyengine.com.cn/v1/project/list_apikey' \
+  --data-urlencode 'project=266' \
+  --data-urlencode 'page_size=50'
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `project` | string | 是 | 项目标识，例如 `266`。 |
+| `page_size` | integer | 否 | 每页条数，默认 50，最大 100；0 使用默认值。 |
+| `page_token` | string | 否 | 上一页返回的 `next_page_token`，须配合同一项目使用。 |
+
+按 Key ID 升序返回。`next_page_token` 不为空时，将其作为下一次请求的 `page_token`，直到返回空字符串。每个参数只能出现一次，不支持上述参数以外的查询参数。
+
+## 返回字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `api_keys` | array | 当前页 API Key 列表；无记录时为 `[]`。 |
+| `next_page_token` | string | 下一页游标；空字符串表示没有下一页。 |
+| `api_keys[].id` | string | Key 唯一标识。 |
+| `api_keys[].name` | string | Key 名称。 |
+| `api_keys[].total` | object / null | 累计额度与用量；`null` 表示暂不可用。 |
+| `api_keys[].daily` | object / null | 当日额度与用量；`null` 表示暂不可用。 |
+| `api_keys[].monthly` | object / null | 当月额度与用量；`null` 表示暂不可用。 |
+
+`total`、`daily`、`monthly` 使用相同的金额结构：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `limit_rmb_fen` | string | 额度，单位 RMB 分；`"0"` 表示不限额。 |
+| `used_rmb_fen` | string / null | 已用金额，单位 RMB 分；`null` 表示统计暂不可用。 |
+| `remaining_rmb_fen` | string / null | 剩余额度，单位 RMB 分，最低为 0；不限额或统计不可用时为 `null`。 |
+
+金额单位为人民币分，例如 `"9625"` 表示 96.25 元。
+
+## 项目 266 响应示例
+
+以下为项目 266 的单条记录示例，金额仅供参考。
+
+```json
+{
+  "api_keys": [
+    {
+      "id": "6a28cdcc0c9668c3a5929616",
+      "name": "谢振家",
+      "total": {
+        "limit_rmb_fen": "84000",
+        "used_rmb_fen": "9625",
+        "remaining_rmb_fen": "74375"
+      },
+      "daily": {
+        "limit_rmb_fen": "0",
+        "used_rmb_fen": "0",
+        "remaining_rmb_fen": null
+      },
+      "monthly": {
+        "limit_rmb_fen": "0",
+        "used_rmb_fen": "0",
+        "remaining_rmb_fen": null
+      }
+    }
+  ],
+  "next_page_token": ""
+}
+```
+
+## 说明
+
+- 列表包含未删除的 Key，包括禁用、过期和额度耗尽的 Key；不返回完整调用密钥。
+- 成功返回 HTTP 200。项目参数缺失或为空、参数重复、包含不支持的参数、分页参数或游标非法时，返回 HTTP 400；其他服务错误返回对应 HTTP 错误状态。

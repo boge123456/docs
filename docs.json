@@ -58,6 +58,7 @@
                         "group": "视频生成",
                         "pages": [
                           "api-reference/endpoint/videos-generations",
+                          "api-reference/endpoint/assets",
                           "api-reference/endpoint/videos-status",
                           "api-reference/endpoint/videos-content",
                           "api-reference/endpoint/videos-remix"
@@ -112,6 +113,12 @@
                     "group": "File API",
                     "pages": [
                       "api-reference/endpoint/files-upload-url"
+                    ]
+                  },
+                  {
+                    "group": "项目管理",
+                    "pages": [
+                      "api-reference/endpoint/project-list-apikey"
                     ]
                   }
                 ]

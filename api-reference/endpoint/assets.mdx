@@ -1,0 +1,181 @@
+---
+title: "素材管理"
+description: "通过火山风格的 API 参数管理素材组和视频素材"
+---
+
+素材上传不需要 `model`。素材账号由 Provider 服务配置指定，`ProjectName` 默认 `pmt`。生成视频时才选择模型；平台检查该模型的上游账号和项目是否与素材兼容。
+
+所有对外调用使用中台 API Key：`Authorization: Bearer <API_KEY>`。AK/SK 由 Provider 从已管理的账号凭据中读取，调用方无需提供。
+
+## Provider 配置
+
+在 Provider 服务的配置文件中增加：
+
+```json
+{
+  "ark_assets": {
+    "account_id": 91233
+  }
+}
+```
+
+`account_id` 是中台账号 ID，不是火山账号 UID。正式环境当前已验证的火山账号为 `91233 / doubao-llm-account01`。配置只引用账号，不保存 AK/SK；未配置或配置为 `0` 时，不创建新的素材组，不会从模型路由自动选择账号。仓库开发配置使用 `0`，上线时需要在对应环境配置实际账号。
+
+配置变更影响新建素材组；已有素材组及其素材继续使用 Mongo 中记录的账号，防止切换账号后资源丢失。区域当前为 `cn-beijing`。
+
+## Action 调用入口
+
+`POST /v1/assets/actions?Action=<ACTION>&Version=2024-01-01`
+
+请求体使用火山 API 的参数命名，响应放在 `Result` 对象中。支持以下操作：
+
+| Action | 主要参数 |
+| --- | --- |
+| `CreateAssetGroup` | `Name`、`Description`、`GroupType`、`ProjectName` |
+| `GetAssetGroup` | `Id`、`ProjectName` |
+| `ListAssetGroups` | `Filter`、`MaxResults`、`NextToken`、`ProjectName` |
+| `UpdateAssetGroup` | `Id`、`Name`、`ProjectName` |
+| `DeleteAssetGroup` | `Id`、`ProjectName` |
+| `CreateAsset` | `GroupId`、`URL`、`AssetType`、`Name`、`ProjectName` |
+| `GetAsset` | `Id`、`ProjectName` |
+| `ListAssets` | `Filter`、`MaxResults`、`NextToken`、`ProjectName` |
+| `UpdateAsset` | `Id`、`Name`、`ProjectName` |
+| `DeleteAsset` | `Id`、`ProjectName` |
+
+`ProjectName` 缺省为 `pmt`，也可以显式传入其他项目；上传时必须与素材组所属项目一致。素材和素材组均按中台用户归属隔离。
+
+### 创建素材组
+
+`Action=CreateAssetGroup`：
+
+```json
+{
+  "Name": "角色A",
+  "Description": "角色A的参考素材",
+  "GroupType": "AIGC",
+  "ProjectName": "pmt"
+}
+```
+
+`Name` 必填，最多 64 字符；`Description` 最多 300 字符。当前仅支持 `AIGC` 虚拟人像，暂不包含真人认证流程。素材组异步创建，返回 HTTP 202：
+
+```json
+{
+  "Result": {
+    "Id": "mg_0123456789abcdef01234567",
+    "Name": "角色A",
+    "GroupType": "AIGC",
+    "ProjectName": "pmt",
+    "Status": "Processing"
+  }
+}
+```
+
+使用 `GetAssetGroup` 查询，等 `Status` 为 `Active` 后即可向该组上传多个素材。
+
+### 上传素材
+
+`Action=CreateAsset`：
+
+```json
+{
+  "GroupId": "mg_0123456789abcdef01234567",
+  "URL": "https://example.com/avatar.png",
+  "AssetType": "Image",
+  "Name": "角色A正面"
+}
+```
+
+没有 `model` 参数。`AssetType` 支持 `Image`、`Video`、`Audio`。`GroupId` 必填，使用本平台创建素材组返回的 ID；同一素材组的素材使用相同的账号和项目。`Name` 最多 64 字符，非空名称会传给火山；未提供名称时由平台生成内部唯一名称。
+
+当前仅支持通过公网 HTTPS URL 入库，不支持 Base64 或直接传本地文件。URL 由火山下载，中台不会下载素材源文件，链接需在异步处理期间保持有效。
+
+返回 HTTP 202，`Result.Id` 为平台素材 ID，状态初始为 `Processing`。用 `GetAsset` 等待 `Active` 后再生成视频。处理失败返回 `Failed`，并包含 `Error`。另外存在平台删除状态 `Deleting`、`Deleted`。
+
+创建素材和素材组均可传 `Idempotency-Key` Header（最长 128 字符）。同一用户、同一资源类型、同一个 key 和相同请求返回已有资源；相同 key 携带不同参数返回 409。幂等记录在资源删除后仍保留。
+
+### 查询、列表和名称更新
+
+`Action=GetAsset`：
+
+```json
+{"Id": "ma_0123456789abcdef01234567", "ProjectName": "pmt"}
+```
+
+`Action=ListAssets`：
+
+```json
+{
+  "Filter": {
+    "GroupType": "AIGC",
+    "GroupIds": ["mg_0123456789abcdef01234567"],
+    "Name": "正面",
+    "Statuses": ["Active"]
+  },
+  "MaxResults": 10,
+  "ProjectName": "pmt"
+}
+```
+
+响应为 `Result.Items`；有后续数据时返回 `Result.NextToken`。下一次将该值传为 `NextToken`，保持项目和过滤条件一致。当前支持按 ID 倒序的游标分页，`MaxResults` 为 1–100，默认 10；暂不支持官方的页码分页和自定义排序参数。
+
+`Action=UpdateAsset` 使用 `Id`、`Name`、`ProjectName`，只更新 `Active` 素材名称。名称会同步更新到火山和 Mongo，素材组名称更新行为相同。上游更新已成功但本地更新失败时，可重试同一个名称更新请求。
+
+## 引用素材生成视频
+
+使用现有 `POST /v1/videos` JSON 接口：
+
+```json
+{
+  "model": "doubao-seedance-2.5",
+  "content": [
+    {"type": "text", "text": "参考图片1中的虚拟人物，面向镜头挥手。"},
+    {
+      "type": "image_url",
+      "image_url": {"url": "asset://ma_0123456789abcdef01234567"},
+      "role": "reference_image"
+    }
+  ],
+  "seconds": "5",
+  "resolution": "480p",
+  "generate_audio": false
+}
+```
+
+视频、音频分别通过 `video_url.url`、`audio_url.url` 引用。素材不绑定某个模型或接入点，可以被同一上游账号、区域和项目下的兼容模型复用。模型权限仍在生成视频时检查；同一请求中的素材必须属于相同上游账号、区域和项目。
+
+生成时平台选择素材所属账号在目标模型下的接入点，检查该接入点的项目，兼容后才提交。不能自动切到其他账号或渠道。外部用户不能通过原始火山 ID 绕过平台资源归属检查。
+
+## 删除和异常处理
+
+`DeleteAsset` 删除单个素材，保留共享素材组。删除素材组前，须先删除组内素材，非空组返回 409，避免误删其他素材。已删除资源仍保留 Mongo 审计记录。
+
+视频请求校验后会为引用素材保留两小时，覆盖处理和提交结果不明确的情况，期间删除返回 409。素材组也有短期上传保留窗口，避免上传与删除并发。
+
+创建结果不明确时不会自动重发创建请求。用户自定义名称可能重复，平台不会仅凭名称匹配认领上游资源；这类请求保持 `Processing` 并提示人工核查。安全的内部唯一名称记录仍可通过后台查询恢复。
+
+## REST 路径
+
+除了 Action 入口，也保留以下便捷路径，JSON 字段仍使用上述火山命名：
+
+| 路径 | 方法 |
+| --- | --- |
+| `/v1/asset-groups` | POST 创建、GET 列表 |
+| `/v1/asset-groups/list` | POST 列表 |
+| `/v1/asset-groups/{id}` | GET、PATCH、DELETE |
+| `/v1/assets` | POST 上传、GET 列表 |
+| `/v1/assets/list` | POST 列表 |
+| `/v1/assets/{id}` | GET、PATCH、DELETE |
+
+REST GET 列表使用 `MaxResults`、`NextToken`、`ProjectName` 查询参数。REST 按 ID 查询时可用 `ProjectName` 校验项目；PATCH 请求体为 `Name` 和可选的 `ProjectName`。
+
+## 与火山官方的保留差异
+
+- 鉴权使用中台 API Key，账号由 Provider 配置控制。
+- 默认项目为 `pmt`。
+- 素材和素材组 ID 使用平台的 `ma_`、`mg_`，不是上游原始 ID。
+- 创建素材组也是异步的，需等待 `Active`；响应采用 `Result` 包装，但不声称完整复刻官方响应或所有参数。
+- 平台增加用户隔离、幂等和删除保护，非空组不允许直接级联删除。
+- 只支持 AIGC、名称更新和游标分页；未实现真人认证和官方全部管理参数。
+
+素材及素材组保存在 Router 现有 Mongo 数据库的 `media_assets`、`media_asset_groups` 集合。轮询通过 Mongo 租约抢占，不使用 Redis 保存素材主体，也不设置 TTL 自动删除记录。先部署支持新素材配置和控制接口的 Provider，再部署 Router。素材管理不触发视频 token 计费；生成视频沿用现有计费流程。

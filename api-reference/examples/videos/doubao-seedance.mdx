@@ -1,6 +1,6 @@
 ---
 title: '豆包 Seedance 视频生成示例'
-description: '通过统一视频接口调用 Seedance 2.5，创建、查询并获取生成结果'
+description: '调用 Seedance 2.5 生成视频，并创建素材组、上传和管理参考素材'
 ---
 
 # 豆包 Seedance 视频生成
@@ -305,6 +305,226 @@ Seedance 2.5 支持在提示词中按整数秒描述剧情、动作和转场。�
 
 说明与建议见[官方 Seedance 2.5 提示词指南](https://docs.volcengine.com/docs/ark/seedance-2-5-prompt-guide?lang=zh)。
 
+## 素材管理 API
+
+需要复用虚拟人像参考素材时，可以先创建素材组，再上传图片、视频或音频，生成视频时通过 `asset://<ASSET-ID>` 引用。
+
+素材接口统一使用下面的入口和中台 API Key：
+
+```text
+POST https://model-api.skyengine.com.cn/v1/assets/actions?Action=<ACTION>&Version=2024-01-01
+Authorization: Bearer <API-KEY>
+Content-Type: application/json
+```
+
+<Note>
+素材管理不需要传 `model` 或火山 AK/SK。账号由平台管理，`ProjectName` 默认 `pmt`；字段沿用火山命名，例如 `GroupId`、`URL`、`AssetType` 和 `Name`。只有生成视频时才传 `model`。完整参数及平台与火山的差异见[素材管理 API](/api-reference/endpoint/assets)。
+</Note>
+
+### 创建素材组并等待可用
+
+先调用 `CreateAssetGroup`。`Name` 最多 64 个字符，`Description` 最多 300 个字符；当前仅支持 `GroupType: AIGC` 虚拟人像素材组。
+
+```bash cURL
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=CreateAssetGroup&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --header 'Idempotency-Key: seedance-character-a-group-001' \
+  --data '{
+    "Name": "角色A参考素材",
+    "Description": "角色A的正面、侧面及动作参考",
+    "GroupType": "AIGC",
+    "ProjectName": "pmt"
+  }'
+```
+
+创建请求受理后返回 HTTP 202。记录 `Result.Id`，在后续请求中替换 `<ASSET-GROUP-ID>`：
+
+```json
+{
+  "Result": {
+    "Id": "mg_0123456789abcdef01234567",
+    "Name": "角色A参考素材",
+    "GroupType": "AIGC",
+    "ProjectName": "pmt",
+    "Status": "Processing"
+  }
+}
+```
+
+使用 `GetAssetGroup` 查询，等 `Result.Status` 变为 `Active` 后再上传素材：
+
+```bash cURL
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=GetAssetGroup&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"Id": "<ASSET-GROUP-ID>", "ProjectName": "pmt"}'
+```
+
+### 上传素材并查询处理状态
+
+调用 `CreateAsset`，将 `GroupId` 替换为上一步创建的素材组 ID。`URL` 必须是处理期间持续可访问的公网 HTTPS 地址；该接口不接收 Base64 或本地文件。
+
+```bash cURL
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=CreateAsset&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --header 'Idempotency-Key: seedance-character-a-front-001' \
+  --data '{
+    "GroupId": "<ASSET-GROUP-ID>",
+    "URL": "https://example.com/virtual-character-front.png",
+    "AssetType": "Image",
+    "Name": "角色A正面",
+    "ProjectName": "pmt"
+  }'
+```
+
+同一素材组可上传多个素材。根据素材类型设置以下字段：
+
+| 素材 | `AssetType` | `URL` 示例 | 生成视频时的引用字段与角色 |
+| --- | --- | --- | --- |
+| 图片 | `Image` | `https://example.com/character.png` | `image_url.url`、`reference_image` |
+| 视频 | `Video` | `https://example.com/motion.mp4` | `video_url.url`、`reference_video` |
+| 音频 | `Audio` | `https://example.com/rhythm.mp3` | `audio_url.url`、`reference_audio` |
+
+创建请求同样返回 HTTP 202。记录素材的 `Result.Id`，在后续请求中替换 `<ASSET-ID>`：
+
+```json
+{
+  "Result": {
+    "Id": "ma_0123456789abcdef01234567",
+    "GroupId": "mg_0123456789abcdef01234567",
+    "Name": "角色A正面",
+    "AssetType": "Image",
+    "ProjectName": "pmt",
+    "Status": "Processing",
+    "URI": "asset://ma_0123456789abcdef01234567"
+  }
+}
+```
+
+调用 `GetAsset` 查询素材状态：
+
+```bash cURL
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=GetAsset&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"Id": "<ASSET-ID>", "ProjectName": "pmt"}'
+```
+
+| `Result.Status` | 含义 | 后续处理 |
+| --- | --- | --- |
+| `Processing` | 入库或预处理中 | 间隔一段时间后继续查询 |
+| `Active` | 素材可用 | 可以引用生成视频 |
+| `Failed` | 入库失败 | 查看 `Result.Error`，修正素材后重新创建 |
+| `Deleting` / `Deleted` | 删除中 / 已删除 | 不再用于创建视频任务 |
+
+创建素材组和素材时，建议使用独立的 `Idempotency-Key`。同一用户、同一资源类型、同一个 key 与相同参数会返回已有记录；不同参数复用同一个 key 返回 409。上面的 key 为示例，创建新角色或新素材时请换用新的唯一值。
+
+### 引用已上传素材生成视频
+
+等素材变为 `Active` 后，将其 ID 放入 `asset://<ASSET-ID>`。下面的请求使用刚上传的虚拟人物图片生成视频：
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/videos \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "doubao-seedance-2.5",
+    "content": [
+      {"type": "text", "text": "参考图片1中的虚拟人物，保持外观一致，面向镜头轻轻点头并挥手，镜头固定"},
+      {
+        "type": "image_url",
+        "image_url": {"url": "asset://<ASSET-ID>"},
+        "role": "reference_image"
+      }
+    ],
+    "duration": 5,
+    "resolution": "720p",
+    "ratio": "9:16",
+    "omni_reference_task_type": "reference",
+    "generate_audio": false,
+    "watermark": true
+  }'
+```
+
+素材管理的状态位于 `Result.Status`，视频任务状态位于 `status`，两者不同。视频创建成功后，继续使用本文的[查询任务](#查询任务)接口获取生成结果。
+
+素材按用户归属隔离，不绑定某个具体模型或接入点。生成视频时，目标模型需要有可访问该素材账号和项目的接入点；平台会检查这一条件。同一视频请求中的素材须属于相同上游账号、区域和项目，不会自动切换到其他账号或渠道。受管素材引用需使用 JSON 视频请求。
+
+### 列表、更新名称和删除
+
+以下示例均使用同一 Action 入口。名称更新会同步到上游；列表响应位于 `Result.Items`，有后续数据时返回 `Result.NextToken`。
+
+<CodeGroup>
+```bash 查询素材列表
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=ListAssets&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "Filter": {
+      "GroupType": "AIGC",
+      "GroupIds": ["<ASSET-GROUP-ID>"],
+      "Statuses": ["Active"]
+    },
+    "MaxResults": 10,
+    "ProjectName": "pmt"
+  }'
+```
+
+```bash 更新素材名称
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=UpdateAsset&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"Id": "<ASSET-ID>", "Name": "角色A正面新版", "ProjectName": "pmt"}'
+```
+
+```bash 删除素材
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=DeleteAsset&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"Id": "<ASSET-ID>", "ProjectName": "pmt"}'
+```
+
+```bash 查询素材组列表
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=ListAssetGroups&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"Filter": {"GroupType": "AIGC"}, "MaxResults": 10, "ProjectName": "pmt"}'
+```
+
+```bash 更新素材组名称
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=UpdateAssetGroup&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"Id": "<ASSET-GROUP-ID>", "Name": "角色A素材组新版", "ProjectName": "pmt"}'
+```
+
+```bash 删除素材组
+curl --request POST \
+  --url 'https://model-api.skyengine.com.cn/v1/assets/actions?Action=DeleteAssetGroup&Version=2024-01-01' \
+  --header 'Authorization: Bearer <API-KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"Id": "<ASSET-GROUP-ID>", "ProjectName": "pmt"}'
+```
+</CodeGroup>
+
+列表分页时，将上一页的 `Result.NextToken` 加入下一次请求体的 `NextToken` 字段，并保持过滤条件和项目一致。`MaxResults` 默认 10，范围为 1～100。`UpdateAsset`、`UpdateAssetGroup` 只更新 `Active` 资源的名称。
+
+删除素材不会删除共享素材组；删除组之前需先删除组内素材，非空组返回 409。视频请求引用后的素材有两小时删除保护，上传期间素材组也有短期删除保护；保护期间删除返回 409，请稍后重试。创建结果不明确时不要更换幂等 key 重复上传，先查询已有记录，并按错误提示核查。
+
+更多请求参数、REST 路径和保留差异见[素材管理 API](/api-reference/endpoint/assets)。
+
 ## 素材要求
 
 下表适用于 Seedance 2.5 的输入素材；输入视频可为 4K，不代表模型支持 4K 输出。
@@ -317,7 +537,7 @@ Seedance 2.5 支持在提示词中按整数秒描述剧情、动作和转场。�
 
 图片和视频的宽高比需在 `[0.4, 2.5]`，宽、高各为 300～6000 像素；视频总像素数须在 `[407696, 8295044]`，帧率为 24～60 fps。MP4 视频支持 H.264 / H.265 编码和 AAC / MP3 音频；MOV 还支持 PCM 音频。
 
-图片、音频可在对应的 `url` 字段使用 Base64 data URL，例如 `data:image/png;base64,...`、`data:audio/wav;base64,...`；请求体不超过 64 MB，大素材优先使用公网 URL。视频使用公网 URL。厂商素材 ID 的可用范围与账号有关，使用前需确认路由账号能访问该素材。
+图片、音频可在对应的 `url` 字段使用 Base64 data URL，例如 `data:image/png;base64,...`、`data:audio/wav;base64,...`；请求体不超过 64 MB，大素材优先使用公网 URL。视频使用公网 URL。通过素材管理 API 入库的素材使用 `asset://<ASSET-ID>` 引用，平台会检查用户归属及账号、项目兼容性；不支持直接传入未在平台登记的厂商素材 ID。
 
 <Warning>
 Seedance 2.5 不支持直接上传含有真人人脸的参考图片或视频。厂商提供信任模型原始产物、预置虚拟人像及已授权真人素材等方案；这些方案受厂商账号和素材权限约束，不应将任意真人照片作为可直接使用的参考素材。具体规则见[官方肖像素材说明](https://docs.volcengine.com/docs/ark/seedance-portrait-asset-guide?lang=zh)。
