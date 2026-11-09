@@ -1,6 +1,6 @@
 ---
 title: 'OpenAI 图片生成 / 编辑示例'
-description: '使用 OpenAI 兼容接口（GPT Image 2.5 / gpt-image-2 / gpt-image-1 系列）生成与编辑图片的完整示例'
+description: 'GPT Image 2.6 / 2.5 图片生成与编辑，包含复杂度、透明背景、JSON 标注图层、SVG/GIF 参数和计费说明'
 ---
 
 # OpenAI 图片生成 / 编辑
@@ -10,7 +10,7 @@ description: '使用 OpenAI 兼容接口（GPT Image 2.5 / gpt-image-2 / gpt-ima
 - **文生图** `POST /v1/images/generations`
 - **图生图 / 编辑** `POST /v1/images/edits`
 
-两者都走 OpenAI 兼容协议。新接入推荐使用 `gpt-image-2.5-flare` 或 `gpt-image-2.5-sunburst`；已有业务仍可继续使用 `gpt-image-2-2026-04-21`、`gpt-image-1` / `gpt-image-1.5`。
+两者都走 OpenAI 兼容协议。GPT Image 2.6 使用 `gpt-image-2.6-flare` 或 `gpt-image-2.6-sunburst`，支持复杂度控制和标注图层编辑。下方分别列出 2.6、2.5 和早期模型的示例及限制。模型的可调用状态以模型广场和 `GET /v1/models` 返回结果为准。
 
 ## 接口与传图方式速查
 
@@ -19,13 +19,299 @@ description: '使用 OpenAI 兼容接口（GPT Image 2.5 / gpt-image-2 / gpt-ima
 | 文生图 | `/v1/images/generations` | `application/json` | 不传 `image` | - | 否 |
 | 图片编辑（本地文件） | `/v1/images/edits` | `multipart/form-data` | `image=@original.png`；多图时重复传 `image` | 是，最多 16 张 | 是，`mask=@mask.png` |
 | 图片编辑（URL / Base64） | `/v1/images/edits` | `application/json` | `image` 传字符串数组；每项可为 URL、纯 Base64 或 Data URI | 是，最多 16 张 | 是，`mask` 传单个字符串 |
+| GPT Image 2.6 标注图层编辑 | `/v1/images/edits` | `application/json` 或 `multipart/form-data` | JSON 使用 `images` 引用原图、`markup` 引用标注图层；上传文件时使用 `image` 和 `markup` | 是，图层作用于第一张原图 | `markup` 与 `mask` 互斥 |
 | 统一生成入口（平台扩展） | `/v1/images/generations` | `application/json` | 增加 `image`，传单个字符串或字符串数组；平台按图片编辑处理 | 是，最多 16 张 | 否 |
 
 <Note>
-OpenAI 标准的图片编辑使用 `multipart/form-data`。为方便服务端直接传 URL 或 Base64，平台额外支持 JSON body；不需要先把远程图片下载成本地文件。
+图片编辑支持上传本地文件，也支持通过 JSON 引用图片。JSON 的 `images` 对象数组与 `markup` 对象用于 GPT Image 2.6 新示例；已有调用可继续使用平台的 `image` 字符串数组格式。
 </Note>
 
-## GPT Image 2.5（推荐）
+## GPT Image 2.6
+
+| 模型名 | 适用场景 |
+|---|---|
+| `gpt-image-2.6-flare` | 交互生成、快速迭代和图片编辑 |
+| `gpt-image-2.6-sunburst` | 复杂构图、精细视觉设计和图片编辑 |
+
+请求的 `model` 使用上述平台模型名。每个示例都采用同步调用，并显式设置 `n=1`。
+
+### 功能与使用范围
+
+| 功能 | 调用方式 | 使用说明 |
+|---|---|---|
+| PNG / JPEG 生成 | `generations` JSON | 用 `quality` 控制渲染质量，用 `complexity` 控制画面规划复杂度 |
+| URL / Base64 图片编辑 | `edits` JSON | 支持单图和多参考图 |
+| 本地图片编辑 | `edits` multipart | 使用 `image` 上传文件 |
+| 透明背景 | `background=transparent`、`output_format=png` | 适合图标、贴纸和独立产品素材 |
+| 标注图层指导编辑 | `edits` JSON 或 multipart | 在透明 PNG 上画圈、箭头或文字，引导模型修改第一张原图 |
+| GIF 动画 | `output_format=gif` | 预览能力，当前存在指定帧数与实际帧数不一致的问题 |
+| SVG 矢量图 | `output_format=svg` | 当前暂不可用，渠道仍可能返回缺少 `svg.model` 的错误 |
+
+### 同步生成与复杂度控制
+
+`quality` 影响渲染质量，`complexity` 控制模型在构图、文字和对象关系上的规划投入。简单图标可先用 `low`，复杂布局可尝试 `medium` 或 `high`。提高复杂度可能增加耗时，复杂度与渲染质量可以分别设置。
+
+```bash cURL
+curl "https://model-api.skyengine.com.cn/v1/images/generations" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2.6-flare",
+    "prompt": "为精品咖啡店设计一张简洁海报，白色背景，中央是一杯咖啡，标题为晨间咖啡，文字清晰",
+    "n": 1,
+    "size": "1024x1024",
+    "quality": "medium",
+    "complexity": "high",
+    "output_format": "png",
+    "response_format": "b64_json"
+  }'
+```
+
+使用 Python 时可通过 HTTP JSON 请求发送这些字段，并将返回图片保存到文件。运行前安装 `requests`，并设置环境变量 `TOKENOPS_API_KEY`。
+
+```python Python
+import base64
+import os
+from pathlib import Path
+
+import requests
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/generations",
+    headers={"Authorization": f"Bearer {os.environ['TOKENOPS_API_KEY']}"},
+    json={
+        "model": "gpt-image-2.6-flare",
+        "prompt": "A blue paper boat on a white background, minimal product illustration",
+        "n": 1,
+        "size": "1024x1024",
+        "quality": "low",
+        "complexity": "low",
+        "output_format": "png",
+        "response_format": "b64_json",
+    },
+    timeout=300,
+)
+response.raise_for_status()
+result = response.json()
+Path("generated.png").write_bytes(base64.b64decode(result["data"][0]["b64_json"]))
+print(result.get("usage", {}))
+```
+
+需要 JPEG 时，将 `output_format` 改为 `jpeg`，并按需增加 `output_compression`，例如 `80`。保存文件时使用对应扩展名。
+
+### 透明背景
+
+```bash cURL
+curl "https://model-api.skyengine.com.cn/v1/images/generations" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2.6-sunburst",
+    "prompt": "一枚蓝色小火箭贴纸，完整主体，透明背景，无文字、无地面、无阴影背景",
+    "n": 1,
+    "size": "1024x1024",
+    "quality": "low",
+    "complexity": "low",
+    "background": "transparent",
+    "output_format": "png",
+    "response_format": "b64_json"
+  }'
+```
+
+PNG 文件需要保留 alpha 通道，使用支持透明度的图片查看器检查背景。
+
+### JSON 图片编辑
+
+将示例中的图片 URL 替换为可公开访问的真实图片地址。每个 `images` 元素使用 `image_url` 引用一张图片，值也可以是 `data:image/png;base64,...`。
+
+```bash cURL
+curl "https://model-api.skyengine.com.cn/v1/images/edits" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2.6-sunburst",
+    "prompt": "保留第一张图的产品和构图，采用第二张图的蓝白配色，背景改为干净的摄影棚",
+    "images": [
+      {"image_url": "https://example.com/product.png"},
+      {"image_url": "https://example.com/style.png"}
+    ],
+    "n": 1,
+    "size": "1024x1024",
+    "quality": "medium",
+    "complexity": "medium",
+    "output_format": "png",
+    "response_format": "b64_json"
+  }'
+```
+
+已有业务也可以使用 `"image": ["https://example.com/product.png"]`，每个元素支持 URL、纯 Base64 或 Data URI。`image` 与 `images` 二选一，最多传入 16 张参考图。`images[].file_id` 可引用同一上游账号中已有的文件 ID，每项的 `file_id` 与 `image_url` 二选一；文件 ID 的可用性取决于实际路由账号，跨账号调用应使用 URL 或 Data URI。
+
+### 标注图层指导编辑
+
+先准备原图，再创建一张与原图方向校正后尺寸一致的透明 PNG 图层。在图层上画圈、箭头或文字，标明目标位置，并在 `prompt` 中说明修改内容及是否移除标记。图层对应第一张参考图，必须包含透明像素。
+
+JSON Body 可以直接传入 `markup` 对象。
+
+```bash cURL
+curl "https://model-api.skyengine.com.cn/v1/images/edits" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2.6-flare",
+    "prompt": "将红圈里的花瓶改成蓝色陶瓷，保留其他物体和构图，最终图片去掉红圈标记",
+    "images": [
+      {"image_url": "https://example.com/original.png"}
+    ],
+    "markup": {
+      "image_url": "https://example.com/annotation.png"
+    },
+    "n": 1,
+    "quality": "medium",
+    "complexity": "low",
+    "output_format": "png",
+    "response_format": "b64_json"
+  }'
+```
+
+`markup.image_url` 同样支持 PNG Data URI。上传本地文件时可以使用下面的 multipart 请求。
+
+```bash cURL
+curl "https://model-api.skyengine.com.cn/v1/images/edits" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -F model="gpt-image-2.6-flare" \
+  -F image="@original.png;type=image/png" \
+  -F markup="@annotation.png;type=image/png" \
+  -F prompt="将红圈里的花瓶改成蓝色陶瓷，保留其他物体和构图，最终图片去掉红圈标记" \
+  -F n="1" \
+  -F quality="medium" \
+  -F complexity="low" \
+  -F output_format="png" \
+  -F response_format="b64_json"
+```
+
+一个请求只能传入一个标注图层，`markup` 与局部编辑的 `mask` 互斥。
+
+### GPT Image 2.6 参数矩阵
+
+| 参数 | 类型 | generations JSON | edits JSON | edits multipart | 取值与使用说明 |
+|---|---|:---:|:---:|:---:|---|
+| `model` | string | ✓ | ✓ | ✓ | `gpt-image-2.6-flare` / `gpt-image-2.6-sunburst` |
+| `prompt` | string | ✓ | ✓ | ✓ | 必填，描述画面或编辑要求 |
+| `n` | integer | ✓ | ✓ | ✓ | 本页示例使用 `1`；SVG 要求 `1` |
+| `size` | string | ✓ | ✓ | ✓ | 示例使用 `1024x1024`；`auto` 由模型选择尺寸 |
+| `quality` | string | ✓ | ✓ | ✓ | 常用 `low` / `medium` / `high`，或省略使用模型默认 |
+| `complexity` | string | ✓ | ✓ | ✓ | `low` / `medium` / `high`，省略使用模型默认 |
+| `output_format` | string | ✓ | ✓ | ✓ | 常规图片示例使用 `png` / `jpeg`；GIF 和 SVG 见下方限制 |
+| `output_compression` | integer | ✓ | ✓ | ✓ | `0`～`100`，用于 JPEG 等支持压缩的格式；GIF / SVG 不支持 |
+| `background` | string | ✓ | ✓ | ✓ | `auto` / `opaque` / `transparent`，透明背景使用 PNG |
+| `response_format` | string | ✓ | ✓ | ✓ | `b64_json` 或 `url`，分别返回 Base64 或平台转存的签名 URL |
+| `image` | string / string[] / file | 平台扩展 | 字符串数组 | 上传文件 | 编辑参考图；JSON 与 `images` 二选一 |
+| `images` | object[] | — | ✓ | — | 每项通过 `image_url` 或 `file_id` 引用图片；最多 16 张 |
+| `markup` | object / file | — | 对象 | 文件或 JSON 对象文本 | 透明 PNG 图层，与第一张原图同尺寸，与 `mask` 互斥 |
+| `mask` | string / file | — | URL / Base64 字符串 | 上传文件 | 局部编辑的透明 PNG，与 `markup` 互斥 |
+| `safety_identifier` | string | ✓ | ✓ | ✓ | 最长 128 字符，建议使用业务用户标识的哈希值 |
+| `frame_count` | integer | GIF | GIF | GIF | `2`～`16`，官方默认 `9`；当前实际帧数可能与请求值不一致 |
+| `frame_duration_ms` | integer | GIF | GIF | GIF | `20`～`655350`，官方默认 `200`，编码时按 10ms 精度取整 |
+| `svg` | object | SVG | — | — | SVG 作者配置，当前暂不可用，字段约定见下方 |
+| `stream` / `partial_images` | boolean / integer | — | — | — | 本次接入使用同步调用；GIF / SVG 请求应省略这些字段 |
+
+`complexity`、`frame_count`、`frame_duration_ms`、`safety_identifier` 和 `svg` 都放在请求顶层。`prompt_rewriter` 当前未接入。
+
+### GIF 预览与帧数限制
+
+设置 `output_format=gif` 后，`data[0].b64_json` 解码得到 GIF 文件。`frame_count` 指定帧数，`frame_duration_ms` 指定每帧时长。GIF 生成和编辑均使用同步请求，使用 `size=auto` 可让模型选择动画尺寸，省略 `stream`、`partial_images`、`mask` 和 `output_compression`。
+
+<Warning>
+截至 2026-11-09，GIF 存在指定 2 帧却实际返回 6 或 9 帧的问题，渠道直调也已复现。当前无法保证精确帧数，业务需要按解码后的实际 GIF 帧数和时长处理结果。
+</Warning>
+
+下面展示预览能力的请求格式。
+
+```bash cURL
+curl "https://model-api.skyengine.com.cn/v1/images/generations" \
+  -H "Authorization: Bearer <API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2.6-sunburst",
+    "prompt": "A flat blue ball bouncing on a white floor, simple animation, no text",
+    "n": 1,
+    "size": "auto",
+    "quality": "low",
+    "complexity": "low",
+    "output_format": "gif",
+    "frame_count": 2,
+    "frame_duration_ms": 200,
+    "response_format": "b64_json"
+  }' \
+  -o response.json
+```
+
+使用 Python 可以保存动画并检查实际帧数，运行前安装 `Pillow`。
+
+```python Python
+import base64
+import json
+from pathlib import Path
+
+from PIL import Image
+
+result = json.loads(Path("response.json").read_text(encoding="utf-8"))
+Path("generated.gif").write_bytes(base64.b64decode(result["data"][0]["b64_json"]))
+with Image.open("generated.gif") as animation:
+    durations = []
+    for index in range(animation.n_frames):
+        animation.seek(index)
+        durations.append(animation.info.get("duration", 0))
+    print({"frames": animation.n_frames, "durations_ms": durations})
+```
+
+将接口响应保存为 `response.json` 后再运行上述代码。
+
+### SVG 参数与当前限制
+
+<Warning>
+截至 2026-11-09，SVG 尚未通过渠道验证。即使传入完整的 `svg.model`，上游仍可能返回 HTTP 400，提示 `svg.model is required when output_format is svg`。该问题已在渠道直调中复现，当前请使用 PNG 或 JPEG 交付图片。
+</Warning>
+
+SVG 的顶层 `model` 选择参考图生成模型，`svg.model` 选择根据参考图编写 SVG 的作者模型。SVG 文件解码后是 UTF-8 XML，适用于可编辑的图标、形状和插画。当前平台的作者模型范围仅包含 `gpt-6-luna`，以下为参数约定。
+
+```json
+{
+  "model": "gpt-image-2.6-flare",
+  "prompt": "A simple blue circle on a white background",
+  "n": 1,
+  "quality": "low",
+  "complexity": "low",
+  "output_format": "svg",
+  "svg": {
+    "model": "gpt-6-luna",
+    "reasoning": {"effort": "low"}
+  }
+}
+```
+
+`svg.reasoning.effort` 控制作者的思考投入，省略时使用作者默认值。协议可表达 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`，具体可用档位由作者模型决定。SVG 仅支持同步 `POST /v1/images/generations`、`n=1`，请求应省略参考图、`stream`、`partial_images`、`prompt_rewriter` 和 `output_compression`。
+
+### 2.6 响应与计费字段
+
+常规图片和 GIF 的 `usage` 表示图像模型用量。文本输入、图片输入、图片输出和缓存命中分别按模型广场的对应计费项结算。`n` 表示返回的图片或动画文件数量，GIF 的帧数保存在文件内部。
+
+| 字段 | 含义 |
+|---|---|
+| `data[].b64_json` | 文件的 Base64 内容，按请求格式保存为 `.png`、`.jpg`、`.gif` 或 `.svg` |
+| `data[].url` | 请求 `response_format=url` 时返回的平台签名 URL |
+| `output_format` / `size` / `quality` / `complexity` | 上游返回时保留的输出元信息，应作为可选字段解析 |
+| `frame_count` / `frame_duration_ms` | 上游返回时保留的动画元信息，业务还应检查 GIF 文件内的实际值 |
+| `usage.input_tokens_details.text_tokens` | 文本输入 token |
+| `usage.input_tokens_details.image_tokens` | 图片输入 token |
+| `usage.input_tokens_details.cached_tokens` | 上游提供时的缓存输入总量 |
+| `usage.input_tokens_details.cached_tokens_details` | 上游提供时的文本、图片等缓存输入拆分 |
+| `usage.output_tokens_details.image_tokens` | 图片渲染输出 token |
+| `svg_usage` | SVG 作者用量，包含 `model`、`input_tokens`、`output_tokens`、`reasoning_tokens`、`total_tokens` |
+
+SVG 的图片渲染与作者用量按各自模型价格计算，并在同一个订单内汇总扣费，账单使用 `applied_price_items` 展示计费明细。`usage` 与 `svg_usage` 分别描述两个阶段，客户端应分别保留；`reasoning_tokens` 是否已计入 `output_tokens` 需结合总量核对，避免重复相加。当前 SVG 生成与最终账单的端到端验收仍受上述渠道错误阻碍。
+
+## GPT Image 2.5
 
 平台提供两个独立模型名，请按场景明确选择，不要使用 `gpt-image-2.5` 作为模型名：
 
@@ -164,10 +450,10 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/edits" \
 | `data[].b64_json` | string | 条件 | `response_format=b64_json` 或未传时返回的图片 Base64 | 无；只影响交付方式 |
 | `data[].url` | string | 条件 | `response_format=url` 时由平台转存并返回签名 URL | 无；只影响交付方式，URL 会过期 |
 | `data[].revised_prompt` | string | 条件 | 上游返回的修订后提示词，主要用于 DALL·E 3；GPT Image 2.5 通常不返回 | 无 |
-| `background` | string | 条件 | OpenAI 兼容保留字段；上游可能回传 `transparent` / `opaque` | 无；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
-| `output_format` | string | 条件 | OpenAI 兼容保留字段，表示实际上游输出格式 | 无；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
-| `quality` | string | 条件 | OpenAI 兼容保留字段，表示实际质量档位 | 会影响图片输出 token 数及费用；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
-| `size` | string | 条件 | OpenAI 兼容保留字段，表示实际尺寸，例如 `1024x1024` | 会影响图片输出 token 数及费用；当前 Azure / QNAIGC GPT Image 2.5 适配器不返回 |
+| `background` | string | 条件 | 上游返回时保留，例如 `transparent` / `opaque` | 无 |
+| `output_format` | string | 条件 | 上游返回时保留，表示实际输出格式 | 无 |
+| `quality` | string | 条件 | 上游返回时保留，表示实际质量档位 | 质量档位会影响图片输出 token 数及费用 |
+| `size` | string | 条件 | 上游返回时保留，表示实际尺寸，例如 `1024x1024` | 尺寸会影响图片输出 token 数及费用 |
 | `usage` | object | 条件 | GPT Image 模型的 token 用量；仅在上游提供 usage 时出现 | 计费依据 |
 | `usage.input_tokens` | integer | 条件 | 文本与图片输入 token 合计 | 输入计费合计依据 |
 | `usage.input_tokens_details.text_tokens` | integer | 条件 | 提示词等文本输入 token | 按文本输入单价计费 |
@@ -570,7 +856,7 @@ r = requests.post(
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `model` | string | 模型名。推荐 `gpt-image-2.5-flare`（速度优先）或 `gpt-image-2.5-sunburst`（编辑精度优先）。也支持 `gpt-image-2-2026-04-21`、`gpt-image-1` / `gpt-image-1.5` / `gpt-image-1-mini` |
+| `model` | string | 模型名。GPT Image 2.6 使用 `gpt-image-2.6-flare` / `gpt-image-2.6-sunburst`，新参数和限制见上方 2.6 章节。2.5 使用 `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst`。早期模型包括 `gpt-image-2-2026-04-21`、`gpt-image-1` / `gpt-image-1.5` / `gpt-image-1-mini` |
 | `prompt` | string | 文字描述，必填。GPT image 系列上限 **32000 字符**（`dall-e-3` 为 4000，`dall-e-2` 为 1000） |
 | `n` | integer | 生成张数。GPT Image 2.5 同步接口当前固定返回 1 张；其他模型通常为 **1 ~ 10**，`dall-e-3` 仅支持 `n=1` |
 | `size` | string \| `"auto"` | 生成图片的尺寸，格式为 `宽x高`（WIDTHxHEIGHT）。<br/>**gpt-image-2 / gpt-image-2-2026-04-21**：支持任意分辨率，宽和高都必须是 16 的倍数，宽高比需在 `1:3` ~ `3:1` 之间，例如 `1536x864`。超过 `2560x1440` 的分辨率为实验性支持，最大支持到 `3840x2160`。同时还要满足模型当前的像素和单边限制（见下方[尺寸约束](#尺寸约束gpt-image-2)）。<br/>**GPT 图像模型标准尺寸**：`1024x1024`（方）、`1536x1024`（横）、`1024x1536`（纵）均受支持；`auto` 仅在允许自动选尺寸的模型上可用。<br/>**dall-e-2**：`256x256` / `512x512` / `1024x1024`。<br/>**dall-e-3**：`1024x1024` / `1792x1024` / `1024x1792`。<br/>不传则走模型默认。 |
@@ -586,7 +872,9 @@ r = requests.post(
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `image` | file / file[]（form-data）<br/>string[]（edits JSON）<br/>string / string[]（generations JSON） | 参考图。`/v1/images/edits` 的 JSON body 即使单图也要传数组；form-data 下同名字段重复即可多图。GPT Image 2.5 与 `gpt-image-1/2` 家族在 `/v1/images/generations` 也支持此字段（见方式 C） |
+| `image` | file / file[]（form-data）<br/>string[]（edits JSON）<br/>string / string[]（generations JSON） | 参考图。`/v1/images/edits` 的 JSON body 即使单图也要传数组；form-data 下同名字段重复即可多图。GPT Image 2.6 / 2.5 与 `gpt-image-1/2` 家族在 `/v1/images/generations` 也支持此字段（见方式 C） |
+| `images` | object[]（edits JSON） | GPT Image 2.6 图片引用格式，每项使用 `image_url` 或 `file_id`，与 `image` 二选一 |
+| `markup` | object（edits JSON）或 file（form-data） | GPT Image 2.6 的透明 PNG 标注图层，作用于第一张原图，与 `mask` 互斥；完整 JSON 和文件示例见上方 |
 | `mask` | file（form-data）<br/>string（JSON，URL 或 base64） | 可选 PNG mask（alpha 通道透明区域表示"编辑此处"），尺寸必须与 `image` 一致。**仅 `/v1/images/edits` 支持**，方式 C 不支持 |
 | `input_fidelity` | string | 图片编辑保真度。当前 `high` 仅支持 `gpt-image-2.5-sunburst`；Flare 请求请省略该字段 |
 
@@ -645,3 +933,11 @@ r = requests.post(
 | 抠图 / 背景替换 | edits + mask | mask 边缘要干净，alpha=0 为"替换处" |
 | 风格转换 | edits（不带 mask） | prompt 指明目标风格 |
 | 多参考图合成 | edits 多 `image` | 按数组顺序上传，主体图放第一个 |
+
+## 参考文档
+
+- [OpenAI 图片生成指南](https://developers.openai.com/api/docs/guides/image-generation)
+- [OpenAI Images 生成接口](https://developers.openai.com/api/reference/resources/images/methods/generate)
+- [OpenAI Images 编辑接口](https://developers.openai.com/api/reference/resources/images/methods/edit)
+- [GPT Image 2.6 Flare](https://developers.openai.com/api/docs/models/gpt-image-2.6-flare)
+- [GPT Image 2.6 Sunburst](https://developers.openai.com/api/docs/models/gpt-image-2.6-sunburst)
