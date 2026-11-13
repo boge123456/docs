@@ -1,13 +1,250 @@
 ---
 title: '豆包图片生成示例'
-description: '使用豆包 API 进行图片生成的完整示例代码'
+description: 'Seedream 5.5 同步生图、编辑、透明背景、图层拆分与富文本 OCR 的参数和计费示例'
 ---
 
 # 豆包图片生成示例
 
-以下示例展示如何使用豆包 API 生成高质量的图片。
+通过平台图片 API（`https://model-api.skyengine.com.cn/v1`）调用豆包模型。请求前通过 `GET /v1/models` 确认当前环境开放的 Model ID。
 
-## 快速开始
+## Seedream 5.5 同步生图
+
+`doubao-seedream-5-5-261028` 支持文生图、单图编辑和最多 10 张参考图的融合编辑。普通生成一次返回一张图片，图层拆分会返回底图和多个图层。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "doubao-seedream-5-5-261028",
+    "prompt": "一张白底海报，上方清晰写着 HELLO 55，下方是一个红色圆形，简洁排版",
+    "size": "2K",
+    "output_format": "png",
+    "response_format": "url",
+    "watermark": false,
+    "optimize_prompt_options": {"mode": "standard"}
+  }'
+```
+
+```python Python
+import os
+import requests
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/generations",
+    headers={"Authorization": f"Bearer {os.environ['TOKENOPS_API_KEY']}"},
+    json={
+        "model": "doubao-seedream-5-5-261028",
+        "prompt": "白色桌面上的红色陶瓷杯，产品摄影，横向构图",
+        "size": "1K",
+        "output_format": "jpeg",
+        "response_format": "url",
+        "watermark": False,
+    },
+    timeout=300,
+)
+response.raise_for_status()
+result = response.json()
+print(result["data"][0]["url"])
+print(result["data"][0]["size"])
+print(result["usage"]["generated_images"])
+```
+
+</CodeGroup>
+
+`size` 的 `1K`、`1.5K`、`2K` 表示分辨率档位，具体宽高由模型结合提示词确定。例如 `2K` 可以返回 `2048x2048` 或 `1664x2496`。需要固定宽高时传入 `宽x高`，如 `2048x2048`。计费以响应中每张图片的实际宽高为准。
+
+## Seedream 5.5 参数矩阵
+
+| 参数 | 文生图／参考图编辑 | 图层拆分 | 取值与限制 |
+| --- | --- | --- | --- |
+| `model` | 必填 | 必填 | `doubao-seedream-5-5-261028` |
+| `prompt` | 必填 | 可选 | 编辑时说明要修改和保留的内容；拆层时可描述希望拆出的对象 |
+| `image` | 编辑时必填，1–10 张 | 必填，恰好 1 张 | 公网 URL 或 `data:image/...;base64,...`，支持字符串或字符串数组 |
+| `size` | 默认 `2K`，支持 `1K`、`1.5K`、`2K` 或 `宽x高` | 默认 `auto`，支持 `auto`、`1K`、`1.5K`、`2K` | 生成自定义尺寸需满足总像素 921600–4624220、宽高比 1/16–16；拆层使用档位 |
+| `output_format` | 默认 `png`，支持 `png`、`jpeg` | 控制底图格式，图层固定为 PNG | 透明输出需要 `png` |
+| `response_format` | 支持 | 支持 | `url`（默认）或 `b64_json` |
+| `background` | 默认 `auto`，支持 `auto`、`transparent`、`opaque` | 不支持，传入会报错 | `transparent` 输出 RGBA，参考图可以为普通 RGB 图片 |
+| `layer_decomposition` | 省略或 `false` | `true` | 开启后将单图拆为底图与独立图层 |
+| `layer_decomposition_options.max_images` | 拆层时生效 | 支持 | 2–100，默认 30，包含底图，实际返回数量可以更少 |
+| `layer_decomposition_options.text_recognition` | 拆层时生效 | 支持 | 布尔值，默认 `false`，开启后返回规整文字图层的 OCR 结果 |
+| `optimize_prompt_options.mode` | 支持 `standard` | 支持 `standard` | 提示词优化模式，5.5 仅支持 `standard` |
+| `watermark` | 支持 | 支持 | 布尔值，建议显式指定 |
+| `safety_identifier` | 支持 | 支持 | 终端用户的固定英文标识，最长 64 字符，可传用户 ID 的哈希值 |
+
+平台当前单张输入图片按 **20MB** 上限配置。常用参考格式为 PNG、JPEG 和 WebP。`image` 数组保持输入顺序，提示词可用“图一”“图二”指代。
+
+<Warning>
+Seedream 5.5 使用同步请求。请省略 `stream` 或设为 `false`。该模型的普通生图只生成单张，`n` 省略或设为 `1`，不支持 `sequential_image_generation`、组图生成或 `tools.web_search`。拆层输出数量使用 `layer_decomposition_options.max_images` 控制。
+</Warning>
+
+## Seedream 5.5 图片编辑与多轮编辑
+
+JSON 编辑请求使用 `/v1/images/edits`，也可以在 `/v1/images/generations` 中携带相同的 `image` 参数。将示例地址替换为可公开下载的图片 URL。
+
+```bash cURL - 多参考图编辑
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/edits' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "doubao-seedream-5-5-261028",
+    "prompt": "保留图一杯子的形状和视角，将图二的圆形图案放到杯身上，保持白色桌面",
+    "image": ["https://example.com/cup.png", "https://example.com/pattern.png"],
+    "size": "1K",
+    "output_format": "png",
+    "response_format": "url",
+    "watermark": false
+  }'
+```
+
+本地图片可转为 Base64 data URI，使用同一个 JSON 接口。下例第二轮把第一轮输出作为参考图，继续修改同一张图片。
+
+```python Python - Base64 与多轮编辑
+import base64
+import os
+from pathlib import Path
+import requests
+
+headers = {"Authorization": f"Bearer {os.environ['TOKENOPS_API_KEY']}"}
+image = "data:image/png;base64," + base64.b64encode(
+    Path("reference.png").read_bytes()
+).decode("ascii")
+body = {
+    "model": "doubao-seedream-5-5-261028",
+    "image": [image],
+    "prompt": "只把红色杯子改为绿色，保留蓝色贴纸、杯子形状与白色桌面",
+    "size": "1K",
+    "output_format": "png",
+    "response_format": "url",
+    "watermark": False,
+}
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/edits", headers=headers, json=body, timeout=300
+)
+response.raise_for_status()
+first = response.json()
+
+body["image"] = [first["data"][0]["url"]]
+body["prompt"] = "在绿色杯身上增加黄色五角星，保留蓝色贴纸、杯子形状和拍摄角度"
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/edits", headers=headers, json=body, timeout=300
+)
+response.raise_for_status()
+print(response.json()["data"][0]["url"])
+```
+
+每轮请求都需要携带参考图片和本轮提示词。每一轮独立结算，本轮输入图数量包含再次提交的上一轮产物。
+
+## Seedream 5.5 透明背景
+
+文生图和参考图编辑都支持 `background: "transparent"`。编辑时输入普通 RGB 图片即可，提示词中说明要保留的主体与需要移除的背景。JPEG 无透明通道，`background: "transparent"` 与 `output_format: "jpeg"` 的组合会返回错误。
+
+```bash cURL - 透明 PNG
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "doubao-seedream-5-5-261028",
+    "prompt": "一个红色陶瓷杯，保留完整主体，透明背景，不要地面和阴影",
+    "size": "1K",
+    "background": "transparent",
+    "output_format": "png",
+    "response_format": "url",
+    "watermark": false
+  }'
+```
+
+将接口改为 `/v1/images/edits` 并加入 `image`，即可移除已有图片背景。`background: "auto"` 由模型结合提示词和文件格式决定是否输出透明通道，`opaque` 输出不透明图片。响应的 `data[].background` 表示实际结果，取值为 `transparent` 或 `opaque`。
+
+## Seedream 5.5 图层拆分与富文本 OCR
+
+拆层请求输入恰好一张图片，`layer_decomposition` 设为 `true`。示例最多返回 4 张图片，包含 1 张底图和最多 3 个图层。`max_images` 是上限，实际数量由图片内容与模型的拆分结果决定。
+
+```bash cURL - 拆层与 OCR
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/edits' \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "doubao-seedream-5-5-261028",
+    "image": ["https://example.com/poster.png"],
+    "layer_decomposition": true,
+    "layer_decomposition_options": {
+      "max_images": 4,
+      "text_recognition": true
+    },
+    "size": "auto",
+    "output_format": "png",
+    "response_format": "url",
+    "watermark": false
+  }'
+```
+
+<Info>
+拆层时省略 `background`。底图使用 `output_format` 指定的格式，各独立图层始终为透明 PNG。默认 `size: "auto"` 依据输入图和各图层尺寸输出，底图、文字层和主体层的实际宽高可以不同。
+</Info>
+
+`data[]` 的 `z_index` 给出叠放顺序，底图为 0；图层的 `name`、`description` 描述内容，`bounding_box` 给出它在原图中的位置。开启 OCR 后，规整文字图层额外返回 `text_recognition`。非文字图层、艺术字和手写体等非规整文字可以没有该字段。
+
+| 响应字段 | 含义 |
+| --- | --- |
+| `data[].url`／`b64_json` | 按 `response_format` 返回图片地址或 Base64 数据 |
+| `data[].size` | 该张产物实际宽高，如 `1632x643` |
+| `data[].output_format` | 该张产物文件格式 |
+| `data[].background` | 实际透明度类型，`transparent` 或 `opaque` |
+| `data[].z_index` | 底图及图层的叠放顺序 |
+| `data[].bounding_box.absolute` | 图层在原图中的像素边界，顺序为 `[左, 上, 右, 下]` |
+| `data[].bounding_box.normalized` | 同一边界的 0–1000 归一化坐标 |
+| `data[].text_recognition.text` | 该文字图层的完整识别文本 |
+| `data[].text_recognition.lines[]` | 逐行识别结果，包含行边界 `bounding_box` 和文字片段 `runs[]` |
+| `lines[].runs[].text` | 该片段文字 |
+| `lines[].runs[].style` | 近似视觉样式，包含 `similar_font_family`、`foreground_color`、`bold`、`italic`、`underline`、`strikethrough`、`shadow`、`translucent` |
+| `usage.generated_images` | 实际生成图片总数，拆层时包含底图与所有返回图层 |
+| `usage.total_tokens` | 模型返回的 Token 统计，本模型按图片张数和实际像素档位结算 |
+
+例如文字层可返回以下 OCR 内容。样式字段表示识别到的近似视觉效果，`similar_font_family` 表示相似字体。
+
+```json
+{
+  "text": "HELLO 55",
+  "lines": [{
+    "bounding_box": {
+      "absolute": [221, 134, 700, 239],
+      "normalized": [216, 131, 684, 233]
+    },
+    "runs": [{
+      "text": "HELLO 55",
+      "style": {
+        "similar_font_family": "Rubik",
+        "foreground_color": "#000000",
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "shadow": false,
+        "translucent": false
+      }
+    }]
+  }]
+}
+```
+
+## Seedream 5.5 计费
+
+| 计费项 | CNY 单价 |
+| --- | --- |
+| 输入图片 | 每张 ¥0.05，从第一张起计费 |
+| 输出图片，总像素 ≤ 2610000 | 每张 ¥0.13 |
+| 输出图片，总像素 > 2610000 | 每张 ¥0.23 |
+
+生图、编辑、透明图和拆层按这套价格结算。输出总像素使用每张返回图片的实际 `宽 × 高` 计算，拆层的底图与各图层分别分档。开启 OCR 沿用拆层计费，当前没有单独的 OCR 收费项。
+
+例如，输入 1 张海报，实际返回 1 张底图与 2 个图层，三张输出都不超过 2610000 像素，费用为 `1 × 0.05 + 3 × 0.13 = ¥0.44`。即使 `max_images` 设为 4，也按实际返回的 3 张结算。若其中一张超过低档像素上限，则该张按 ¥0.23 结算。
+
+平台将输入及各输出档位的费用汇总到同一个订单，账单 `applied_price_items` 中可查看 `img.input`、`img.output_r1`、`img.output_r2` 的实际数量与费用。普通生图返回单张图片，拆层返回多张，均可将 `usage.generated_images`、`data` 长度和最终账单输出数量对照核验。
+
+## Seedream 4.0 基础与组图示例
 
 <CodeGroup>
 
@@ -17,7 +254,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
     "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，油画风格",
-    "model": "doubao-seedream-4-0-250828",
+    "model": "doubao-seedream-4.0-250828",
     "size": "1024x1024",
     "response_format": "url",
     "watermark": true
@@ -34,14 +271,14 @@ from io import BytesIO
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def generate_image_doubao(prompt, model="doubao-seedream-4-0-250828", size="1024x1024",
+def generate_image_doubao(prompt, model="doubao-seedream-4.0-250828", size="1024x1024",
                          watermark=True, response_format="url"):
     """
     使用豆包API生成图片
     
     Args:
         prompt: 图片描述文本
-        model: 模型名称，默认doubao-seedream-4-0-250828
+        model: 模型名称，默认doubao-seedream-4.0-250828
         size: 图片尺寸
         watermark: 是否添加水印
         response_format: 返回格式，url或b64_json
@@ -115,7 +352,7 @@ from io import BytesIO
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def generate_image_doubao_stream(prompt, model="doubao-seedream-4-0-250828", size="1024x1024"):
+def generate_image_doubao_stream(prompt, model="doubao-seedream-4.0-250828", size="1024x1024"):
     """
     使用豆包API流式生成图片
     """
@@ -204,7 +441,7 @@ def generate_image_doubao_advanced(prompt, **kwargs):
     # 基础参数
     data = {
         "prompt": prompt,
-        "model": kwargs.get("model", "doubao-seedream-4-0-250828"),
+        "model": kwargs.get("model", "doubao-seedream-4.0-250828"),
         "n": kwargs.get("n", 1),
         "size": kwargs.get("size", "1024x1024"),
         "response_format": kwargs.get("response_format", "url"),
@@ -266,7 +503,7 @@ if __name__ == "__main__":
 
 ## Seedream 5.0 新特性
 
-Seedream 5.0 Pro（`doubao-seedream-5-0-pro-260628`）和 Seedream 5.0 lite（`doubao-seedream-5-0-260128`）相比 4.0 版本新增了以下能力。Pro 版本面向高精度图片生成场景，调用方式与 lite 一致，只需替换 `model` 字段。
+Seedream 5.0 Pro 使用平台模型名 `doubao-seedream-5.0-pro`，lite 使用 `doubao-seedream-5-0-260128`。两者支持的分辨率、联网搜索和组图能力有所差异，按下表和各场景示例选择参数。
 
 ### 指定输出格式（output_format）
 
@@ -280,7 +517,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
     "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚",
-    "model": "doubao-seedream-5-0-pro-260628",
+    "model": "doubao-seedream-5.0-pro",
     "n": 1,
     "size": "2K",
     "output_format": "png",
@@ -302,7 +539,7 @@ response = requests.post(
     },
     json={
         "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚",
-        "model": "doubao-seedream-5-0-pro-260628",
+        "model": "doubao-seedream-5.0-pro",
         "n": 1,
         "size": "2K",
         "output_format": "png",
@@ -328,7 +565,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
     "prompt": "上海今日天气预报，天气可视化信息图",
-    "model": "doubao-seedream-5-0-pro-260628",
+    "model": "doubao-seedream-5-0-260128",
     "size": "2K",
     "tools": [{"type": "web_search"}],
     "response_format": "url"
@@ -349,7 +586,7 @@ response = requests.post(
     },
     json={
         "prompt": "上海今日天气预报，天气可视化信息图",
-        "model": "doubao-seedream-5-0-pro-260628",
+        "model": "doubao-seedream-5-0-260128",
         "size": "2K",
         "tools": [{"type": "web_search"}],
         "response_format": "url"
@@ -372,13 +609,13 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 - 开启后模型会根据提示词**自主判断**是否需要搜索，不一定每次都会触发
 - 实际搜索次数可通过响应中的 `usage.tool_usage.web_search` 字段查看
 - 联网搜索会增加一定的响应时延
-- 仅 Seedream 5.0 Pro / lite 支持，4.0/4.5 不支持
+- 该示例用于 Seedream 5.0 lite；5.5、5.0 Pro / Flash 不支持联网搜索
 </Info>
 
 ## 重要提示
 
 <Warning>
-**doubao-seedream-4-0-250828 模型参数限制**：
+**doubao-seedream-4.0-250828 模型参数限制**：
 - `guidance_scale` 参数不支持，传入会报错
 - `seed` 参数可以传入但不生效，无法重现相同结果
 </Warning>
@@ -394,10 +631,12 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 
 | 模型 | Model ID | 分辨率 | 输出格式 | 联网搜索 |
 |------|----------|--------|----------|----------|
-| Seedream 5.0 Pro | `doubao-seedream-5-0-pro-260628` | 1K, 2K | png, jpeg | 支持 |
+| Seedream 5.5 | `doubao-seedream-5-5-261028` | 1K, 1.5K, 2K | png（默认）, jpeg | 不支持 |
+| Seedream 5.0 Pro | `doubao-seedream-5.0-pro` | 1K, 1.5K, 2K | png, jpeg | 不支持 |
+| Seedream 5.0 Flash | `doubao-seedream-5-0-flash` | 1K, 1.5K, 2K | png, jpeg | 不支持 |
 | Seedream 5.0 lite | `doubao-seedream-5-0-260128` | 2K, 3K, 4K | png, jpeg | 支持 |
 | Seedream 4.5 | `doubao-seedream-4-5-251128` | 2K, 4K | jpeg | 不支持 |
-| Seedream 4.0 | `doubao-seedream-4-0-250828` | 1K, 2K, 4K | jpeg | 不支持 |
+| Seedream 4.0 | `doubao-seedream-4.0-250828` | 1K, 2K, 4K | jpeg | 不支持 |
 
 ## 支持的分辨率
 
@@ -407,7 +646,9 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 
 **方式 2：精确像素值**（如 `"2048x2048"`），推荐值如下：
 
-### Seedream 5.0 Pro / lite
+### Seedream 5.0 lite
+
+下表为 lite 的常用尺寸。5.5／5.0 Pro／Flash 使用各自支持的 1K、1.5K、2K 档位，5.5 的自定义像素范围见本页参数矩阵。
 
 **2K 分辨率：**
 
@@ -440,10 +681,10 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 ### 基础参数
 - **prompt**: 图片描述文本（必需），建议不超过 300 汉字或 600 英文单词
 - **model**: 模型名称
-- **n**: 生成图片数量。Seedream 5.0 Pro 当前仅支持生成单图
-- **size**: 图片尺寸，分辨率等级（如 `"1K"`、`"2K"`、`"3K"`）或精确像素值（如 `"2048x2048"`）。Seedream 5.0 Pro 支持 `1K`、`2K`
+- **n**: 生成图片数量。5.5、5.0 Pro / Flash 的普通生成仅支持单图；5.5 拆层数量由 `layer_decomposition_options.max_images` 控制
+- **size**: 图片尺寸，分辨率等级（如 `"1K"`、`"2K"`、`"3K"`）或精确像素值（如 `"2048x2048"`）。5.5、5.0 Pro / Flash 支持 `1K`、`1.5K`、`2K`
 - **response_format**: 返回格式（`url` 或 `b64_json`）
-- **output_format**: 输出图片格式（`png` 或 `jpeg`），仅 5.0 Pro / lite 支持 png
+- **output_format**: 输出图片格式（`png` 或 `jpeg`），5.5、5.0 Pro / Flash / lite 支持 png
 - **seed**: 随机数种子，-1 表示随机
 
 ### 画质控制参数
@@ -451,14 +692,14 @@ print(f"联网搜索次数: {tool_usage.get('web_search', 0)}")
 
 ### 高级功能参数
 - **stream**: 是否启用流式输出，默认 `false`
-- **tools**: 工具列表，如 `[{"type": "web_search"}]` 开启联网搜索（仅 5.0 Pro / lite）
+- **tools**: 工具列表，如 `[{"type": "web_search"}]` 开启联网搜索（用于 5.0 lite）
 - **sequential_image_generation**: 组图功能控制（`auto` 或 `disabled`）
 - **sequential_image_generation_options**: 组图功能配置
   - **max_images**: 最大图片数量
-- **Seedream 5.0 Pro 注意事项**: `doubao-seedream-5-0-pro-260628` 不支持 `sequential_image_generation` / `sequential_image_generation_options`，调用 Pro 时请不要传这两个字段
+- **Seedream 5.0 Pro 注意事项**: `doubao-seedream-5.0-pro` 不支持 `sequential_image_generation` / `sequential_image_generation_options`，调用 Pro 时请不要传这两个字段
 - **optimize_prompt_options**: 提示词优化配置
   - **mode**: 优化模式（`standard`）
-- **image**: 基础图片，支持 URL 或 Base64 编码（用于图片编辑），最多 14 张
+- **image**: 参考图片，支持 URL 或 Base64 data URI。5.5、5.0 Pro / Flash 最多 10 张，lite / 4.0 / 4.5 最多 14 张；拆层恰好输入 1 张
 
 ## 图片到图片生成示例
 
@@ -473,7 +714,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -d '{
     "prompt": "生成狗狗趴在草地上的近景画面",
     "image": "https://ark-project.tos-cn-beijing.volces.com/doc_image/seedream4_imageToimage.png",
-    "model": "doubao-seedream-4-0-250828",
+    "model": "doubao-seedream-4.0-250828",
     "size": "1024x1024",
     "response_format": "url",
     "watermark": true
@@ -486,7 +727,7 @@ import requests
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def generate_image_from_image(prompt, base_image_url, model="doubao-seedream-4-0-250828", size="1024x1024"):
+def generate_image_from_image(prompt, base_image_url, model="doubao-seedream-4.0-250828", size="1024x1024"):
     """
     基于现有图片生成新图片
     
@@ -552,7 +793,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API-KEY>" \
   -d '{
-    "model": "doubao-seedream-4-0-250828",
+    "model": "doubao-seedream-4.0-250828",
     "prompt": "将图1的服装换为图2的服装",
     "image": [
       "https://ark-project.tos-cn-beijing.volces.com/doc_image/seedream4_imagesToimage_1.png",
@@ -571,7 +812,7 @@ import requests
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def generate_image_from_multiple_images(prompt, image_urls, model="doubao-seedream-4-0-250828", size="1024x1024"):
+def generate_image_from_multiple_images(prompt, image_urls, model="doubao-seedream-4.0-250828", size="1024x1024"):
     """
     基于多张图片融合生成新图片
     
@@ -635,7 +876,7 @@ if __name__ == "__main__":
 </CodeGroup>
 
 ### 多图融合功能说明
-- **支持模型**: `doubao-seedream-4-0-250828`（专门支持多图融合）
+- **支持模型**: `doubao-seedream-4.0-250828`（专门支持多图融合）
 - **输入格式**: `image` 参数接受图片URL数组，最多支持多张图片
 - **提示词格式**: 可使用"图1"、"图2"等引用不同的输入图片
 - **常见用途**: 服装替换、风格迁移、元素组合、场景融合
@@ -657,7 +898,7 @@ curl -X POST "https://model-api.skyengine.com.cn/v1/images/generations" \
       "https://ark-project.tos-cn-beijing.volces.com/doc_image/seedream4_imagesToimages_1.png",
       "https://ark-project.tos-cn-beijing.volces.com/doc_image/seedream4_imagesToimages_2.png"
     ],
-    "model": "doubao-seedream-4-0-250828",
+    "model": "doubao-seedream-4.0-250828",
     "sequential_image_generation": "auto",
     "sequential_image_generation_options": {
       "max_images": 3
@@ -674,7 +915,7 @@ import requests
 API_KEY = "<API-KEY>"
 BASE_URL = "https://model-api.skyengine.com.cn/v1"
 
-def generate_image_series_from_images(prompt, image_urls, max_images=3, model="doubao-seedream-4-0-250828"):
+def generate_image_series_from_images(prompt, image_urls, max_images=3, model="doubao-seedream-4.0-250828"):
     """
     基于多张参考图片生成一组相关图片
     
@@ -745,7 +986,7 @@ if __name__ == "__main__":
 </CodeGroup>
 
 ### 图生组图功能说明
-- **支持模型**: `doubao-seedream-4-0-250828`
+- **支持模型**: `doubao-seedream-4.0-250828`
 - **组图模式**: `sequential_image_generation` 设为 `"auto"` 启用自动组图生成
 - **数量控制**: 通过 `max_images` 参数控制生成图片数量（建议1-10张）
 - **场景描述**: 提示词可以描述多个场景变化，如时间、天气、角度等
@@ -816,10 +1057,16 @@ scenarios = {
     },
     "艺术创作": {
         "size": "1024x1024",
-        "optimize_prompt_options": {"enable": True}
+        "optimize_prompt_options": {"mode": "standard"}
     },
     "快速原型": {
-        "size": "512x512",
+        "size": "1024x1024",
         "watermark": False
     }
 }
+```
+
+## 参考文档
+
+- [火山方舟图片生成 API](https://ark.volcengine.com/region:cn-beijing/docs/image-generation-api)
+- [火山方舟模型定价](https://ark.volcengine.com/region:cn-beijing/docs/model-pricing)
