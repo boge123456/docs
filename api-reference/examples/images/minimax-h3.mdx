@@ -1,0 +1,282 @@
+---
+title: 'MiniMax 图片生成与编辑示例'
+description: '通过平台同步图片 API 调用 MiniMax-H3-Image，了解参考图、尺寸、提示词优化、输出格式及计费。'
+---
+
+# MiniMax 图片生成与编辑
+
+`MiniMax-H3-Image` 支持文生图和参考图编辑。平台提供同步接口，请求完成后返回图片和用量。
+
+| 场景 | 接口 | 输入 |
+| --- | --- | --- |
+| 文生图 | `POST /v1/images/generations` | `prompt` |
+| 图片编辑 | `POST /v1/images/edits` | `prompt` 和 1–16 张参考图 |
+
+请求前通过 `GET /v1/models` 确认当前环境已开放 `MiniMax-H3-Image`。下文示例使用平台 API 地址 `https://model-api.skyengine.com.cn/v1`，环境变量 `TOKENOPS_API_KEY` 保存平台密钥。
+
+## 文生图
+
+以下请求生成一张 2K 档位、3:4 宽高比的 JPEG 图片，并开启提示词优化。
+
+```bash
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/generations' \
+  --max-time 660 \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "MiniMax-H3-Image",
+    "prompt": "一盆放在木桌上的绿色植物，浅色墙面，柔和晨光，简洁产品摄影",
+    "size": "2K",
+    "ratio": "3:4",
+    "n": 1,
+    "output_format": "jpeg",
+    "response_format": "url",
+    "optimize_prompt_options": {"enable": true},
+    "watermark": false
+  }'
+```
+
+`n` 可设置为 1–10。每张图片的实际尺寸见 `data[].size`，实际使用的提示词见 `data[].revised_prompt`。返回 URL 的有效期为 24 小时，请在有效期内下载并保存。
+
+### 自定义宽高
+
+`size` 也可以直接填写 `宽x高`，例如下面的 `1536x1024`。使用明确宽高时，省略 `ratio`。
+
+```json
+{
+  "model": "MiniMax-H3-Image",
+  "prompt": "白色背景上的一个蓝色圆形，边缘清晰，平面图形",
+  "size": "1536x1024",
+  "n": 1,
+  "output_format": "png",
+  "response_format": "url",
+  "optimize_prompt_options": {"enable": false}
+}
+```
+
+自定义尺寸的总像素数需在 655,360–20,000,000 之间，宽高比需在 1:3–3:1 之间，均包含边界。尺寸超出范围时会返回参数错误。
+
+## 图片编辑
+
+JSON 请求通过 `images[].image_url` 按顺序传入参考图，可使用公网 HTTP/HTTPS URL 或完整的 Base64 Data URI。提示词中的“图一”“图二”对应数组顺序。请将示例 URL 替换成实际可访问的图片。
+
+### URL 与多图参考
+
+```bash
+curl --request POST 'https://model-api.skyengine.com.cn/v1/images/edits' \
+  --max-time 660 \
+  --header "Authorization: Bearer $TOKENOPS_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "MiniMax-H3-Image",
+    "prompt": "保留图一人物的面部特征，让她穿上图二的外套，背景改为浅灰色摄影棚",
+    "images": [
+      {"image_url": "https://example.com/person.png"},
+      {"image_url": "https://example.com/jacket.png"}
+    ],
+    "size": "2K",
+    "ratio": "3:4",
+    "n": 1,
+    "output_format": "png",
+    "response_format": "url"
+  }'
+```
+
+单张参考图使用同样的数组结构，只保留一个元素。编辑请求始终启用提示词优化，`optimize_prompt_options.enable` 可省略或设为 `true`，传入 `false` 会返回 400。
+
+### Base64 参考图与 Base64 输出
+
+下面的程序读取本地 PNG 作为参考图，返回 WebP 的 Base64 数据并保存文件。
+
+```python
+import base64
+import os
+from pathlib import Path
+
+import requests
+
+encoded = base64.b64encode(Path("reference.png").read_bytes()).decode("ascii")
+
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/images/edits",
+    headers={"Authorization": f"Bearer {os.environ['TOKENOPS_API_KEY']}"},
+    json={
+        "model": "MiniMax-H3-Image",
+        "prompt": "保留主体，将背景改为浅蓝色",
+        "images": [{"image_url": f"data:image/png;base64,{encoded}"}],
+        "size": "1K",
+        "ratio": "1:1",
+        "n": 1,
+        "output_format": "webp",
+        "output_compression": 80,
+        "response_format": "b64_json",
+    },
+    timeout=(10, 660),
+)
+response.raise_for_status()
+result = response.json()
+
+for index, image in enumerate(result["data"]):
+    if "error" in image:
+        print(f"第 {index + 1} 张失败", image["error"])
+        continue
+    content = base64.b64decode(image["b64_json"], validate=True)
+    Path(f"edited-{index}.webp").write_bytes(content)
+
+print(result["usage"])
+```
+
+本地文件格式与 Data URI 中的 MIME 类型应一致，例如 JPEG 使用 `data:image/jpeg;base64,...`。参考图数组中也可同时包含 URL 和 Data URI。
+
+### 兼容的 `image` 字段
+
+JSON 编辑接口同时接受 `image` 字符串或字符串数组，例如下面的请求。
+
+```json
+{
+  "model": "MiniMax-H3-Image",
+  "prompt": "保留主体，将背景改为浅灰色",
+  "image": ["https://example.com/product.png"],
+  "size": "1024x1024",
+  "n": 1
+}
+```
+
+`image` 与 `images` 在同一请求中互斥。新接入推荐使用 `images[].image_url`。兼容 `image` 的 URL 下载路径限制单张 20 MiB，multipart 文件上传也限制单文件 20 MiB。
+
+## 参数矩阵
+
+下表列出平台的 JSON 请求字段。文生图和编辑共用输出控制参数。
+
+| 参数 | 文生图 | 图片编辑 | 取值与行为 |
+| --- | --- | --- | --- |
+| `model` | 必填 | 必填 | `MiniMax-H3-Image` |
+| `prompt` | 必填 | 必填 | 去掉首尾空白后为 1–32,000 个 Unicode 字符 |
+| `images` | 参考图使用编辑接口 | 必填参考图的一种写法 | 对象数组，1–16 张，每项填写 `image_url` |
+| `image` | 参考图使用编辑接口 | 兼容写法 | URL/Data URI 字符串或字符串数组，与 `images` 互斥 |
+| `n` | 支持 | 支持 | 1–10，默认 1 |
+| `size` | 支持 | 支持 | `1K`、`2K`、`4K`、`auto` 或 `宽x高`；省略时按 `auto` 处理，默认目标面积为 4K |
+| `ratio` | 支持 | 支持 | `auto` 或 `X:Y`；X、Y 为 1–300 的整数，宽高比为 1:3–3:1；配合面积档位或 `auto` 使用 |
+| `output_format` | 支持 | 支持 | 默认 `jpeg`，可选 `png`、`jpeg`、`jpg`、`webp`；响应中 `jpg` 规范化为 `jpeg` |
+| `response_format` | 支持 | 支持 | 默认 `url`，可选 `url`、`b64_json` |
+| `output_compression` | 支持 | 支持 | 整数 0–100，默认 95；JPEG/WebP 的压缩质量，数值越大文件质量越高；PNG 忽略该参数；`0` 会保留并传递 |
+| `optimize_prompt_options.enable` | 支持，默认开启 | 始终开启 | 文生图可显式关闭；传入对象时请显式填写 `enable` |
+| `watermark` | 支持 | 支持 | 默认 `false`，控制可见 AIGC 水印；图片元数据中的合规标识由模型服务处理 |
+| `stream` | 同步输出 | 同步输出 | 省略或设为 `false`；平台当前只接入同步场景 |
+
+### 尺寸与宽高比组合
+
+| 目标 | 平台请求 | 说明 |
+| --- | --- | --- |
+| 1K 方图 | `"size": "1K", "ratio": "1:1"` | 目标面积为 1024×1024 |
+| 2K 横图 | `"size": "2K", "ratio": "16:9"` | 该组合的输出规格为 2720×1536 |
+| 4K 方图 | `"size": "4K", "ratio": "1:1"` | 该组合的输出规格为 4096×4096 |
+| 自动决定比例 | `"size": "2K"` | 启用提示词优化时结合内容选择比例 |
+| 明确宽高 | `"size": "1536x1024"` | 此时省略 `ratio`，包括 `ratio: "auto"` |
+
+`1K`、`2K`、`4K` 表示目标像素面积档位，实际宽高随比例变化。使用 `宽x高` 时再填写 `ratio`，模型服务会返回 400。
+
+### 提示词优化与原生参数迁移
+
+文生图省略整个 `optimize_prompt_options` 对象时默认开启优化。关闭优化后，请指定明确宽高，或用面积档位加固定 `ratio`。模型在此模式下读取约前 4096 个输入 token，长提示词应把重要内容放在前面。每张的增强结果可在 `data[].revised_prompt` 查看。
+
+平台的提示词优化仅接入 `enable`。`mode`、`enable_thinking`、`negative_prompt` 会被参数校验拒绝。
+
+若从 MiniMax 原生接口迁移，按下面的对应关系改写请求。
+
+| 原生接口字段 | 平台写法 |
+| --- | --- |
+| `area: "2K"` | `size: "2K"` |
+| `aspect_ratio: "16:9"` | `ratio: "16:9"` |
+| `disable_prompt_enhanced: true` | `optimize_prompt_options: {"enable": false}`，用于文生图 |
+| `aigc_watermark: true` | `watermark: true` |
+
+### 图片与响应体限制
+
+- 参考图支持 JPG、JPEG、PNG、WebP、HEIC 和 HEIF，宽、高各为 128–8192 像素，长边与短边之比最大 4:1。
+- `images[].image_url` 输入遵循模型服务的单文件 64 MiB、总请求体 64 MiB 限制。Base64 编码体积约为原文件的 4/3，整份 JSON 也计入请求体大小；大图片可通过公网 URL 引用。
+- `b64_json` 的总输出面积为 `n × 宽 × 高`。PNG 上限为 20,000,000 像素，JPEG/WebP 上限为 80,000,000 像素。自动尺寸按目标面积档位计算。例如，PNG 4K 最多返回 1 张，JPEG/WebP 4K 最多返回 4 张；需要更多时使用 `response_format: "url"`。
+
+平台同步接口的可用参数以本页矩阵为准。生成流程采用整图输出，编辑通过参考图和提示词描述修改目标。
+
+## 响应与用量
+
+以下为一张 1K 图片的响应示意。URL 与请求 ID 使用示例值，用量取自一次实际生成结果。
+
+```json
+{
+  "created": 1794797338,
+  "data": [
+    {
+      "url": "https://example.com/generated-image.png",
+      "size": "1024x1024",
+      "revised_prompt": "A single solid blue circle centered on a pure white background. Flat vector style. No text."
+    }
+  ],
+  "output_format": "png",
+  "request_id": "example-request-id",
+  "usage": {
+    "generated_images": 1,
+    "input_tokens": 19,
+    "output_tokens": 4096,
+    "total_tokens": 4115,
+    "input_tokens_details": {
+      "text_tokens": 19,
+      "image_tokens": 0
+    },
+    "output_tokens_details": {
+      "image_tokens": 4096
+    }
+  }
+}
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| `data[].url` / `data[].b64_json` | 按 `response_format` 返回图片链接或纯 Base64 数据 |
+| `data[].size` | 实际交付宽高，用于检查尺寸及 4K 优惠资格 |
+| `data[].revised_prompt` | 该张图片实际使用的提示词 |
+| `data[].error` | 单张生成失败信息；遍历数组时逐项检查 |
+| `usage.generated_images` | 实际成功生成张数 |
+| `usage.input_tokens_details.text_tokens` | 文本输入用量，包含提示词优化产生的文本 token |
+| `usage.input_tokens_details.image_tokens` | 参考图输入用量 |
+| `usage.output_tokens_details.image_tokens` | 成功输出图片的 token 用量 |
+| `request_id` | 模型服务返回的请求 ID，可用于反馈图片生成问题 |
+
+批量请求中成功项和失败项可以同时出现。HTTP 200 时仍应检查每项 `error`，以 `usage.generated_images` 核对成功图片数量；全部失败时接口返回错误。用量中的 `input_tokens` 等于文本输入与图片输入之和，`total_tokens` 等于 `input_tokens + output_tokens`。
+
+## 计费
+
+MiniMax-H3-Image 使用人民币按 token 计价。
+
+| 计费项 | 标准价，元／百万 token |
+| --- | --- |
+| 文本输入 | 15 |
+| 图片输入 | 10 |
+| 图片输出 | 25 |
+
+一次请求的标准费用按下面的公式计算。
+
+```text
+费用（元）=
+  文本输入 token × 15 / 1,000,000
+  + 图片输入 token × 10 / 1,000,000
+  + 图片输出 token × 25 / 1,000,000
+```
+
+例如上面的响应包含 19 个文本输入 token 和 4096 个图片输出 token，标准费用为 `0.102685` 元。提示词优化会改变文本输入用量，参考图也会产生图片输入用量，请以响应和最终账单为准。
+
+### 4K 限时优惠
+
+北京时间 **2026 年 11 月 18 日 00:00 之前**，实际成功交付的图片均达到 **宽 × 高 ≥ 16,600,000 像素**时，整次请求的文本输入、图片输入和图片输出费用均享 5 折。结束时刻不包含在优惠期内，平台按原订单创建时间判定，期满恢复标准价。
+
+优惠依据 `data[].size` 中的实际像素。设置 `size: "4K"` 后仍需检查交付尺寸。多张图片的用量在同一订单中汇总，部分失败时按成功产物及其实际用量结算。
+
+排查请求时，保存响应头 `X-Model-Service-Trace-Id` 中的平台 trace ID，以及响应体中的 `request_id`。查询平台用量账单时使用平台 trace ID。
+
+## 参考文档
+
+- [MiniMax 图片生成指南](https://platform.minimax.cn/docs/guides/image-generation)
+- [MiniMax 文生图接口](https://platform.minimax.cn/docs/api-reference/image-generation-h3-generations)
+- [MiniMax 图片编辑接口](https://platform.minimax.cn/docs/api-reference/image-generation-h3-edits)
+- [MiniMax 官方定价](https://platform.minimax.cn/docs/pricing/overview)
