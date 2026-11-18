@@ -16,13 +16,17 @@ description: "在 ModelHub 中使用火山引擎 ASR 实时识别语音"
 
 ## 大模型流式语音识别 API
 
-`volcengine_bigmodel` 对接火山引擎的基础双向流式接口 `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel`。平台接收 JSON 文本消息，负责与上游交互，并将识别结果转换为下文的服务端事件。
+`volcengine_bigmodel` 支持火山引擎的基础双向流式 `bigmodel` 和优化双向流式 `bigmodel_async`，由平台账号的上游地址选择模式。平台接收 JSON 文本消息，并将识别结果转换为下文的服务端事件。
+
+本页的异步识别、语种返回和完整上游事件已在测试环境验收，调用时使用测试环境地址及对应的 API Key。正式环境的功能以实际发布版本和账号配置为准。
 
 | 项目 | 值 |
 | --- | --- |
 | 平台模型名 | `volcengine_bigmodel` |
 | 平台接口 | `/v1/stream_asr?model=volcengine_bigmodel` |
-| 上游模式 | 基础双向流式，持续输入音频并接收转写 |
+| 基础双向流式上游 | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel` |
+| 优化双向流式上游 | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async` |
+| 当前测试环境模式 | `bigmodel_async`，同一上游连接持续处理多段语音 |
 | 上游 1.0 并发版资源 ID | `volc.bigasr.sauc.concurrent` |
 
 上游资源 ID 和火山鉴权凭据由平台账号配置。调用时使用平台 API Key，音频与会话参数通过本页定义的 JSON 消息发送。
@@ -64,7 +68,7 @@ ffmpeg -i input.mp3 -f s16le -acodec pcm_s16le -ac 1 -ar 16000 input.pcm
 pip install websockets
 ```
 
-以下示例读取 `input.pcm`，按 100 毫秒分片发送，并在音频末尾补充静音以触发完整识别结果：
+以下示例通过测试环境调用大模型异步识别，读取 `input.pcm`，按 100 毫秒分片发送，并在音频末尾补充静音以触发完整识别结果。
 
 ```python
 import asyncio
@@ -75,41 +79,67 @@ import os
 import websockets
 
 API_KEY = os.environ["MODELHUB_API_KEY"]
-MODEL = "volcengine_normal"
-WS_URL = f"wss://model-api.skyengine.com.cn/v1/stream_asr?model={MODEL}"
+MODEL = "volcengine_bigmodel"
+WS_URL = f"wss://model-api-test.skyengine.com.cn/v1/stream_asr?model={MODEL}"
+
+
+async def send_audio(ws, path: str) -> None:
+    with open(path, "rb") as audio_file:
+        while chunk := audio_file.read(3200):
+            await ws.send(json.dumps({
+                "type": "input_audio_buffer.append",
+                "audio": base64.b64encode(chunk).decode(),
+            }))
+            await asyncio.sleep(0.1)
+
+    # 按同样的节奏补充 2 秒静音，等待上游 VAD 判停。
+    for _ in range(20):
+        await ws.send(json.dumps({
+            "type": "input_audio_buffer.append",
+            "audio": base64.b64encode(bytes(3200)).decode(),
+        }))
+        await asyncio.sleep(0.1)
 
 
 async def recognize(path: str) -> None:
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
     async with websockets.connect(WS_URL, additional_headers=headers) as ws:
-        with open(path, "rb") as audio_file:
-            while chunk := audio_file.read(3200):
-                await ws.send(json.dumps({
-                    "type": "input_audio_buffer.append",
-                    "audio": base64.b64encode(chunk).decode(),
-                }))
-                await asyncio.sleep(0.1)
-
-        # 1 秒 16 kHz、16-bit、单声道静音
         await ws.send(json.dumps({
-            "type": "input_audio_buffer.append",
-            "audio": base64.b64encode(bytes(32000)).decode(),
+            "type": "session.config",
+            "config": {"include_upstream": True},
         }))
-
-        completed = []
         while True:
-            try:
-                message = await asyncio.wait_for(ws.recv(), timeout=3)
-            except asyncio.TimeoutError:
-                break
-            event = json.loads(message)
+            event = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
             if event.get("type") == "error":
                 raise RuntimeError(event["error"]["message"])
-            if event.get("type") == "conversation.item.input_audio_transcription.delta":
-                print("实时结果：", event["transcript"])
-            if event.get("type") == "conversation.item.input_audio_transcription.completed":
-                completed.append(event["transcript"])
+            if event.get("type") == "session.ready":
+                break
+
+        completed = []
+        sender = asyncio.create_task(send_audio(ws, path))
+        try:
+            while True:
+                try:
+                    message = await asyncio.wait_for(ws.recv(), timeout=5)
+                except asyncio.TimeoutError:
+                    if sender.done():
+                        break
+                    continue
+                event = json.loads(message)
+                if event.get("type") == "error":
+                    raise RuntimeError(event["error"]["message"])
+                if event.get("type") == "conversation.item.input_audio_transcription.delta":
+                    print("实时结果", event["transcript"])
+                if event.get("type") == "conversation.item.input_audio_transcription.completed":
+                    completed.append(event["transcript"])
+                    print("语种", event.get("language"))
+                if event.get("type") == "asr.upstream_response":
+                    print("完整上游响应", json.dumps(event["data"], ensure_ascii=False))
+            await sender
+        finally:
+            sender.cancel()
+            await asyncio.gather(sender, return_exceptions=True)
 
         print("最终结果：", "".join(completed))
 
@@ -117,7 +147,7 @@ async def recognize(path: str) -> None:
 asyncio.run(recognize("input.pcm"))
 ```
 
-将 `MODEL` 改为 `volcengine_bigmodel` 即可调用大模型流式识别。
+使用 `volcengine_normal` 时，将 `MODEL` 改为对应模型名。普通 ASR 的会话参数和 commit 行为见下文。
 
 ## 请求格式
 
@@ -204,8 +234,9 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 
 | `config` 参数 | 类型 | 默认值 | 适用模型 | 说明 |
 | --- | --- | --- | --- | --- |
-| `request` | object | 未设置 | 两款模型 | 非空对象会整体替换默认上游 `request`，字段按原键和 JSON 类型透传。 |
-| `language` | string | 未指定 | 两款模型 | 写入上游 `audio.language`，设置 `request` 时仍会传递。火山文档将大模型指定语种能力限定在 `bigmodel_nostream`，当前基础双向流式接口按上游能力处理。 |
+| `include_upstream` | boolean | `false` | `bigmodel_async` 模式 | 开启后，每个可解码的上游响应都会产生 `asr.upstream_response` 事件。 |
+| `request` | object | 未设置 | 两款模型 | 字段按原键和 JSON 类型透传；异步模式会补齐下文列出的必要默认值。 |
+| `language` | string | 未指定 | 两款模型 | 写入上游 `audio.language`，设置 `request` 时仍会传递。用于指定输入语种，适用模式由火山决定。语种检测通过 `request.enable_lid` 开启。 |
 | `enable_itn` | boolean | `true` | `volcengine_bigmodel` | 开启数字、日期等内容的文本规整。 |
 | `enable_punc` | boolean | `true` | `volcengine_bigmodel` | 在识别结果中添加标点。 |
 | `enable_ddc` | boolean | `false` | `volcengine_bigmodel` | 开启语义顺滑。 |
@@ -221,7 +252,9 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 
 使用 `volcengine_bigmodel` 时，将火山的 `request` 对象放入 `config.request`。平台对该对象保留原有键名、嵌套结构和 JSON 值类型。火山后续新增的 `request` 字段也会沿该路径发送，字段有效性由上游校验。
 
-非空 `config.request` 会整体替换平台生成的默认对象。请显式包含 `model_name: "bigmodel"` 和 `show_utterances: true`，以及需要的识别选项。平台依赖上游分句中的 `definite` 判断最终结果，`show_utterances` 应保持为 `true`。
+基础双向流式模式下，非空 `config.request` 会整体替换平台生成的默认对象，需要显式包含 `model_name: "bigmodel"` 和 `show_utterances: true`，以及需要的识别选项。
+
+异步模式会为缺失的字段补齐 `model_name: "bigmodel"`、`show_utterances: true` 和 `enable_lid: true`。调用者显式设置的值会保留，其中 `show_utterances` 必须为 `true`，平台使用分句信息维护转写事件，设置为 `false` 会返回错误。`enable_lid: false` 可关闭检测，`include_upstream` 默认关闭。
 
 ```json
 {
@@ -229,12 +262,14 @@ WebSocket 连接建立后，可以直接发送音频 Body：
   "event_id": "event_config_1",
   "trace_id": "client_trace_1",
   "config": {
+    "include_upstream": true,
     "request": {
       "model_name": "bigmodel",
       "enable_itn": true,
       "enable_punc": true,
       "enable_ddc": false,
       "show_utterances": true,
+      "enable_lid": true,
       "result_type": "single",
       "end_window_size": 800,
       "corpus": {
@@ -269,13 +304,14 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `enable_auto_lang` | boolean | `false` | 自动语种，要求流式输入。 |
 | `show_speech_rate` | boolean | `false` | 语速，要求流式输入或优化双向流式。 |
 | `show_volume` | boolean | `false` | 音量，同上。 |
-| `enable_lid` | boolean | `false` | 语种检测，同上。 |
+| `enable_lid` | boolean | 上游默认 `false`，平台异步模式默认 `true` | 语种检测，要求流式输入或优化双向流式。 |
 | `enable_emotion_detection` | boolean | `false` | 情绪检测，同上。 |
 | `enable_gender_detection` | boolean | `false` | 性别检测，同上。 |
+| `enable_age_detection` | boolean | `false` | 年龄检测，按优化双向流式接口及资源版本的能力处理。 |
 | `enable_poi_fc` | boolean | 未指定 | POI 辅助，要求流式输入或开启二遍的优化双向流式。 |
 | `enable_music_fc` | boolean | 未指定 | 音乐辅助，同上。 |
 
-当前 `volcengine_bigmodel` 使用基础双向流式接口。表中带模式条件的字段可以透传，其功能生效需要相应的上游接口和账号配置。平台对外转写事件的字段范围见“服务端事件”。参数能力与版本条件可查阅火山官方说明。[大模型流式语音识别 API](https://docs.volcengine.com/docs/doubao-voice/large-model-streaming-automatic-speech-recognition-api-1?lang=zh)
+当前测试环境的 `volcengine_bigmodel` 使用优化双向流式接口。表中带模式条件的字段可以透传，其功能生效需要相应的上游接口和资源版本。`show_speech_rate`、`show_volume` 的返回值已通过测试网关验证。参数能力与版本条件可查阅火山官方说明。[大模型流式语音识别 API](https://docs.volcengine.com/docs/doubao-voice/large-model-streaming-automatic-speech-recognition-api-1?lang=zh) · [优化双向流式 API](https://docs.volcengine.com/docs/doubao-voice/bidirectional-streaming-automatic-speech-recognition-websocket?lang=zh)
 
 #### 语料与热词参数
 
@@ -372,6 +408,7 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `conversation.item.input_audio_transcription.delta` | 当前语音段的实时累计识别文本。 |
 | `input_audio_buffer.speech_stopped` | 检测到语音结束。 |
 | `conversation.item.input_audio_transcription.completed` | 当前语音段的最终识别文本；一次连接可能返回多条。 |
+| `asr.upstream_response` | 开启 `include_upstream` 后返回的完整上游响应，包含元数据更新和上游错误。 |
 | `error` | 请求或识别失败。 |
 
 | 公共字段 | JSON 类型 | 说明 |
@@ -381,6 +418,8 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `trace_id` | string | 可选的关联追踪信息，存在时返回。`session.ready` 会回传配置消息中的 `trace_id`。 |
 
 以下示例中的 ID 和时间值用于说明字段格式。一次语音段的常见事件顺序为 `conversation.item.created`、`input_audio_buffer.speech_started`、多条 `delta`、`input_audio_buffer.speech_stopped`、`completed`。同一语音段使用相同的 `item_id`。
+
+异步模式可以在一条 WebSocket 连接中连续完成多个语音段，每段分别分配 `item_id`。开启完整上游事件后，`asr.upstream_response` 会与这些转写事件交错返回，一条上游消息可以包含多个分句。
 
 ### `session.ready`
 
@@ -441,11 +480,14 @@ WebSocket 连接建立后，可以直接发送音频 Body：
   "type": "conversation.item.input_audio_transcription.delta",
   "item_id": "item_1",
   "content_index": 0,
-  "transcript": "你好，这是语音识别"
+  "transcript": "你好，这是语音识别",
+  "language": "speech_mand"
 }
 ```
 
-`content_index` 当前为 `0`。`transcript` 是本次上游结果对应的当前文本，默认请求下会随识别推进更新，客户端应更新同一 `item_id` 的展示文本。使用 `config.request.result_type` 时，文本范围同时受上游的 `full` / `single` 设置影响。
+`content_index` 当前为 `0`。`transcript` 会随识别推进更新，客户端应更新同一 `item_id` 的展示文本。基础模式的文本范围受上游 `full` / `single` 设置影响。异步模式按分句返回 `transcript`，完整上游 `result.text` 可通过 `asr.upstream_response.data` 读取。
+
+异步模式按各分句生成转写事件。`language` 使用当前分句的火山原始语种标签，收到上游检测信息后返回，可能在最终事件中才出现。
 
 ### `input_audio_buffer.speech_stopped`
 
@@ -469,6 +511,7 @@ WebSocket 连接建立后，可以直接发送音频 Body：
   "item_id": "item_1",
   "content_index": 0,
   "transcript": "你好，这是语音识别测试。",
+  "language": "speech_mand",
   "audio_duration": 5
 }
 ```
@@ -478,9 +521,96 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `item_id` | string | 当前语音段标识。 |
 | `content_index` | integer | 当前为 `0`。 |
 | `transcript` | string | 最终识别文本。 |
+| `language` | string | 可选的语种标签，由上游检测结果提取；上游未提供时省略。 |
 | `audio_duration` | integer | 音频时长，单位为秒，零值时省略。大模型按本次连接累计收到的 PCM 字节数计算并向下取整，包含发送的静音。普通 ASR 优先使用实现提供的音频时长。 |
 
 客户端收到该事件后可继续在当前 WebSocket 连接中发送下一段音频。大模型使用 VAD 自动判停，音频发送结束后继续按分片节奏补充静音，并等待最终事件。
+
+#### 语种标签
+
+异步模式优先读取分句的 `additions.lid_lang`，随后读取上游分句或结果级的语种信息。平台按上游实际标签返回，空结果时省略 `language`。
+
+| 已实测标签 | 含义 |
+| --- | --- |
+| `speech_mand` | 普通话 |
+| `speech_en` | 英语 |
+| `speech_dia_cant` | 粤语 |
+
+火山还定义了其他方言、唱歌和无法判定等标签，实际输出取决于模型与音频。多语种连接中，各语音段可以返回不同的 `language`。短语音段也可能得到文本而没有语种标签。
+
+### `asr.upstream_response`
+
+在 `session.config` 中设置 `config.include_upstream: true` 后返回。`data` 保留解压、解码后的完整上游 JSON，未知字段及其 JSON 类型一并保留。文本相同而元数据发生变化的响应也会产生事件。
+
+下面是结构示例，时间和检测数值用于说明格式。语种置信度、语速和音量在实测中以字符串返回，因此示例保留字符串类型。
+
+```json
+{
+  "event_id": "event_upstream_1",
+  "type": "asr.upstream_response",
+  "provider": "volcengine",
+  "sequence": 9,
+  "log_id": "upstream_log_id",
+  "data": {
+    "audio_info": {
+      "duration": 1000
+    },
+    "result": {
+      "text": "你好。",
+      "additions": {
+        "log_id": "upstream_log_id"
+      },
+      "utterances": [
+        {
+          "text": "你好。",
+          "start_time": 0,
+          "end_time": 900,
+          "definite": true,
+          "words": [
+            {
+              "text": "你好",
+              "start_time": 120,
+              "end_time": 800
+            }
+          ],
+          "additions": {
+            "source": "stream",
+            "lid_lang": "speech_mand",
+            "lid_lang_score": "0.97",
+            "speech_rate": "1.65",
+            "volume": "73.27"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+| 字段 | JSON 类型 | 说明 |
+| --- | --- | --- |
+| `provider` | string | 当前为 `"volcengine"`。 |
+| `sequence` | integer | 可选的上游协议序号，保留有符号值。上游帧未携带时省略。 |
+| `log_id` | string | 上游建连响应中的 `X-Tt-Logid`，用于排查。 |
+| `error_code` | integer | 上游错误帧携带的原始错误码，成功响应中省略。 |
+| `data` | object 或其他 JSON 值 | 完整上游 JSON。上游错误消息为纯文本时，以 JSON 字符串返回。 |
+
+`data` 中可读取 `audio_info`、`result`、`utterances`、`words`、`additions` 及其他上游实际返回的字段。上游音频时长和词级时间戳通常使用毫秒，具体按火山字段定义处理。
+
+上游返回错误时，开启完整事件的连接会先收到带 `error_code` 的 `asr.upstream_response`，随后收到平台 `error` 事件。下面是错误结构示例。
+
+```json
+{
+  "event_id": "event_upstream_error_1",
+  "type": "asr.upstream_response",
+  "provider": "volcengine",
+  "log_id": "upstream_log_id",
+  "error_code": 55000000,
+  "data": {
+    "error": "invalid value for bool type"
+  }
+}
+```
 
 ### `error`
 
@@ -523,6 +653,8 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 
 ### 透传参数与返回字段的对应关系
 
-平台当前对外返回识别文本、语音段标识、平台会话时间和音频时长。上游 `utterances`、`words`、逐词时间戳、说话人编号以及语速、音量、语种、情绪、性别等附加信息尚未映射到对外事件。设置对应上游参数时，请按上面的平台响应字段读取结果。
+标准转写事件返回识别文本、语音段标识、平台会话时间、音频时长，并在异步模式下增加 `language`。完整分句、词级时间戳、检测置信度及其他上游字段通过 `asr.upstream_response.data` 返回。
+
+语速、音量、说话人、情绪、性别、年龄等附加信息按对应上游参数、资源版本和音频实际结果提供。平台完整保留收到的字段。异步模式已验证关闭 `include_upstream` 后只返回标准事件，静音输入也可以只返回上游会话信息。
 
 火山参数及适用模式可查阅官方文档。[大模型流式语音识别 API](https://docs.volcengine.com/docs/doubao-voice/large-model-streaming-automatic-speech-recognition-api-1?lang=zh)
