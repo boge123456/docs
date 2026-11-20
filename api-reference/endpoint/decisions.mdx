@@ -1,0 +1,108 @@
+---
+title: "Decisions 决策接口"
+description: "通过统一的 OpenAI Decisions 协议执行是非判断、分类与评分。"
+---
+
+平台通过同步 `POST /v1/decisions` 提供决策能力。请求使用 `input` 和 `questions` 数组，响应使用 `answers` 数组。更换模型时沿用相同的请求结构，但需遵守所选模型的能力限制。
+
+包含 cURL、Python、JSON 证据、图片、历史消息和缓存用法的完整示例见 [Decisions 决策模型示例](/api-reference/examples/basic/decisions-basic)。
+
+<Note>
+接口可用性取决于目标环境的服务版本及模型是否上架。下面的协议与能力表不表示所有模型已在正式环境开放；请以平台模型列表为准。
+</Note>
+
+## 请求示例
+
+```bash
+curl 'https://model-api.skyengine.com.cn/v1/decisions' \
+  -H "Authorization: Bearer $MODEL_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "decision-model-preview",
+    "input": "订单被重复扣款，用户要求退款。",
+    "questions": [
+      {
+        "type": "predicate",
+        "name": "refund_requested",
+        "instructions": "用户是否要求退款？"
+      },
+      {
+        "type": "choice",
+        "name": "department",
+        "instructions": "应由哪个团队处理？",
+        "choices": [
+          {"value": "billing", "description": "支付、退款与账单"},
+          {"value": "technical", "description": "技术故障与集成问题"}
+        ]
+      },
+      {
+        "type": "score",
+        "name": "severity",
+        "instructions": "问题的严重程度？",
+        "levels": [
+          {"label": "低", "description": "没有实际损失"},
+          {"label": "中", "description": "业务受影响但有替代方案"},
+          {"label": "高", "description": "核心业务不可用"}
+        ]
+      }
+    ]
+  }'
+```
+
+将 `$MODEL_API_KEY` 替换为平台 API 密钥。使用 `gpt-6-luna-decisions` 时，更换 `model` 即可发送相同的文本请求；继续使用这里的字段名和数组结构。
+
+## 字段与结果
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `model` | string | 平台模型名 |
+| `input` | string / array | 所有题目共享的证据。支持的内容由模型决定；JSON 对象放在消息的 `input_json.data` 中，不直接作为顶层 `input` 对象 |
+| `questions` | array | 独立题目列表，答案与请求顺序对应 |
+| `questions[].type` | string | `predicate`、`choice` 或 `score` |
+| `questions[].name` | string，可选 | 答案中回显；可匿名或重名，但答案始终按问题顺序返回。建议名称唯一，避免按名称建立字典时覆盖答案；匿名答案的名称可为 `null` 或省略，按数组位置关联 |
+| `questions[].instructions` | string / array | 判断要求；百炼仅接受文本或 `input_text` 内容块 |
+| `questions[].choices` | array | Choice 必填，2～255项；`value`为唯一字符串或布尔值，`description`为可选说明 |
+| `questions[].levels` | array | Score 必填，2～10级；按从低到高排列，每级包含`label`及可选`description` |
+
+Predicate 返回 `probability`（0～1）。Choice 返回原始类型的 `choice`、逐项 `probabilities` 和 `confidence`。Score 返回各等级概率、置信度及按等级索引加权的 `score`；索引从0开始，分数可能为小数。返回精度可能使逐项加权结果与 `score` 存在细微差异，不应使用浮点精确相等判断结果。不要把概率或置信度当成确定正确率。
+
+布尔值 `true` 与字符串 `"true"` 是不同选项，平台在转换及返回时保留其类型。
+
+## 模型能力矩阵
+
+| 能力 | `gpt-6-luna-decisions` | `decision-model-preview` |
+| --- | --- | --- |
+| Predicate / Choice / Score | 支持 | 支持 |
+| 平台输入上限 | 1,048,576 tokens | 65,536 tokens |
+| 每次题目上限 | 400 | 16 |
+| 文本输入 | 支持 | 支持 |
+| 结构化JSON证据 | `input_json` | user消息中的`input_json`，作为结构化业务状态传递 |
+| 图片URL / Base64 | 支持 | 不支持 |
+| 题目图片 | 支持 | 不支持 |
+| 题目JSON证据 | 支持 `input_json` | 不支持，题目仅接受文本 |
+| system/developer指令及工具历史 | 支持的原生格式 | 当前平台适配不支持 |
+| 缓存控制 | 支持的原生缓存参数 | 不支持 |
+| 流式 | 不支持 | 不支持 |
+
+百炼支持字符串`input`，或仅含user消息的文本/JSON证据列表。图片、工具历史、其他指令角色和缓存参数会返回参数错误，不会被静默删除。百炼文档列出的65,536-token输入/上下文上限仍由上游执行tokenizer检查；平台没有将字符数当作token数。
+
+## 用量与计费
+
+`usage`包含`input_tokens`、`output_tokens`、`total_tokens`及缓存/思考明细。平台按同一个订单记录实际用量，并根据模型当前价格与适用折扣汇总扣费。实际输入包括题目内容，不按题目数量额外收取调用费。
+
+- 百炼决策接口只返回输入token用量，平台保留该实际值，补充明确为0的输出、思考与缓存数量。
+- 百炼文档当前标注限时免费。免费价格仍需在模型价格配置中明确设为0；用量会照常记录，不能因免费而省略usage验收。活动结束后的价格以模型页为准。
+- OpenAI决策模型的总输入已包含缓存读写，平台不会将缓存部分再次按普通输入扣费。
+- 缺少必要usage、答案数量或类型错误的上游响应会作为错误处理，不伪装成成功的零用量响应。
+
+## 参数错误
+
+`stream: true`、超过模型题数上限、分类选项重复或使用数字、评分等级数量不在2～10范围内，均不属于有效请求。`decision-model-preview` 的图片、缓存及非user历史消息同样返回 HTTP 400，不会被静默删除。修改参数后再重试；不要把错误响应当成零概率的有效判断。
+
+已有JEV原生接口的格式说明见 [System One](/api-reference/endpoint/systemone)，不要把两种请求结构混用。
+
+## 参考文档
+
+- [OpenAI Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create)
+- [百炼决策模型API](https://help.aliyun.com/zh/model-studio/decision-model-api)
+- [百炼模型能力与价格](https://help.aliyun.com/zh/model-studio/decision-model-preview/)

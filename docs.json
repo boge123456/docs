@@ -106,8 +106,8 @@
                     ]
                   },
                   {
-                    "group": "TypeSafe JEV",
-                    "pages": ["api-reference/endpoint/systemone"]
+                    "group": "决策模型",
+                    "pages": ["api-reference/endpoint/decisions", "api-reference/endpoint/systemone"]
                   },
                   {
                     "group": "File API",
@@ -135,8 +135,9 @@
                     ]
                   },
                   {
-                    "group": "JEV 决策评估",
+                    "group": "决策评估",
                     "pages": [
+                      "api-reference/examples/basic/decisions-basic",
                       "api-reference/examples/basic/jev-basic"
                     ]
                   },

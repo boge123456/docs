@@ -16,20 +16,9 @@ description: "在 ModelHub 中使用火山引擎 ASR 实时识别语音"
 
 ## 大模型流式语音识别 API
 
-`volcengine_bigmodel` 支持火山引擎的基础双向流式 `bigmodel` 和优化双向流式 `bigmodel_async`，由平台账号的上游地址选择模式。平台接收 JSON 文本消息，并将识别结果转换为下文的服务端事件。
+使用 `volcengine_bigmodel` 可以持续发送音频，并接收实时转写、分句结果和语种信息。同一 WebSocket 连接可连续识别多段语音，音频与会话参数通过 JSON 文本消息发送。
 
-本页的异步识别、语种返回和完整上游事件已在测试环境验收，调用时使用测试环境地址及对应的 API Key。正式环境的功能以实际发布版本和账号配置为准。
-
-| 项目 | 值 |
-| --- | --- |
-| 平台模型名 | `volcengine_bigmodel` |
-| 平台接口 | `/v1/stream_asr?model=volcengine_bigmodel` |
-| 基础双向流式上游 | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel` |
-| 优化双向流式上游 | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async` |
-| 当前测试环境模式 | `bigmodel_async`，同一上游连接持续处理多段语音 |
-| 上游 1.0 并发版资源 ID | `volc.bigasr.sauc.concurrent` |
-
-上游资源 ID 和火山鉴权凭据由平台账号配置。调用时使用平台 API Key，音频与会话参数通过本页定义的 JSON 消息发送。
+本页的语种返回和完整识别结果事件目前在测试环境开放，调用时使用测试环境地址及对应的 API Key。
 
 正式环境建连地址如下。
 
@@ -202,9 +191,8 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | --- | --- | --- | --- |
 | `model` | URL Query | 是 | 使用的 ASR 模型名称。 |
 | `Authorization` | Header | 是 | `Bearer <API-KEY>`。 |
-| `denoise` | URL Query | 否 | 平台降噪实现名称，仅对已注册实现生效，当前仓库未提供可用名称。 |
 
-`model` 选择平台模型，`denoise` 交给平台降噪模块处理。下文的 `config.request` 作为上游识别参数发送。
+`model` 选择识别模型，会话参数通过下文的 `config.request` 发送。
 
 ## 客户端事件
 
@@ -240,7 +228,8 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `enable_itn` | boolean | `true` | `volcengine_bigmodel` | 开启数字、日期等内容的文本规整。 |
 | `enable_punc` | boolean | `true` | `volcengine_bigmodel` | 在识别结果中添加标点。 |
 | `enable_ddc` | boolean | `false` | `volcengine_bigmodel` | 开启语义顺滑。 |
-| `hotwords` | string[] | 未设置 | 两款模型 | 当前实现接受该字段，但未写入上游请求。热词按下文的 `request.corpus.context` 传入。 |
+
+热词按下文的 `request.corpus.context` 传入。
 
 `enable_itn`、`enable_punc` 和 `enable_ddc` 这三个快捷配置仅在 `request` 未设置或为 `{}` 时参与生成大模型默认请求。`volcengine_normal` 使用 `language` 和非空的 `request`。
 
@@ -254,7 +243,7 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 
 基础双向流式模式下，非空 `config.request` 会整体替换平台生成的默认对象，需要显式包含 `model_name: "bigmodel"` 和 `show_utterances: true`，以及需要的识别选项。
 
-异步模式会为缺失的字段补齐 `model_name: "bigmodel"`、`show_utterances: true` 和 `enable_lid: true`。调用者显式设置的值会保留，其中 `show_utterances` 必须为 `true`，平台使用分句信息维护转写事件，设置为 `false` 会返回错误。`enable_lid: false` 可关闭检测，`include_upstream` 默认关闭。
+异步模式会为缺失的字段补齐 `model_name: "bigmodel"`、`show_utterances: true` 和 `enable_lid: true`。调用者显式设置的值会保留，其中 `show_utterances` 必须为 `true`，设置为 `false` 会返回错误。`enable_lid: false` 可关闭检测，`include_upstream` 默认关闭。
 
 ```json
 {
@@ -280,7 +269,7 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 }
 ```
 
-下面列出火山大模型文档中的 `request` 参数。表中的上游默认值适用于该字段未传入时，实际能力取决于账号配置的接口模式和模型版本。基础双向流式、优化双向流式和流式输入分别对应 `bigmodel`、`bigmodel_async` 和 `bigmodel_nostream`。
+下面列出 `request` 参数及其能力条件。表中的默认值适用于该字段未传入时，参数是否生效取决于所调用模型支持的能力。
 
 | `config.request` 参数 | JSON 类型 | 上游默认值或取值 | 用途与条件 |
 | --- | --- | --- | --- |
@@ -311,7 +300,7 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `enable_poi_fc` | boolean | 未指定 | POI 辅助，要求流式输入或开启二遍的优化双向流式。 |
 | `enable_music_fc` | boolean | 未指定 | 音乐辅助，同上。 |
 
-当前测试环境的 `volcengine_bigmodel` 使用优化双向流式接口。表中带模式条件的字段可以透传，其功能生效需要相应的上游接口和资源版本。`show_speech_rate`、`show_volume` 的返回值已通过测试网关验证。参数能力与版本条件可查阅火山官方说明。[大模型流式语音识别 API](https://docs.volcengine.com/docs/doubao-voice/large-model-streaming-automatic-speech-recognition-api-1?lang=zh) · [优化双向流式 API](https://docs.volcengine.com/docs/doubao-voice/bidirectional-streaming-automatic-speech-recognition-websocket?lang=zh)
+测试环境已验证语种检测、`show_speech_rate` 和 `show_volume`。其他参数的能力条件可查阅火山官方说明。[大模型流式语音识别 API](https://docs.volcengine.com/docs/doubao-voice/large-model-streaming-automatic-speech-recognition-api-1?lang=zh) · [实时语音识别参数说明](https://docs.volcengine.com/docs/doubao-voice/bidirectional-streaming-automatic-speech-recognition-websocket?lang=zh)
 
 #### 语料与热词参数
 
@@ -357,7 +346,7 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 
 大模型上游的 `audio.format`、`audio.rate`、`audio.bits`、`audio.channel` 由平台设置为 `pcm`、`16000`、`16`、`1`。`config.language` 单独映射到 `audio.language`。`config.request` 中的字段全部放入上游 `request`。`config.audio`、`config.user` 等配置表之外的字段会被忽略。
 
-`volcengine_normal` 的非空 `config.request` 也会整体替换默认上游请求。普通 ASR 默认生成 `show_utterances: true`、`result_type: "single"`、`sequence: 1` 和识别 `workflow`。使用自定义对象时，平台仅在缺失时补齐 `reqid`、`sequence`，其余字段需要调用者自行提供。普通 ASR 透传的 `request` 字段按其 `/api/v2/asr` 协议校验。
+`volcengine_normal` 的非空 `config.request` 也会整体替换默认识别参数。普通 ASR 默认使用 `show_utterances: true`、`result_type: "single"`、`sequence: 1` 和识别 `workflow`。使用自定义对象时，缺失的 `reqid`、`sequence` 会自动补齐，其余字段需要调用者自行提供。
 
 ### `input_audio_buffer.append`
 
@@ -375,7 +364,7 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `type` | string | 是 | 固定为 `input_audio_buffer.append`。 |
 | `audio` | string | 是 | Base64 编码的 PCM 音频字节。 |
 | `event_id` | string | 否 | 客户端事件标识。 |
-| `trace_id` | string | 否 | 客户端追踪信息，在实现保留关联信息的服务端事件中返回。 |
+| `trace_id` | string | 否 | 客户端追踪信息，可在关联的服务端事件中返回。 |
 
 ### `input_audio_buffer.commit`（仅 `volcengine_normal`）
 
@@ -522,13 +511,13 @@ WebSocket 连接建立后，可以直接发送音频 Body：
 | `content_index` | integer | 当前为 `0`。 |
 | `transcript` | string | 最终识别文本。 |
 | `language` | string | 可选的语种标签，由上游检测结果提取；上游未提供时省略。 |
-| `audio_duration` | integer | 音频时长，单位为秒，零值时省略。大模型按本次连接累计收到的 PCM 字节数计算并向下取整，包含发送的静音。普通 ASR 优先使用实现提供的音频时长。 |
+| `audio_duration` | integer | 音频时长，单位为整数秒，零值时省略。大模型返回本次连接累计音频时长，包含发送的静音；普通 ASR 返回当前语音段时长。 |
 
 客户端收到该事件后可继续在当前 WebSocket 连接中发送下一段音频。大模型使用 VAD 自动判停，音频发送结束后继续按分片节奏补充静音，并等待最终事件。
 
 #### 语种标签
 
-异步模式优先读取分句的 `additions.lid_lang`，随后读取上游分句或结果级的语种信息。平台按上游实际标签返回，空结果时省略 `language`。
+`language` 返回识别出的语种标签，空结果时省略该字段。开启完整识别结果后，可在 `data.result.utterances[].additions.lid_lang` 中读取对应的原始标签。
 
 | 已实测标签 | 含义 |
 | --- | --- |

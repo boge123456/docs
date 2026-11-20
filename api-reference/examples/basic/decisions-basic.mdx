@@ -1,0 +1,330 @@
+---
+title: 'Decisions 决策模型示例'
+description: '通过统一接口使用 GPT-6 Luna Decisions 与百炼决策模型，完成是非判断、分类、评分和用量核对。'
+---
+
+# Decisions 决策模型示例
+
+Decisions 将同一份业务证据转换为可直接使用的判断、类别或分数，适合工单分流、内容检查和流程路由。平台统一提供同步 `POST /v1/decisions`，用 `model` 选择模型，使用相同的 `input`、`questions` 和 `answers` 结构。
+
+<Note>
+模型是否可调用，以当前环境的模型列表及 API 密钥权限为准。本文列出协议和平台支持范围，不表示文档中的每个模型已在所有环境开放。
+</Note>
+
+## 模型与能力矩阵
+
+| 能力或限制 | `gpt-6-luna-decisions` | `decision-model-preview` |
+| --- | --- | --- |
+| 是非判断 / 分类 / 评分 | 支持 | 支持 |
+| 平台输入上限 | 1,048,576 tokens | 65,536 tokens |
+| 每次题目数 | 1～400 | 1～16 |
+| 每题分类选项 | 2～255，字符串或布尔值 | 2～255，字符串或布尔值 |
+| 每题评分等级 | 2～10，按从低到高排列 | 2～10，按从低到高排列 |
+| 文本证据 | 支持 | 支持 |
+| JSON 证据 | 支持 `input_json` | 支持 user 消息中的 `input_json` |
+| 图片证据 | HTTP(S) URL 或 Base64 Data URL | 不支持 |
+| 题目中的图片 / JSON | 支持 | 不支持；题目只接受文本 |
+| system / developer 指令、assistant / 工具历史 | 支持 | 当前平台接口不支持 |
+| 隐式 / 显式前缀缓存 | 支持 | 不支持 |
+| 流式响应 | 不支持 | 不支持 |
+| 自由文本生成 / 执行工具 | 不支持 | 不支持 |
+
+输入 token 用量包含证据和题目等实际输入内容，不是字符串的字符数。接近上限时应减少证据或拆分请求；拆分题目后重复发送相同证据，会分别产生每次请求的输入用量。
+
+分类、评分等共同限制采用平台统一协议：即使某个模型原生接口允许更多评分等级，调用 `/v1/decisions` 时仍最多使用 10 级。调用此接口时填写表中的平台模型名，不要用通用对话模型名替代专用的 `gpt-6-luna-decisions`。
+
+## 一次完成三种判断
+
+先设置平台 API 密钥。下面使用 `decision-model-preview`；将 `model` 换成 `gpt-6-luna-decisions`，可提交相同的文本请求。
+
+```bash
+export MODEL_API_KEY='替换为平台API密钥'
+```
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST 'https://model-api.skyengine.com.cn/v1/decisions' \
+  --max-time 180 \
+  --header "Authorization: Bearer $MODEL_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "decision-model-preview",
+    "input": "订单被重复扣款，用户要求退款；目前仍可正常使用产品。",
+    "questions": [
+      {
+        "type": "predicate",
+        "name": "refund",
+        "instructions": "用户是否要求退款？"
+      },
+      {
+        "type": "choice",
+        "name": "department",
+        "instructions": "应由哪个团队处理？",
+        "choices": [
+          {"value": "billing", "description": "支付、退款与账单"},
+          {"value": "technical", "description": "技术故障与集成问题"},
+          {"value": "other", "description": "其他问题，交由人工分流"}
+        ]
+      },
+      {
+        "type": "score",
+        "name": "severity",
+        "instructions": "按对业务使用的影响评估严重程度。",
+        "levels": [
+          {"label": "低", "description": "产品仍可使用，处理单笔问题"},
+          {"label": "中", "description": "部分功能受影响，但有替代方案"},
+          {"label": "高", "description": "核心业务不可用且无替代方案"}
+        ]
+      }
+    ]
+  }'
+```
+
+```python Python
+# pip install requests
+import os
+import requests
+
+payload = {
+    "model": "decision-model-preview",
+    "input": "订单被重复扣款，用户要求退款；目前仍可正常使用产品。",
+    "questions": [
+        {"type": "predicate", "name": "refund", "instructions": "用户是否要求退款？"},
+        {
+            "type": "choice", "name": "department", "instructions": "应由哪个团队处理？",
+            "choices": [
+                {"value": "billing", "description": "支付、退款与账单"},
+                {"value": "technical", "description": "技术故障与集成问题"},
+                {"value": "other", "description": "其他问题，交由人工分流"},
+            ],
+        },
+        {
+            "type": "score", "name": "severity", "instructions": "按业务影响评分。",
+            "levels": [{"label": "低"}, {"label": "中"}, {"label": "高"}],
+        },
+    ],
+}
+response = requests.post(
+    "https://model-api.skyengine.com.cn/v1/decisions",
+    headers={"Authorization": f"Bearer {os.environ['MODEL_API_KEY']}"},
+    json=payload,
+    timeout=180,
+)
+response.raise_for_status()
+result = response.json()
+
+for question, answer in zip(payload["questions"], result["answers"]):
+    print(question.get("name"), answer["type"], answer)
+print("用量:", result["usage"])
+```
+
+</CodeGroup>
+
+下列为结构示意，概率、置信度与用量不是固定结果：
+
+```json
+{
+  "model": "decision-model-preview",
+  "answers": [
+    {"type": "predicate", "name": "refund", "probability": 0.99},
+    {
+      "type": "choice", "name": "department", "choice": "billing", "confidence": 0.92,
+      "probabilities": [
+        {"value": "billing", "probability": 0.96},
+        {"value": "technical", "probability": 0.01},
+        {"value": "other", "probability": 0.03}
+      ]
+    },
+    {
+      "type": "score", "name": "severity", "score": 0.3, "confidence": 0.8,
+      "probabilities": [
+        {"value": 0, "label": "低", "probability": 0.75},
+        {"value": 1, "label": "中", "probability": 0.2},
+        {"value": 2, "label": "高", "probability": 0.05}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 150,
+    "output_tokens": 0,
+    "total_tokens": 150,
+    "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+    "output_tokens_details": {"reasoning_tokens": 0}
+  }
+}
+```
+
+### 怎样使用结果
+
+| 题型 | 读取字段 | 使用方法 |
+| --- | --- | --- |
+| `predicate` | `probability` | 条件成立的概率，范围 0～1；例如达到业务阈值后进入退款流程 |
+| `choice` | `choice`、`confidence`、`probabilities` | `choice` 是提交过的某个选项值；低置信度结果可送人工复核 |
+| `score` | `score`、`confidence`、`probabilities` | 等级索引从 0 开始；小数分数概括等级分布，不是某一级的编号 |
+
+评分示例中，`0 × 0.75 + 1 × 0.2 + 2 × 0.05 = 0.3`。实际返回的分数和概率可能具有不同精度，逐项加权与 `score` 之间可能存在细微差异，不要使用浮点精确相等来判断结果。如果业务必须选定一个离散等级，使用 `choice`，或自行定义分数到等级的转换规则。
+
+概率和置信度不是保证正确率。应使用实际业务样本设定阈值，并为证据不足或低置信度情况保留复核路径。`gpt-6-luna-decisions` 的个别答案也可能返回 `type: "refusal"`；先判断 `type`，再读取对应题型字段，不要把拒答当成概率为 0。
+
+## 布尔值、匿名题和顺序
+
+分类的 `value` 只接受字符串或布尔值，且同一题内不得重复。布尔值 `true` 与字符串 `"true"` 是两个不同选项，返回时保留类型；数字 `1` 不是允许的分类选项。
+
+下面的 JSON 可作为完整请求体提交到同一个接口：
+
+```json
+{
+  "model": "decision-model-preview",
+  "input": "字段 enabled 是布尔值 true，不是字符串。",
+  "questions": [
+    {
+      "type": "choice",
+      "instructions": "选择 enabled 的类型和值。",
+      "choices": [
+        {"value": true, "description": "布尔值 true"},
+        {"value": "true", "description": "字符串 true"}
+      ]
+    },
+    {"type": "predicate", "name": "check", "instructions": "enabled 是布尔值吗？"},
+    {"type": "predicate", "name": "check", "instructions": "enabled 是字符串吗？"}
+  ]
+}
+```
+
+`answers[0]` 对应第一题，匿名题的 `name` 可能为 `null` 或省略，应按数组位置关联。后两题即使同名，也分别保留在 `answers[1]`、`answers[2]`；不要将整个答案数组直接转换成以 `name` 为键的字典，否则会覆盖重名或匿名答案。建议给生产请求的各题设置唯一名称，同时保留按索引对应的处理方式。
+
+## 传入 JSON 业务证据
+
+`input` 顶层使用字符串或消息数组。结构化对象应放进 user 消息的 `input_json.data`，不要直接写成 `"input": { ... }`。
+
+```bash
+curl --request POST 'https://model-api.skyengine.com.cn/v1/decisions' \
+  --header "Authorization: Bearer $MODEL_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "decision-model-preview",
+    "input": [{
+      "role": "user",
+      "content": [
+        {"type": "input_text", "text": "请根据工单对象判断。"},
+        {"type": "input_json", "data": {
+          "ticket_id": "T-1001", "refund_requested": true,
+          "payments": [{"order_id": "A-18", "paid_count": 2}]
+        }}
+      ]
+    }],
+    "questions": [{
+      "type": "predicate", "name": "duplicate_payment",
+      "instructions": "payments 中是否存在 paid_count 大于1的订单？"
+    }]
+  }'
+```
+
+`data` 使用对象或对象数组。业务对象中的任意嵌套字段都是证据，不会变成请求控制参数。长订单号等标识符建议使用字符串，避免客户端 JSON 库在发送前丢失整数精度。对于 `gpt-6-luna-decisions`，单个 JSON 内容块还受 32 层容器深度、10,000 个值和压缩后 256 KiB UTF-8 大小限制。
+
+## 图片与历史证据
+
+本节仅适用于 `gpt-6-luna-decisions`。图片使用公开可访问的 HTTP(S) URL，或 `data:image/png;base64,...` 等完整 Data URL；不支持文件 ID，也不接受缺少 Data URL 前缀的裸 Base64。将下面的 URL 替换为自己的真实图片后提交。
+
+```json
+{
+  "model": "gpt-6-luna-decisions",
+  "input": [{
+    "role": "user",
+    "content": [
+      {"type": "input_text", "text": "请检查这件商品的外观。"},
+      {"type": "input_image", "image_url": "https://example.com/your-product.png"}
+    ]
+  }],
+  "questions": [{
+    "type": "predicate", "name": "damaged",
+    "instructions": "商品是否存在可见破损？"
+  }]
+}
+```
+
+题目需要独立参考图时，`questions[].instructions` 也可使用内容块数组，例如：
+
+```json
+[
+  {"type": "input_text", "text": "输入商品是否与这张完好参考图存在明显差异？"},
+  {"type": "input_image", "image_url": "https://example.com/your-reference.png"}
+]
+```
+
+历史消息按发生顺序放进 `input`。例如，将系统要求、用户问题、工具调用和工具结果作为同一次判断的证据：
+
+```json
+{
+  "model": "gpt-6-luna-decisions",
+  "input": [
+    {"role": "system", "content": "以工具返回的订单状态为准。"},
+    {"role": "user", "content": "订单A是否已送达？"},
+    {"type": "function_call", "call_id": "call_order", "name": "lookup_order", "arguments": "{\"order_id\":\"A\"}"},
+    {"type": "function_call_output", "call_id": "call_order", "output": "{\"order_id\":\"A\",\"status\":\"delivered\"}"}
+  ],
+  "questions": [{"type": "predicate", "name": "delivered", "instructions": "工具结果是否确认订单A已送达？"}]
+}
+```
+
+这里的工具调用与结果只是已发生的历史证据，Decisions 不会执行 `lookup_order`。`decision-model-preview` 只接受 user 文本或 JSON 证据；不要把上述 system、developer、assistant 或工具历史发送给它。
+
+## 前缀缓存与用量拆分
+
+本节仅适用于 `gpt-6-luna-decisions`。隐式模式默认在共享 `input` 末尾选择缓存边界；显式模式需要在共享输入的文本或图片内容块中标记边界。没有显式边界的 `explicit` 请求不使用缓存。题目内容不属于可缓存的共享前缀。
+
+```json
+{
+  "model": "gpt-6-luna-decisions",
+  "input": [{
+    "role": "user",
+    "content": [{
+      "type": "input_text",
+      "text": "替换为多次请求复用、长度至少1024 tokens的固定业务材料。",
+      "prompt_cache_breakpoint": {"mode": "explicit"}
+    }]
+  }],
+  "questions": [{"type": "predicate", "name": "relevant", "instructions": "材料是否提到退款处理？"}],
+  "prompt_cache_key": "support-rules-v1",
+  "prompt_cache_options": {"mode": "explicit", "ttl": "30m"}
+}
+```
+
+上例展示参数位置，示意文本本身不足以产生缓存。实际复用前缀至少需要 1,024 tokens，不包含题目；再次请求时保持该前缀完全一致，可改变后面的题目。`prompt_cache_key` 最多 64 个字符，用于区分复用范围，不是缓存对象 ID。每次最多写入 4 个边界；当前 TTL 参数只支持 `30m`。TTL 的支持不等于缓存到期时刻已保证命中，短文本、变更过的前缀或缓存未保留时仍可能未命中。
+
+直接读取响应中的以下字段确认实际用量：
+
+| 字段 | 含义 |
+| --- | --- |
+| `usage.input_tokens` | 总输入，已经包含普通输入、缓存命中和缓存写入 |
+| `usage.input_tokens_details.cached_tokens` | 本次缓存读取的 token 数；大于0才有实际命中 |
+| `usage.input_tokens_details.cache_write_tokens` | 本次缓存写入的 token 数 |
+| `usage.output_tokens` | 输出用量；决策接口不生成自由文本，两款模型均按零价输出配置 |
+| `usage.total_tokens` | 输入与输出 token 总量 |
+
+例如总输入 1,500、缓存读 1,000、缓存写 200，则普通输入是 `1,500 - 1,000 - 200 = 300`。不能把缓存读写再次加到总输入，也不能把总输入全部按普通输入价收费。
+
+## 计费与错误处理
+
+| 计费项 | `gpt-6-luna-decisions` | `decision-model-preview` |
+| --- | --- | --- |
+| 普通输入 | 按实际普通输入 token 和适用长度档计费，价格使用 USD | 当前模型价格为限时免费，使用 CNY 零价 |
+| 缓存读取 / 写入 | 分项计费，读取与写入不重复计作普通输入 | 不支持，相关参数返回400 |
+| 输出 | 零价 | 零价，响应明确补充输出用量0 |
+| 多题请求 | 同一次请求汇总用量，不按题目数量另收调用费 | 同一次请求汇总用量 |
+
+平台在同一订单中记录实际用量与最终费用，按模型当前价格和适用折扣结算。免费请求仍会记录输入用量；`usage` 是用量信息，不是费用承诺。缓存价格、长度档以及免费活动变更，以平台当前模型价格为准。公共 `/v1/usage` 查询会将人民币费用按平台固定汇率投影为美元展示，不表示模型的存储价格币种发生变化。
+
+常见参数错误包括：超过题目上限、`choice` 使用数字或重复选项、`score` 少于2级或超过10级，以及 `decision-model-preview` 请求图片、缓存或非 user 历史消息。两款模型都不要设置 `stream: true`，也不需要 `temperature`、`max_tokens` 或 `response_format` 来控制答案。
+
+参数被平台拒绝时返回 HTTP 400，不会伪装成成功的空答案。收到错误后先修正请求，并保存响应中的 trace ID；不要把所有4xx或超时都无条件重试。模型不可用或返回无法校验的答案/用量时，也不会作为有效决策交付。
+
+完整参数说明见 [Decisions 接口参考](/api-reference/endpoint/decisions)。已有 JEV 原生请求继续参照 [JEV 示例](/api-reference/examples/basic/jev-basic)，其 `/v1/systemone` 请求结构与本页不同。
+
+## 参考文档
+
+- [OpenAI Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create)
+- [OpenAI Decisions 使用指南](https://developers.openai.com/api/docs/guides/decisions)
+- [百炼决策模型 API](https://help.aliyun.com/zh/model-studio/decision-model-api)
+- [百炼决策模型能力与价格](https://help.aliyun.com/zh/model-studio/decision-model-preview/)
