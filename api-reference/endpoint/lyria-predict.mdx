@@ -1,0 +1,19 @@
+---
+title: 'Lyria 2 音乐生成'
+openapi: 'POST /v1/models/{model}:predict'
+---
+
+使用 Lyria 2 从英文提示词生成 WAV 纯音乐。路径参数 `model` 使用模型广场显示的名称，例如 `lyria-002`。
+
+平台支持 Google Cloud 路径 `POST /v1/projects/{project}/locations/{location}/publishers/google/models/{model}:predict`，也支持 `POST /v1beta/models/{model}:predict`。调用时使用平台域名和 API Key，实际 Google Cloud 项目和区域由平台的模型账号映射决定。
+
+| 字段 | 说明 |
+| --- | --- |
+| `instances[].prompt` | 英文音乐描述。 |
+| `instances[].negative_prompt` | 可选，描述希望排除的音乐元素。 |
+| `instances[].seed` | 可选。提供时省略 `parameters.sample_count`。 |
+| `parameters.sample_count` | 可选，单次请求可生成 1 至 4 个样本，默认 1。 |
+
+同步响应保留 Google 的 `predictions` 数组。每个样本的 Base64 音频可从 `bytesBase64Encoded` 或 `audioContent` 读取，解码后保存为 WAV。
+
+[Lyria 请求示例](/api-reference/examples/music/google-lyria)

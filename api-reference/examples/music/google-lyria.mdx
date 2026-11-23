@@ -1,0 +1,87 @@
+---
+title: 'Google Lyria 音乐生成'
+description: '通过平台调用 Lyria 3 Interactions 和 Lyria 2 Predict，生成 MP3 或 WAV。'
+---
+
+先将平台 API Key 配置为环境变量 `TOKENOPS_API_KEY`。下方使用 Lyria 的模型 ID 作为示例，实际调用时以模型广场显示的名称为准。
+
+## Lyria 3 Clip
+
+```bash cURL
+curl --fail-with-body --silent --show-error \
+  "https://model-api.skyengine.com.cn/v1/interactions" \
+  -H "Authorization: Bearer ${TOKENOPS_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "lyria-3-clip-preview",
+    "store": false,
+    "input": "Create a gentle instrumental clip with fingerpicked acoustic guitar and soft piano."
+  }' > lyria-3.json
+```
+
+## Lyria 3 Pro
+
+使用同一个端点，切换模型和提示词即可生成完整歌曲。
+
+```bash cURL
+curl --fail-with-body --silent --show-error \
+  "https://model-api.skyengine.com.cn/v1/interactions" \
+  -H "Authorization: Bearer ${TOKENOPS_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "lyria-3-pro-preview",
+    "store": false,
+    "input": "Create a warm indie-folk song with an acoustic intro, two verses, a chorus, and a quiet outro. Use English vocals."
+  }' > lyria-3.json
+```
+
+Clip 和 Pro 的同步响应均返回 `status` 和 `steps`。用下面的代码找到第一个音频条目并保存为 MP3。
+
+```python
+import base64
+import json
+from pathlib import Path
+
+response = json.loads(Path("lyria-3.json").read_text(encoding="utf-8"))
+audio = next(
+    item["data"]
+    for step in response.get("steps", [])
+    if step.get("type") == "model_output"
+    for item in step.get("content", [])
+    if item.get("type") == "audio" and item.get("data")
+)
+Path("lyria-3.mp3").write_bytes(base64.b64decode(audio))
+```
+
+## Lyria 2
+
+```bash cURL
+curl --fail-with-body --silent --show-error \
+  "https://model-api.skyengine.com.cn/v1/models/lyria-002:predict" \
+  -H "Authorization: Bearer ${TOKENOPS_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instances": [
+      {
+        "prompt": "A calm cinematic piano piece with soft strings.",
+        "negative_prompt": "vocals, heavy percussion"
+      }
+    ],
+    "parameters": {"sample_count": 1}
+  }' > lyria-2.json
+```
+
+逐段解码 `predictions` 中的音频。示例同时处理两种 Google 响应字段。
+
+```python
+import base64
+import json
+from pathlib import Path
+
+response = json.loads(Path("lyria-2.json").read_text(encoding="utf-8"))
+for index, prediction in enumerate(response["predictions"], start=1):
+    audio = prediction.get("bytesBase64Encoded") or prediction["audioContent"]
+    Path(f"lyria-2-{index}.wav").write_bytes(base64.b64decode(audio))
+```
+
+[Lyria 3 API](/api-reference/endpoint/lyria-interactions) · [Lyria 2 API](/api-reference/endpoint/lyria-predict)

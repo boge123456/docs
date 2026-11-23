@@ -102,6 +102,13 @@
                           "api-reference/endpoint/predictLongRunning",
                           "api-reference/endpoint/getGenerateVideosOperation"
                         ]
+                      },
+                      {
+                        "group": "音乐生成（Lyria）",
+                        "pages": [
+                          "api-reference/endpoint/lyria-interactions",
+                          "api-reference/endpoint/lyria-predict"
+                        ]
                       }
                     ]
                   },
@@ -222,7 +229,8 @@
                     "group": "音乐生成",
                     "pages": [
                       "api-reference/examples/music/minimax-music-3",
-                      "api-reference/examples/music/doubao-seed-audio"
+                      "api-reference/examples/music/doubao-seed-audio",
+                      "api-reference/examples/music/google-lyria"
                     ]
                   },
                   {

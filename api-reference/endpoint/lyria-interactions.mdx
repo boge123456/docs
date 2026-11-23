@@ -1,0 +1,19 @@
+---
+title: 'Lyria 3 音乐生成'
+openapi: 'POST /v1/interactions'
+---
+
+使用 Lyria 3 Clip 或 Pro 从文字或图片生成音乐。请求体中的 `model` 使用模型广场显示的名称。Clip 生成短片段，Pro 适用于完整歌曲。
+
+平台支持 Google Cloud 路径 `POST /v1/projects/{project}/locations/global/interactions`。调用时使用平台域名和 API Key，实际 Google Cloud 项目由平台的模型账号映射决定。
+
+| 字段 | 说明 |
+| --- | --- |
+| `input` | 支持文本字符串和 Google Interactions 的结构化输入。可以在 `user_input.content` 中提供文本和图片。 |
+| `store` | 使用 `false`，省略时平台会补上。Lyria 3 使用无状态调用。 |
+| `stream` | 默认返回 JSON。传 `true` 时透传上游 SSE 事件。 |
+| `Api-Revision` | 可选请求头。省略时使用 `2026-05-20`。 |
+
+同步响应中，从 `steps[].content[]` 查找 `type: "audio"` 的条目，将其 `data` 做 Base64 解码得到 MP3。流式响应的音频数据位于 `step.delta` 事件的音频 `delta` 中。
+
+[Lyria 请求示例](/api-reference/examples/music/google-lyria)

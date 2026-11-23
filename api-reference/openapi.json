@@ -842,6 +842,174 @@
         }
       }
     },
+    "/v1/interactions": {
+      "post": {
+        "summary": "使用 Lyria 3 生成音乐",
+        "description": "生成音乐片段或完整歌曲。使用无状态调用，支持同步 JSON 和 SSE。",
+        "operationId": "createLyriaInteraction",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "Api-Revision",
+            "in": "header",
+            "description": "Google Interactions API 修订版本。",
+            "schema": {"type": "string", "default": "2026-05-20"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model", "input"],
+                "properties": {
+                  "model": {"type": "string", "description": "模型广场显示的 Lyria 3 模型名称。"},
+                  "input": {
+                    "description": "音乐提示词或 Google Interactions 结构化输入。",
+                    "oneOf": [
+                      {"type": "string"},
+                      {"type": "object"},
+                      {"type": "array", "items": {"type": "object"}}
+                    ]
+                  },
+                  "store": {"type": "boolean", "enum": [false], "default": false},
+                  "stream": {"type": "boolean", "default": false}
+                }
+              },
+              "example": {
+                "model": "lyria-3-clip-preview",
+                "store": false,
+                "input": "Create a gentle instrumental clip with acoustic guitar and soft piano."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "交互结果。音频位于 JSON 的 steps 中或 SSE 的 step.delta 事件中。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "description": "交互状态，例如 completed。"},
+                    "steps": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {"type": "string"},
+                          "content": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "type": {"type": "string", "description": "内容类型，例如 text 或 audio。"},
+                                "text": {"type": "string"},
+                                "mime_type": {"type": "string"},
+                                "data": {"type": "string", "description": "音频的 Base64 数据。"}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "text/event-stream": {
+                "schema": {"type": "string", "description": "Google Interactions SSE 事件。"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models/{model}:predict": {
+      "post": {
+        "summary": "使用 Lyria 2 生成纯音乐",
+        "description": "使用英文提示词生成一个或多个 WAV 样本。",
+        "operationId": "predictLyriaMusic",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "description": "模型广场显示的 Lyria 2 模型名称，例如 lyria-002。",
+            "schema": {"type": "string", "example": "lyria-002"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["instances"],
+                "properties": {
+                  "instances": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": ["prompt"],
+                      "properties": {
+                        "prompt": {"type": "string", "description": "英文音乐提示词。"},
+                        "negative_prompt": {"type": "string", "description": "希望排除的音乐元素。"},
+                        "seed": {"type": "integer", "description": "种子值。提供时省略 sample_count。"}
+                      }
+                    }
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "sample_count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 4,
+                        "default": 1,
+                        "description": "生成样本数。提供时省略 seed。"
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "instances": [{"prompt": "A calm cinematic piano piece with soft strings."}],
+                "parameters": {"sample_count": 1}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "原生预测结果，包含 Base64 编码的 WAV 样本。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "predictions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "bytesBase64Encoded": {"type": "string", "description": "WAV 的 Base64 数据。"},
+                          "audioContent": {"type": "string", "description": "部分上游响应使用的 WAV Base64 字段。"},
+                          "mimeType": {"type": "string", "example": "audio/wav"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1beta/models/{model}:predictLongRunning": {
       "post": {
         "summary": "创建长时间运行的视频生成任务",
