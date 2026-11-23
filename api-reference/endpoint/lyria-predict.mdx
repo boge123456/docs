@@ -1,6 +1,7 @@
 ---
 title: 'Lyria 2 音乐生成'
 openapi: 'POST /v1/models/{model}:predict'
+playground: none
 ---
 
 使用 Lyria 2 从英文提示词生成 WAV 纯音乐。路径参数 `model` 使用模型广场显示的名称，例如 `lyria-002`。
@@ -16,4 +17,19 @@ openapi: 'POST /v1/models/{model}:predict'
 
 同步响应保留 Google 的 `predictions` 数组。每个样本的 Base64 音频可从 `bytesBase64Encoded` 或 `audioContent` 读取，解码后保存为 WAV。
 
-[Lyria 请求示例](/api-reference/examples/music/google-lyria)
+## 请求示例
+
+在本地终端配置 `TOKENOPS_API_KEY` 环境变量后运行。
+
+```bash cURL
+curl --request POST \
+  --url https://model-api.skyengine.com.cn/v1/models/lyria-002:predict \
+  --header "Authorization: Bearer ${TOKENOPS_API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "instances": [{"prompt": "Create a gentle instrumental clip with acoustic guitar and soft piano."}],
+    "parameters": {"sample_count": 1}
+  }'
+```
+
+[更多 Lyria 请求示例](/api-reference/examples/music/google-lyria)
