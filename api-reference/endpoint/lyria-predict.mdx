@@ -15,8 +15,6 @@ title: 'Lyria 2 音乐生成'
 | `instances[].seed` | 可选。提供时省略 `parameters.sample_count`。 |
 | `parameters.sample_count` | 可选，单次请求可生成 1 至 4 个样本，默认 1。 |
 
-同步响应保留 Google 的 `predictions` 数组。每个样本的 Base64 音频可从 `bytesBase64Encoded` 或 `audioContent` 读取，解码后保存为 WAV。
-
 ## 请求示例
 
 在本地终端配置 `TOKENOPS_API_KEY` 环境变量后运行。
@@ -31,5 +29,42 @@ curl --request POST \
     "parameters": {"sample_count": 1}
   }'
 ```
+
+## 响应格式
+
+成功响应的 `Content-Type` 为 `application/json`。平台保留 Google 的 `predictions` 数组，每个条目代表一个 WAV 样本。请求多个样本时，逐项读取和解码。
+
+### `bytesBase64Encoded` 响应示例
+
+```json
+{
+  "predictions": [
+    {"bytesBase64Encoded": "BASE64_WAV_SAMPLE_1"},
+    {"bytesBase64Encoded": "BASE64_WAV_SAMPLE_2"}
+  ]
+}
+```
+
+### `audioContent` 响应示例
+
+```json
+{
+  "predictions": [
+    {
+      "audioContent": "BASE64_WAV_SAMPLE_1",
+      "mimeType": "audio/wav"
+    }
+  ]
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `predictions[]` | 音频样本列表。按实际返回的条目数处理。 |
+| `predictions[].bytesBase64Encoded` | Base64 编码的 WAV 数据。 |
+| `predictions[].audioContent` | 上游返回 WAV 数据的另一种字段，内容同样为 Base64。 |
+| `predictions[].mimeType` | 上游返回的可选 MIME 类型，WAV 对应 `audio/wav`。 |
+
+示例中的 `BASE64_WAV_SAMPLE_1` 和 `BASE64_WAV_SAMPLE_2` 是占位符。实际处理每个条目时，读取其中存在的音频字段，将 Base64 解码后的字节写入独立的 `.wav` 文件。
 
 [更多 Lyria 请求示例](/api-reference/examples/music/google-lyria)

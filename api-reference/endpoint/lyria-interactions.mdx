@@ -15,8 +15,6 @@ title: 'Lyria 3 音乐生成'
 | `stream` | 默认返回 JSON。传 `true` 时透传上游 SSE 事件。 |
 | `Api-Revision` | 可选请求头。省略时使用 `2026-05-20`。 |
 
-同步响应中，从 `steps[].content[]` 查找 `type: "audio"` 的条目，将其 `data` 做 Base64 解码得到 MP3。流式响应的音频数据位于 `step.delta` 事件的音频 `delta` 中。
-
 ## 请求示例
 
 在本地终端配置 `TOKENOPS_API_KEY` 环境变量后运行。
@@ -33,5 +31,57 @@ curl --request POST \
     "input": "Create a gentle instrumental clip with acoustic guitar and soft piano."
   }'
 ```
+
+## 响应格式
+
+### 同步 JSON
+
+`stream` 省略或为 `false` 时，成功响应的 `Content-Type` 为 `application/json`。平台返回 Google Interactions 响应，以下示例中的音频数据为占位符。
+
+```json
+{
+  "id": "interaction_example",
+  "status": "completed",
+  "object": "interaction",
+  "model": "lyria-3-clip-preview",
+  "steps": [
+    {
+      "type": "model_output",
+      "content": [
+        {
+          "type": "audio",
+          "mime_type": "audio/mpeg",
+          "data": "BASE64_MP3_AUDIO"
+        }
+      ]
+    }
+  ]
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 交互 ID。 |
+| `status` | 交互状态。生成完成时为 `completed`。 |
+| `steps[]` | 交互步骤。遍历 `type` 为 `model_output` 的步骤，查找 `content[]` 中 `type` 为 `audio` 的条目。步骤中也可能包含歌词或描述等文本内容。 |
+| `steps[].content[].data` | 音频的 Base64 数据。字段存在时，解码后可保存为 MP3。若上游返回 `uri`，音频位于该地址。 |
+| `steps[].content[].mime_type` | 可选的音频 MIME 类型，例如 `audio/mpeg`。 |
+
+### 流式 SSE
+
+`stream: true` 时，平台透传 `text/event-stream`。事件之间以空行分隔。解析 `data:` 后的 JSON，查找 `event_type` 为 `step.delta` 且 `delta.type` 为 `audio` 的事件，再将 `delta.data` 做 Base64 解码。`index` 标识所属步骤。实际事件还可能包含可选的 `event_id`，`delta` 也可能返回 `uri` 而省略 `data`。
+
+```text
+event: step.delta
+data: {"event_type":"step.delta","index":0,"delta":{"type":"audio","mime_type":"audio/mpeg","data":"BASE64_MP3_CHUNK"}}
+
+event: interaction.completed
+data: {"event_type":"interaction.completed","interaction":{"id":"interaction_example","status":"completed"}}
+
+event: done
+data: [DONE]
+```
+
+`interaction.completed` 表示交互结束，音频应从先前的音频事件读取。若收到 `data: [DONE]`，将其作为结束标记处理。
 
 [更多 Lyria 请求示例](/api-reference/examples/music/google-lyria)
