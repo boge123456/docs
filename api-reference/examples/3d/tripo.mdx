@@ -5,25 +5,136 @@ description: '通过 TokenHub 使用 Tripo 3.1、P1、P2，支持文生、单图
 
 # Tripo 3D 生成
 
-Tripo 使用异步接口：提交生成任务后，保存平台任务 ID，再查询生成状态并下载模型文件。
+Tripo 使用异步接口。提交生成任务后，保存平台任务 ID，再查询生成状态并下载模型文件。
 
-```text
-POST /v1/3d/submit
-POST /v1/3d/query
+## Tripo OpenAPI v3 兼容接口
+
+将客户端的接口前缀设置为 `https://model-api.skyengine.com.cn/v1/tripo`，使用 SkyEngine API Key 作为 Bearer Token。接口沿用平台的 Tripo 模型权限和人民币计费。
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| POST | `/v1/tripo/generation/text-to-model` | 通过 `prompt` 提交文生 3D |
+| POST | `/v1/tripo/generation/image-to-model` | 通过 `input` 提交单图生 3D |
+| GET | `/v1/tripo/tasks/{task_id}` | 查询任务状态和生成结果 |
+
+提交时将下表中的 v3 模型版本填入 `model`。
+
+| v3 模型版本 | SkyEngine 模型名称 |
+| --- | --- |
+| `v3.1-20260211` | `tripo-3d-3.1` |
+| `P1-20260311` | `tripo-3d-p1` |
+| `P2-20260801` | `tripo-3d-p2` |
+
+### 提交任务
+
+运行示例前设置环境变量 `API_KEY`。如果只需生成几何模型，请将 `texture` 和 `pbr` 都设为 `false`。
+
+<CodeGroup>
+
+```bash 文生 3D
+curl -X POST 'https://model-api.skyengine.com.cn/v1/tripo/generation/text-to-model' \
+  -H "Authorization: Bearer ${API_KEY}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "v3.1-20260211",
+    "prompt": "一个低模木质宝箱",
+    "texture": false,
+    "pbr": false
+  }'
 ```
 
-<Note>
-请使用平台域名、平台 API Key 和模型广场展示的模型名称。
-本文中的模型名为配置示例；可先通过 `GET /v1/models` 确认当前账号可用的模型。
-</Note>
+```bash 单图生 3D
+curl -X POST 'https://model-api.skyengine.com.cn/v1/tripo/generation/image-to-model' \
+  -H "Authorization: Bearer ${API_KEY}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "P2-20260801",
+    "input": "https://example.com/photo.png",
+    "texture": false,
+    "pbr": false
+  }'
+```
+
+</CodeGroup>
+
+单图示例中的 `input` 需替换为 TokenHub 可访问的 HTTP(S) 图片直链。
+
+提交成功时返回 HTTP 200，请保存 `data.task_id`。
+
+```json
+{
+  "code": 0,
+  "data": {
+    "task_id": "mc_example"
+  }
+}
+```
+
+### 查询任务并下载结果
+
+把返回的 `data.task_id` 写入 `TASK_ID`，使用提交时的 API Key 查询。建议每 10 秒查询一次。
+
+```bash
+curl "https://model-api.skyengine.com.cn/v1/tripo/tasks/${TASK_ID}" \
+  -H "Authorization: Bearer ${API_KEY}"
+```
+
+查询成功时 `code` 为 `0`，生成结果由 `data.status` 表示。
+
+| `data.status` | 含义 | 处理方式 |
+| --- | --- | --- |
+| `queued`、`running` | 排队、生成或转存中 | 继续查询 |
+| `success` | 模型文件已就绪 | 下载 `data.output.model_url` |
+| `failed` | 生成失败 | 查看 `data.error_code` 和 `data.error_message` |
+| `cancelled` | 任务已取消 | 停止查询 |
+| `unknown` | 任务状态暂无法确认 | 保留任务 ID，查询原任务或联系平台核查 |
+
+生成成功时的响应示例。
+
+```json
+{
+  "code": 0,
+  "data": {
+    "task_id": "mc_example",
+    "type": "text_to_model",
+    "status": "success",
+    "progress": 100,
+    "created_at": "2026-11-24T02:00:00Z",
+    "completed_at": "2026-11-24T02:00:52Z",
+    "output": {
+      "model_url": "https://example.com/model.glb"
+    }
+  }
+}
+```
+
+单图任务的 `data.type` 为 `image_to_model`。模型可下载时 `progress` 为 `100`，其余状态为 `0`。将返回的 `data.output.model_url` 写入 `MODEL_URL` 后下载。如果链接已失效，重新查询可获取新链接。
+
+```bash
+curl --fail --location "${MODEL_URL}" --output model.glb
+```
+
+上游提供的 `credits_consumed` 仅表示消耗积分，实际费用以 SkyEngine 账单为准。
+
+### 错误处理与兼容范围
+
+请求失败时，响应的顶层包含 `code`、`status` 和 `message`，可用时还会返回 `request_id`。例如，HTTP 400 / `1004` 表示参数有误，HTTP 401 / `2` 表示 API Key 无效，HTTP 404 / `2001` 表示无法找到该任务。
+
+如果提交失败且系统提示通过 `X-Task-ID` 查询，请使用该响应头中的任务 ID。提交超时且已有任务 ID，或查询状态为 `unknown` 时，请先核对原任务，避免重复提交。
+
+兼容接口支持文生 3D 和图片 URL 生 3D，提交请求体上限为 64 KiB。多视图生成可使用下文的 `/v1/3d/submit` 示例。v3 文件上传、`file_token`、图像生成任务 ID、`export_orientation` 和模型后处理暂不支持。
+
+## 原生 3D 接口
+
+下文使用 `POST /v1/3d/submit` 提交和 `POST /v1/3d/query` 查询。请使用平台 API Key 和模型广场展示的模型名称，也可先通过 `GET /v1/models` 确认当前账号可用的模型。
 
 ## 模型与输入方式
 
 | 模型名称示例 | 文本 | 单图 / 多视图 | 主要限制 |
 | --- | --- | --- | --- |
-| `tokenhub/tripo-3d-3.1` | 支持 | 支持 | 支持智能低模、分部件与超清几何 |
-| `tokenhub/tripo-3d-p1` | 支持 | 支持 | 不支持 `quad`、智能低模、分部件与超清几何 |
-| `tokenhub/tripo-3d-p2` | 支持 | 支持 | 支持 `quad`，面数范围与 3.1 不同 |
+| `tripo-3d-3.1` | 支持 | 支持 | 支持智能低模、分部件与超清几何 |
+| `tripo-3d-p1` | 支持 | 支持 | 不支持 `quad`、智能低模、分部件与超清几何 |
+| `tripo-3d-p2` | 支持 | 支持 | 支持 `quad`，面数范围与 3.1 不同 |
 
 ## 快速开始
 
@@ -38,7 +149,7 @@ curl --request POST \
   --header 'Authorization: Bearer <API-KEY>' \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "tokenhub/tripo-3d-3.1",
+    "model": "tripo-3d-3.1",
     "prompt": "一个边角略微圆润的简单立方体",
     "texture": false,
     "pbr": false
@@ -63,7 +174,7 @@ HEADERS = {
 response = requests.post(
     f"{BASE_URL}/v1/3d/submit",
     headers=HEADERS,
-    json={"model": "tokenhub/tripo-3d-3.1", "prompt": "一个边角略微圆润的简单立方体", "texture": False, "pbr": False},
+    json={"model": "tripo-3d-3.1", "prompt": "一个边角略微圆润的简单立方体", "texture": False, "pbr": False},
     timeout=120,
 )
 if response.headers.get("X-Task-ID"):
@@ -120,7 +231,7 @@ else:
 
 ```json
 {
-  "model": "tokenhub/tripo-3d-p1",
+  "model": "tripo-3d-p1",
   "input": "https://example.com/character.png",
   "texture": true,
   "pbr": true
@@ -133,7 +244,7 @@ else:
 
 ```json
 {
-  "model": "tokenhub/tripo-3d-3.1",
+  "model": "tripo-3d-3.1",
   "inputs": {
     "front": "https://example.com/front.png",
     "back": "https://example.com/back.png"
@@ -233,9 +344,9 @@ curl --request POST \
 
 ## 计费说明
 
-按上游实际返回的 `credits_consumed` 换算人民币目录金额：**1 积分 = ¥0.07**。
-`amount_cny` 是目录金额，最终销售费用还取决于模型价格倍率和用户折扣，
-以调用时模型广场价格及结算结果为准。
+模型配置为按生成结果计费时，成功任务按 `file.output` 计量一次，单价由模型和请求参数匹配的价格规则决定。
+模型配置为按上游目录金额计费时，平台按上游返回的 `credits_consumed` 换算 `amount_cny`，换算比例为 **1 积分 = ¥0.07**。
+销售费用以调用时的模型价格配置、用户折扣及实际结算结果为准。
 
 预付费调用在提交时预扣、完成后多退少补；配置为后付费的调用在结束后结算。
 明确无消耗的失败任务退款或不扣费；消耗缺失或提交结果未知时需要核查。
